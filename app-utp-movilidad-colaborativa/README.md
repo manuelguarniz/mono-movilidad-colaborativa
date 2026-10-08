@@ -86,7 +86,6 @@ Perfil (pasajero / conductor) → Actualizar datos / Actualizar vehículo
 
 ```
 app-utp-movilidad-colaborativa/
-├── frames/                    # Mockups de diseño (referencia UI)
 ├── public/
 │   └── mockServiceWorker.js   # Service worker de MSW
 ├── src/
@@ -136,7 +135,6 @@ app-utp-movilidad-colaborativa/
 - **`src/features`**: módulos por dominio (`auth`, `dashboard`). Cada feature agrupa páginas, componentes y servicios propios.
 - **`src/shared`**: código transversal (API client, iconos).
 - **`src/mocks`**: API simulada con MSW, activa solo en `import.meta.env.DEV`.
-- **`frames/`**: diseños de referencia; no se importan en runtime.
 
 ## API mock (MSW)
 
@@ -160,159 +158,6 @@ En desarrollo, MSW intercepta las peticiones HTTP. El worker se inicializa en `s
 - **Login:** cualquier correo y contraseña válidos.
 - **Verificación:** cualquier código de **6 dígitos**.
 - **Registro:** email + contraseña (mín. 8 caracteres con letras, números y símbolos).
-
-## Diseños de referencia (`frames/`)
-
-Los mockups guían la implementación visual. La UI está adaptada a **WebView** (sin marco móvil, safe areas, `100dvh`).
-
-| # | Archivo | Pantalla | Módulo | Estado |
-|---|---------|----------|--------|--------|
-| 01 | [01. login.jpeg](<frames/01. login.jpeg>) | Iniciar sesión | Autenticación | Implementada |
-| 02 | [02. login_verificacion.jpeg](<frames/02. login_verificacion.jpeg>) | Verificación OTP | Autenticación | Implementada |
-| 03 | [03. registro.jpeg](<frames/03. registro.jpeg>) | Registro | Registro | Implementada |
-| 04 | [04. registro_datos_personales.jpeg](<frames/04. registro_datos_personales.jpeg>) | Completar perfil | Registro | Implementada |
-| 05 | [05. registro_vehiculo.jpeg](<frames/05. registro_vehiculo.jpeg>) | Datos del vehículo | Registro | Pendiente |
-| 06 | [06. dashboard.jpeg](<frames/06. dashboard.jpeg>) | Dashboard / viajes | Dashboard | Implementada |
-| 07 | [07. dashboard_condiciones_viaje.jpeg](<frames/07. dashboard_condiciones_viaje.jpeg>) | Condiciones del viaje | Dashboard | Pendiente |
-| 08 | [08. dashboard_confirm_viaje.jpeg](<frames/08. dashboard_confirm_viaje.jpeg>) | Confirmar reserva (dashboard) | Dashboard | Pendiente |
-| 09 | [09. dashboard_detalle_viaje.jpeg](<frames/09. dashboard_detalle_viaje.jpeg>) | Detalle del viaje | Reserva | Pendiente |
-| 10 | [10. confirm_detalle_viaje.jpeg](<frames/10. confirm_detalle_viaje.jpeg>) | Confirmar reserva (detalle) | Reserva | Pendiente |
-| 11 | [11. publicar_viaje.jpeg](<frames/11. publicar_viaje.jpeg>) | Publicar viaje | Publicación | Pendiente |
-| 12 | [12. confirm_publicar_viaje.jpeg](<frames/12. confirm_publicar_viaje.jpeg>) | Confirmar publicación | Publicación | Pendiente |
-| 13 | [13. perfil_pasajero.jpeg](<frames/13. perfil_pasajero.jpeg>) | Perfil — pasajero | Perfil | Pendiente |
-| 14 | [14. perfil_conductor.jpeg](<frames/14. perfil_conductor.jpeg>) | Perfil — conductor | Perfil | Pendiente |
-| 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Pendiente |
-| 16 | [16. perfil_actualizar_vehiculo.jpeg](<frames/16. perfil_actualizar_vehiculo.jpeg>) | Actualizar vehículo | Perfil | Pendiente |
-
-### Vista previa de pantallas
-
-#### 01 — Iniciar sesión
-
-Correo y contraseña, con acceso a registro y recuperación de contraseña.
-
-<p align="center">
-  <img src="frames/01. login.jpeg" alt="Pantalla iniciar sesión" width="360" />
-</p>
-
-#### 02 — Verificación OTP
-
-Código de 6 dígitos enviado al correo, máximo 3 intentos y reenvío con temporizador.
-
-<p align="center">
-  <img src="frames/02. login_verificacion.jpeg" alt="Pantalla verificación otp" width="360" />
-</p>
-
-#### 03 — Registro
-
-Email, contraseña, confirmación y aceptación de términos y condiciones.
-
-<p align="center">
-  <img src="frames/03. registro.jpeg" alt="Pantalla registro" width="360" />
-</p>
-
-#### 04 — Completar perfil
-
-Foto, nombres, apellidos, departamento, distrito, sede y casilla «Tengo vehículo».
-
-<p align="center">
-  <img src="frames/04. registro_datos_personales.jpeg" alt="Pantalla completar perfil" width="360" />
-</p>
-
-#### 05 — Datos del vehículo
-
-Foto, placa, tipo, año de fabricación, ocupantes y DNI del propietario.
-
-<p align="center">
-  <img src="frames/05. registro_vehiculo.jpeg" alt="Pantalla datos del vehículo" width="360" />
-</p>
-
-#### 06 — Dashboard / viajes
-
-Buscador, filtros, botón «Publicar un viaje» y tarjetas de viajes con reserva.
-
-<p align="center">
-  <img src="frames/06. dashboard.jpeg" alt="Pantalla dashboard / viajes" width="360" />
-</p>
-
-#### 07 — Condiciones del viaje
-
-Modal informativo con las condiciones que define el conductor.
-
-<p align="center">
-  <img src="frames/07. dashboard_condiciones_viaje.jpeg" alt="Pantalla condiciones del viaje" width="360" />
-</p>
-
-#### 08 — Confirmar reserva (dashboard)
-
-Modal de confirmación con ruta, conductor y aporte total en créditos.
-
-<p align="center">
-  <img src="frames/08. dashboard_confirm_viaje.jpeg" alt="Pantalla confirmar reserva (dashboard)" width="360" />
-</p>
-
-#### 09 — Detalle del viaje
-
-Mapa de la ruta, datos del conductor, puntos de partida y destino, vehículo y asientos.
-
-<p align="center">
-  <img src="frames/09. dashboard_detalle_viaje.jpeg" alt="Pantalla detalle del viaje" width="360" />
-</p>
-
-#### 10 — Confirmar reserva (detalle)
-
-Mismo modal de confirmación, abierto desde el detalle del viaje.
-
-<p align="center">
-  <img src="frames/10. confirm_detalle_viaje.jpeg" alt="Pantalla confirmar reserva (detalle)" width="360" />
-</p>
-
-#### 11 — Publicar viaje
-
-Mapa con paradas, sentido (ida/regreso), hora de salida, precio por plaza y plazas disponibles.
-
-<p align="center">
-  <img src="frames/11. publicar_viaje.jpeg" alt="Pantalla publicar viaje" width="360" />
-</p>
-
-#### 12 — Confirmar publicación
-
-Modal de confirmación con el resumen del viaje a publicar.
-
-<p align="center">
-  <img src="frames/12. confirm_publicar_viaje.jpeg" alt="Pantalla confirmar publicación" width="360" />
-</p>
-
-#### 13 — Perfil — pasajero
-
-Datos, estadísticas, sede universitaria, dirección de residencia y estado de cuenta.
-
-<p align="center">
-  <img src="frames/13. perfil_pasajero.jpeg" alt="Pantalla perfil — pasajero" width="360" />
-</p>
-
-#### 14 — Perfil — conductor
-
-Igual que el de pasajero, más el vehículo registrado.
-
-<p align="center">
-  <img src="frames/14. perfil_conductor.jpeg" alt="Pantalla perfil — conductor" width="360" />
-</p>
-
-#### 15 — Actualizar datos
-
-Cambio de modalidad (pasajero/conductor), foto y datos personales.
-
-<p align="center">
-  <img src="frames/15. perfil_actualizar_datos.jpeg" alt="Pantalla actualizar datos" width="360" />
-</p>
-
-#### 16 — Actualizar vehículo
-
-Foto, placa, tipo, marca y modelo, año y plazas del vehículo.
-
-<p align="center">
-  <img src="frames/16. perfil_actualizar_vehiculo.jpeg" alt="Pantalla actualizar vehículo" width="360" />
-</p>
 
 ## Stack tecnológico
 
@@ -339,10 +184,10 @@ Foto, placa, tipo, marca y modelo, año y plazas del vehículo.
 
 ## Próximos pasos sugeridos
 
-- Implementar **Datos del vehículo** (`05`) y enlazarla desde «Tengo vehículo» en Completar perfil.
-- Agregar al dashboard los modales de **Condiciones del viaje** (`07`) y **Confirmar reserva** (`08`).
-- Implementar **Detalle del viaje** con mapa (`09`, `10`).
-- Implementar **Publicar viaje** y su confirmación (`11`, `12`).
-- Implementar **Perfil** de pasajero y conductor, con **Actualizar datos** y **Actualizar vehículo** (`13`–`16`).
+- Implementar **Datos del vehículo** y enlazarla desde «Tengo vehículo» en Completar perfil.
+- Agregar al dashboard los modales de **Condiciones del viaje** y **Confirmar reserva**.
+- Implementar **Detalle del viaje** con mapa.
+- Implementar **Publicar viaje** y su confirmación.
+- Implementar **Perfil** de pasajero y conductor, con **Actualizar datos** y **Actualizar vehículo**.
 - Conectar el resto de la navegación inferior (Historial, Billetera).
 - Integrar API backend real reemplazando o desactivando MSW en producción.
