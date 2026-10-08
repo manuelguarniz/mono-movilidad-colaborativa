@@ -1,0 +1,323 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #2f2a2a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+
+  --webview-bg: #f5f5f5;
+  --brand-red: #d93a43;
+  --brand-red-hover: #c92f38;
+  --text-primary: #2f2a2a;
+  --text-muted: #7a6d6d;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --webview-px: max(1.25rem, var(--safe-left), var(--safe-right));
+  --webview-py: max(1rem, var(--safe-top), var(--safe-bottom));
+}
+
+html {
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  min-height: 100dvh;
+  background: var(--webview-bg);
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+@layer components {
+  .webview-screen {
+    @apply flex min-h-[100dvh] w-full flex-col bg-[var(--webview-bg)];
+    padding: var(--webview-py) var(--webview-px);
+  }
+
+  .auth-shell {
+    @apply webview-screen;
+  }
+
+  .auth-panel {
+    @apply flex w-full flex-1 flex-col;
+  }
+
+  .auth-content {
+    @apply mx-auto flex w-full max-w-lg flex-1 flex-col;
+  }
+
+  .brand-title {
+    @apply text-center text-4xl font-black leading-tight tracking-tight text-[var(--brand-red)];
+  }
+
+  .auth-button-primary {
+    @apply mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-[var(--brand-red)] bg-[var(--brand-red)] px-5 py-4 text-lg font-black tracking-tight text-white transition active:scale-[0.99] disabled:opacity-60;
+  }
+
+  .auth-button-primary:not(:disabled):hover {
+    background-color: var(--brand-red-hover);
+  }
+
+  .auth-button-secondary {
+    @apply mt-6 inline-flex w-full items-center justify-center rounded-2xl border-[3px] border-[#2b2b2b] bg-transparent px-5 py-4 text-lg font-black tracking-tight text-[#2b2b2b] transition active:scale-[0.99];
+  }
+
+  .auth-button-secondary:hover {
+    @apply bg-white/60;
+  }
+
+  .auth-divider {
+    @apply mt-8 flex items-center justify-center gap-4 text-sm font-black uppercase tracking-[0.18em] text-[var(--text-muted)];
+  }
+
+  .auth-divider-line {
+    @apply h-px flex-1 bg-[#b4a9a9];
+  }
+
+  .input-base {
+    @apply w-full border-none bg-transparent text-base text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none;
+  }
+
+  .app-shell {
+    @apply flex min-h-[100dvh] w-full flex-col bg-[var(--webview-bg)];
+  }
+
+  .app-header {
+    @apply shrink-0 border-b border-[#e5e5e5] bg-white px-[var(--webview-px)] py-3;
+    padding-top: max(0.75rem, var(--safe-top));
+  }
+
+  .dashboard-header {
+    @apply grid shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center border-b border-[#ececec] bg-white px-[var(--webview-px)] py-3;
+    padding-top: max(0.75rem, var(--safe-top));
+  }
+
+  .dashboard-header-title {
+    @apply text-center text-2xl font-black tracking-tight text-[var(--brand-red)];
+  }
+
+  .dashboard-icon-button {
+    @apply flex h-10 w-10 items-center justify-center rounded-full text-[var(--brand-red)] transition active:scale-95;
+  }
+
+  .dashboard-menu {
+    @apply absolute top-full z-20 mt-2 min-w-[11rem] overflow-hidden rounded-2xl border border-[#ececec] bg-white py-1 shadow-lg;
+  }
+
+  .dashboard-menu-right {
+    @apply right-0;
+  }
+
+  .dashboard-profile-button {
+    @apply rounded-full transition active:scale-95;
+  }
+
+  .dashboard-profile-avatar {
+    @apply block h-10 w-10 overflow-hidden rounded-full bg-gradient-to-br from-rose-200 to-rose-400;
+  }
+
+  .dashboard-menu-item {
+    @apply flex w-full items-center px-4 py-3 text-left text-sm font-semibold text-[#2f2a2a] transition hover:bg-[#f5f5f5] disabled:opacity-60;
+  }
+
+  .dashboard-menu-item:hover {
+    color: var(--brand-red);
+  }
+
+  .app-main {
+    @apply flex-1 overflow-y-auto px-[var(--webview-px)] pb-28 pt-4;
+  }
+
+  .dashboard-page {
+    @apply mx-auto w-full max-w-lg space-y-4;
+  }
+
+  .ride-search-card {
+    @apply rounded-2xl border border-[#ececec] bg-white p-4 shadow-sm;
+  }
+
+  .ride-destination-field {
+    @apply flex items-center gap-3 rounded-xl bg-[#f3f3f3] px-4 py-3;
+  }
+
+  .ride-destination-icon {
+    @apply relative flex h-5 w-5 shrink-0 overflow-hidden rounded-full border border-[#d9d9d9] bg-white;
+  }
+
+  .ride-destination-icon-top {
+    @apply absolute inset-x-0 top-0 h-1/2 bg-[#d93a43];
+  }
+
+  .ride-destination-icon-bottom {
+    @apply absolute inset-x-0 bottom-0 h-1/2 bg-[#4a90d9];
+  }
+
+  .ride-destination-text {
+    @apply text-base font-semibold text-[#2f2a2a];
+  }
+
+  .ride-filter-row {
+    @apply mt-3 flex gap-2 overflow-x-auto pb-1;
+  }
+
+  .ride-filter-chip {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#d9d9d9] bg-white px-3 py-2 text-sm font-semibold text-[#5a5a5a];
+  }
+
+  .ride-filter-chip-active {
+    @apply border-[var(--brand-red)] text-[var(--brand-red)];
+  }
+
+  .ride-card {
+    @apply rounded-2xl border border-[#ececec] bg-white p-4 shadow-sm;
+  }
+
+  .ride-info-button {
+    @apply flex h-9 w-9 items-center justify-center rounded-full border border-[#d9d9d9] text-sm font-bold text-[#7a6d6d];
+  }
+
+  .ride-departure-box {
+    @apply inline-block rounded-xl bg-[#f3f3f3] px-4 py-3;
+  }
+
+  .ride-reserve-button {
+    @apply mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--brand-red)] px-5 py-3.5 text-base font-black text-white transition active:scale-[0.99] disabled:opacity-60;
+  }
+
+  .ride-reserve-button:not(:disabled):hover {
+    background-color: var(--brand-red-hover);
+  }
+
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 z-10 flex border-t border-[#ececec] bg-white px-2 pt-2;
+    padding-bottom: max(0.5rem, var(--safe-bottom));
+  }
+
+  .bottom-nav-item {
+    @apply flex flex-1 flex-col items-center gap-1 px-1 py-1 text-[#9a9a9a];
+  }
+
+  .bottom-nav-item-active {
+    @apply text-[var(--brand-red)];
+  }
+
+  .bottom-nav-icon {
+    @apply flex h-10 w-10 items-center justify-center rounded-full;
+  }
+
+  .bottom-nav-icon-active {
+    @apply bg-[var(--brand-red)] text-white;
+  }
+
+  .bottom-nav-label {
+    @apply text-xs font-semibold;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-2xl border border-[var(--brand-red)] bg-[var(--brand-red)] px-4 py-3 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60;
+  }
+
+  .btn-primary:not(:disabled):hover {
+    background-color: var(--brand-red-hover);
+  }
+
+  .card {
+    @apply rounded-2xl border border-[#e8e8e8] bg-white p-5 shadow-sm;
+  }
+
+  .auth-back-button {
+    @apply flex h-10 w-10 items-center justify-center rounded-full text-[var(--brand-red)] transition active:scale-95;
+  }
+
+  .auth-logo-card {
+    @apply mx-auto mb-8 flex w-fit justify-center rounded-3xl border border-[#ececec] bg-white px-8 py-6 shadow-sm;
+  }
+
+  .otp-input-grid {
+    @apply grid grid-cols-6 gap-2 sm:gap-3;
+  }
+
+  .otp-input-box {
+    @apply h-14 w-full rounded-xl border-2 border-[#f0d4d6] bg-white text-center text-xl font-black text-[#2f2a2a] focus:outline-none disabled:opacity-60;
+  }
+
+  .otp-input-box-active {
+    @apply border-[var(--brand-red)];
+  }
+
+  .auth-select-wrapper {
+    @apply relative mb-5;
+  }
+
+  .auth-select-trigger {
+    @apply flex w-full items-center gap-3 rounded-2xl border-[3px] border-[#d95a5f] bg-[#f5efef] px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .auth-select-value {
+    @apply min-w-0 flex-1 text-base font-medium;
+  }
+
+  .auth-select-placeholder {
+    @apply text-[#7a6d6d];
+  }
+
+  .auth-select-dropdown {
+    @apply absolute left-0 right-0 top-full z-30 mt-2 max-h-56 overflow-y-auto rounded-2xl border border-[#ececec] bg-white py-1 shadow-lg;
+  }
+
+  .auth-select-option {
+    @apply flex w-full px-4 py-3 text-left text-base font-medium text-[#2f2a2a] transition hover:bg-[#f5f5f5];
+  }
+
+  .auth-select-option-active {
+    @apply bg-[#fde8ea] font-semibold text-[var(--brand-red)];
+  }
+
+  .auth-select-empty {
+    @apply px-4 py-3 text-sm text-[#7a6d6d];
+  }
+
+  .profile-photo-picker {
+    @apply relative mx-auto mb-2 flex w-fit justify-center;
+  }
+
+  .profile-photo-circle {
+    @apply flex h-36 w-36 items-center justify-center overflow-hidden rounded-full bg-[#ececec];
+  }
+
+  .profile-photo-camera-button {
+    @apply absolute bottom-1 right-1 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-[var(--brand-red)] text-white shadow-md transition active:scale-95;
+  }
+
+  .profile-vehicle-option {
+    @apply mb-6 flex items-center gap-4 rounded-2xl bg-[#ececec] px-4 py-4;
+  }
+
+  .profile-vehicle-checkbox {
+    @apply h-6 w-6 shrink-0 accent-[var(--brand-red)];
+  }
+
+  .auth-terms-option {
+    @apply mb-6 flex items-start gap-3;
+  }
+
+  .auth-terms-checkbox {
+    @apply mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-red)];
+  }
+}
