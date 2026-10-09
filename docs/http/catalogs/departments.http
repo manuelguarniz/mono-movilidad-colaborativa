@@ -1,0 +1,69 @@
+# Listar departamentos
+# GET /catalogs/departments
+#
+# Público. Devuelve los departamentos ordenados por código.
+
+@baseUrl = http://localhost:8080/api
+
+### 200 · Lista de departamentos
+# Respuesta 200 OK
+# {
+#   "data": [
+#     {
+#       "id": "6705a1f0c3d4e5f600000102",
+#       "code": "02",
+#       "name": "Áncash"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000103",
+#       "code": "04",
+#       "name": "Arequipa"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000104",
+#       "code": "11",
+#       "name": "Ica"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000105",
+#       "code": "12",
+#       "name": "Junín"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000101",
+#       "code": "13",
+#       "name": "La Libertad"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000106",
+#       "code": "14",
+#       "name": "Lambayeque"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000107",
+#       "code": "15",
+#       "name": "Lima"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000108",
+#       "code": "16",
+#       "name": "Loreto"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000109",
+#       "code": "20",
+#       "name": "Piura"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000110",
+#       "code": "23",
+#       "name": "Tacna"
+#     },
+#     {
+#       "id": "6705a1f0c3d4e5f600000111",
+#       "code": "25",
+#       "name": "Ucayali"
+#     }
+#   ]
+# }
+GET {{baseUrl}}/catalogs/departments

@@ -34,6 +34,7 @@ import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.Usu
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -116,7 +117,8 @@ public class ViajeService {
 		ruta.add(destino.ubicacion());
 		double distanciaKm = ReglasViaje.distanciaKm(ruta);
 
-		Instant ahora = Instant.now();
+		// En milisegundos, la precisión de MongoDB: la respuesta coincide con lo que se lee después.
+		Instant ahora = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 		Viaje viaje = Viaje.builder()
 				.id(new ObjectId())
 				.conductor(new ConductorViaje(usuarioId,

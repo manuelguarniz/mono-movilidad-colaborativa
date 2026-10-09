@@ -1,0 +1,81 @@
+# Listar viajes publicados
+# GET /rides
+#
+# Requiere token SESSION.
+
+@baseUrl = http://localhost:8080/api
+# token scope PRE_AUTH devuelto por POST /auth/login (vence en 10 min)
+@preAuthToken = pega-aqui-el-token
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+
+# SESION DE PASAJERO
+# @sessionToken = eyJraWQiOiJKaW01T2lucWZBUDN1eWE4aURVdG96Y0VnMXV4X19HQ3FOc3l0WHlkSWhZIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2YWM4OGEzODVlODc4ZDcxZDhmYWM1OTAiLCJleHAiOjE3OTE1NTYzOTYsImlhdCI6MTc5MTUyNzU5Niwic2NvcGUiOiJTRVNTSU9OIn0.Yeca2qVWSrkYeKzunSoVN-U2N03_GX2p-5pB_jNTKvI
+
+# SESION DE CHOFER
+@sessionToken = eyJraWQiOiJKaW01T2lucWZBUDN1eWE4aURVdG96Y0VnMXV4X19HQ3FOc3l0WHlkSWhZIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2YWM4NjUzZjU0N2I0OGNkODFmMWQ4NmEiLCJleHAiOjE3OTE1NDc4MTksImlhdCI6MTc5MTUxOTAxOSwic2NvcGUiOiJTRVNTSU9OIn0._Tzg7xhIvW9o7oovcPShLdW9G2RvsAellkU_J6tbVWg
+
+### 200 · Viajes disponibles
+# Respuesta 200 OK
+# {
+#   "data": [
+#     {
+#       "id": "6ac889fc5e878d71d8fac58f",
+#       "status": "PUBLISHED",
+#       "direction": "TO_HOME",
+#       "departureTime": "2026-10-09T12:30:00Z",
+#       "pricePerSeat": 5,
+#       "totalSeats": 3,
+#       "availableSeats": 3,
+#       "distanceKm": 3.0,
+#       "durationMin": 6,
+#       "driver": {
+#         "id": "6ac8653f547b48cd81f1d86a",
+#         "name": "Ana T.",
+#         "photoUrl": null,
+#         "rating": null
+#       },
+#       "vehicle": {
+#         "brand": "Chevrolet",
+#         "model": "Onix LT",
+#         "color": "blanco",
+#         "plate": "ABC-123"
+#       },
+#       "conditions": [],
+#       "origin": {
+#         "label": "Universidad Tecnológica del Perú",
+#         "address": "Sede Trujillo, Av. Nicolás de Piérola"
+#       },
+#       "destination": {
+#         "label": "Huaca del Dragón (Arco Iris)",
+#         "address": "La Esperanza, Trujillo"
+#       }
+#     }
+#   ]
+# }
+GET {{baseUrl}}/rides
+Authorization: Bearer {{sessionToken}}
+
+### 200 · Sin viajes (lista vacía)
+# Respuesta 200 OK
+# {
+#   "data": []
+# }
+GET {{baseUrl}}/rides
+Authorization: Bearer {{sessionToken}}
+
+### 403 · Token de otro scope (PRE_AUTH)
+# Respuesta 403 Forbidden
+# {
+#   "code": "FORBIDDEN_SCOPE",
+#   "message": "No tienes permiso para realizar esta acción"
+# }
+GET {{baseUrl}}/rides
+Authorization: Bearer {{preAuthToken}}
+
+### 401 · Sin token
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+GET {{baseUrl}}/rides

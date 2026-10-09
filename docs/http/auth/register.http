@@ -1,0 +1,54 @@
+# Registrar cuenta
+# POST /auth/register
+#
+# Público. Crea la cuenta en estado PROFILE_PENDING y devuelve un token REGISTRATION
+# para completar el perfil.
+
+@baseUrl = http://localhost:8080/api
+
+### 201 · Registro exitoso
+# Respuesta 201 Created
+# {
+#   "token": "<jwt>",
+#   "scope": "REGISTRATION",
+#   "expiresIn": 900,
+#   "user": {
+#     "id": "6ac8653f547b48cd81f1d86a",
+#     "email": "ana.torres@utp.edu.pe",
+#     "firstName": null,
+#     "lastName": null,
+#     "photoUrl": null,
+#     "roles": [],
+#     "activeMode": null,
+#     "status": "PROFILE_PENDING"
+#   }
+# }
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+    "email": "ana.torres@utp.edu.pe",
+    "password": "Clave123..",
+    "acceptedTerms": true
+}
+
+### 400 · Correo fuera del dominio utp.edu.pe
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "email",
+#       "message": "El correo debe ser del dominio utp.edu.pe"
+#     }
+#   ]
+# }
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+    "email": "ana@example.com",
+    "password": "Clave123..",
+    "acceptedTerms": true
+}

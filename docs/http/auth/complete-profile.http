@@ -1,0 +1,60 @@
+# Completar perfil
+# POST /auth/complete-profile
+#
+# Requiere token REGISTRATION. Deja la cuenta ACTIVE con rol PASSENGER.
+
+@baseUrl = http://localhost:8080/api
+# token scope REGISTRATION devuelto por POST /auth/register (vence en 15 min)
+@registrationToken = pega-aqui-el-token
+
+### 200 · Perfil completado
+# Respuesta 200 OK
+# {
+#   "message": "Perfil completado correctamente"
+# }
+POST {{baseUrl}}/auth/complete-profile
+Content-Type: application/json
+Authorization: Bearer {{registrationToken}}
+
+{
+    "firstName": "Ana",
+    "lastName": "Torres",
+    "departmentId": "6705a1f0c3d4e5f600000101",
+    "districtId": "6705a1f0c3d4e5f600000201",
+    "campusId": "6705a1f0c3d4e5f600000301"
+}
+
+### 400 · departmentId no existe en el catálogo
+# Respuesta 400 Bad Request
+# {
+#   "code": "INVALID_CATALOG_REFERENCE",
+#   "message": "El departamento no existe"
+# }
+POST {{baseUrl}}/auth/complete-profile
+Content-Type: application/json
+Authorization: Bearer {{registrationToken}}
+
+{
+    "firstName": "Ana",
+    "lastName": "Torres",
+    "departmentId": "6705a1f0c3d4e5f600000201",
+    "districtId": "6705a1f0c3d4e5f600000201",
+    "campusId": "6705a1f0c3d4e5f600000301"
+}
+
+### 401 · Sin token
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+POST {{baseUrl}}/auth/complete-profile
+Content-Type: application/json
+
+{
+    "firstName": "Ana",
+    "lastName": "Torres",
+    "departmentId": "6705a1f0c3d4e5f600000201",
+    "districtId": "6705a1f0c3d4e5f600000201",
+    "campusId": "6705a1f0c3d4e5f600000301"
+}

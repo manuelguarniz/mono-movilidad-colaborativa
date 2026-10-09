@@ -30,6 +30,13 @@ info:
       formularios de perfil y de vehículo siguen en JSON y envían ese `id` en
       `photoFileId`; las respuestas devuelven la imagen en `photoUrl`.
 
+    ## Estado del backend
+
+    El backend implementa todos los endpoints de este contrato, excepto `POST /files`.
+    Mientras ese endpoint no exista, `photoFileId` es opcional en todos los formularios
+    (también donde este contrato lo marca como obligatorio) y `photoUrl` llega como
+    `null` en el perfil, el vehículo y el conductor de un viaje.
+
     ## Autenticación
 
     Los endpoints protegidos reciben un JWT en `Authorization: Bearer <token>`. La API es
@@ -57,7 +64,9 @@ tags:
   - name: Catalogs
     description: Departamentos, distritos y sedes para los formularios. Son públicos.
   - name: Files
-    description: Carga de las fotos de perfil y de vehículo (colección `archivos`).
+    description: |
+      Carga de las fotos de perfil y de vehículo (colección `archivos`). Pendiente en el
+      backend.
   - name: Vehicles
     description: Vehículo del conductor, embebido en su usuario (RF-07, RF-08, RF-22).
   - name: Rides
@@ -1035,6 +1044,9 @@ components:
             `PLATE_ALREADY_REGISTERED`, `VEHICLE_ALREADY_REGISTERED`, `VEHICLE_NOT_FOUND`,
             `VEHICLE_REQUIRED`, `RIDE_NOT_FOUND`, `RIDE_NOT_AVAILABLE`,
             `NO_SEATS_AVAILABLE`, `ALREADY_BOOKED`, `OWN_RIDE`, `INTERNAL_ERROR`.
+
+            Una ruta o un método que no existe responde con el nombre del estado HTTP
+            (`NOT_FOUND`, `METHOD_NOT_ALLOWED`) y el mensaje `La solicitud no es válida`.
           example: VALIDATION_ERROR
         message:
           type: string
@@ -1457,8 +1469,10 @@ components:
             guardado, no es editable.
           example: "45678912"
         photoUrl:
-          type: string
-          description: Foto de perfil; es obligatoria desde «Completar perfil».
+          type: [string, "null"]
+          description: |
+            Foto de perfil; es obligatoria desde «Completar perfil». Llega como `null`
+            mientras `POST /files` no esté implementado.
           example: /uploads/perfiles/6705a1f0c3d4e5f600000903.jpg
         department:
           $ref: "#/components/schemas/NamedRef"
@@ -1835,7 +1849,7 @@ components:
           example: 8.5
         durationMin:
           type: integer
-          description: Duración estimada a partir de la distancia.
+          description: Duración estimada a partir de la distancia, a 35 km/h; como mínimo 1 minuto.
           example: 15
         driver:
           $ref: "#/components/schemas/RideDriver"

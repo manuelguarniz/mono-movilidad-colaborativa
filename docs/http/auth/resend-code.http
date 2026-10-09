@@ -1,0 +1,30 @@
+# Reenviar código OTP
+# POST /auth/resend-code
+#
+# Requiere token PRE_AUTH. Sin cuerpo.
+
+@baseUrl = http://localhost:8080/api
+# token scope PRE_AUTH devuelto por POST /auth/login (vence en 10 min)
+@preAuthToken = pega-aqui-el-token
+
+### 200 · Código reenviado
+# Respuesta 200 OK
+# {
+#   "message": "Código reenviado correctamente",
+#   "otp": {
+#     "expiresIn": 300,
+#     "resendAfter": 45,
+#     "attemptsLeft": 3
+#   }
+# }
+POST {{baseUrl}}/auth/resend-code
+Authorization: Bearer {{preAuthToken}}
+
+### 401 · Token inválido
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+POST {{baseUrl}}/auth/resend-code
+Authorization: Bearer token-invalido

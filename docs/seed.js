@@ -203,7 +203,8 @@ const upsert = (coleccion, documentos) => {
   );
 };
 
-// Índices de los catálogos definidos en la sección 5.3 del README.
+// Índices de los catálogos definidos en la sección 5.3 del README. Los de usuarios, codigos_otp,
+// viajes y reservas los crea el backend al arrancar.
 db.departamentos.createIndex({ codigo: 1 }, { unique: true });
 db.distritos.createIndex({ codigo: 1 }, { unique: true });
 db.distritos.createIndex({ "departamento.id": 1 });

@@ -1,0 +1,57 @@
+# Reservar asientos en un viaje
+# POST /rides/{rideId}/reserve
+#
+# Requiere token SESSION de un pasajero distinto al conductor.
+# Descuenta los asientos de availableSeats. El cuerpo es opcional: sin cuerpo reserva 1 asiento.
+# Otros errores: 403 OWN_RIDE, 404 RIDE_NOT_FOUND y 409 NO_SEATS_AVAILABLE, ALREADY_BOOKED,
+# RIDE_NOT_AVAILABLE o PROFILE_INCOMPLETE.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+@rideId = 6ac889fc5e878d71d8fac58f
+
+### 201 · Reserva confirmada
+# Respuesta 201 Created
+# {
+#   "message": "Reserva confirmada"
+# }
+POST {{baseUrl}}/rides/{{rideId}}/reserve
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+  "seats": 1
+}
+
+### 400 · rideId con formato inválido
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "rideId",
+#       "message": "El parámetro rideId no es válido"
+#     }
+#   ]
+# }
+POST {{baseUrl}}/rides/%7BrideId%7D/reserve
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+}
+
+### 401 · Sin token
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+POST {{baseUrl}}/rides/%7BrideId%7D/reserve
+Content-Type: application/json
+
+{
+  "seats": 1
+}

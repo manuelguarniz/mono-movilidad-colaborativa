@@ -134,7 +134,7 @@ El detalle de las colecciones está en la sección 5.
 
 ### 4.1 Backend
 
-El detalle para ejecutar, probar y extender el backend está en su propio documento, [app-movilidad-colaborativa-api/README.md](app-movilidad-colaborativa-api/README.md): variables de entorno, tokens, formato de errores, mensajes de validación por endpoint y ejemplos con curl. El contrato de la API es [docs/openapi.yaml](docs/openapi.yaml). Aquí solo va el resumen.
+El detalle para ejecutar, probar y extender el backend está en su propio documento, [app-movilidad-colaborativa-api/README.md](app-movilidad-colaborativa-api/README.md): variables de entorno, tokens, formato de errores, mensajes de validación por endpoint y ejemplos con curl. El contrato de la API es [docs/openapi.yaml](docs/openapi.yaml), y [docs/http/](docs/http/) tiene una solicitud de ejemplo por endpoint, con la respuesta esperada. Aquí solo va el resumen.
 
 El backend implementa 18 de los 19 endpoints del contrato:
 
@@ -298,7 +298,7 @@ Son 8 colecciones: 5 de negocio y 3 catálogos. Cada una se muestra con un docum
 
 `paradas` admite un máximo de 5 elementos y `condiciones` un máximo de 10. Las copias de `conductor` y `vehiculo` solo se actualizan en los viajes en estado `PUBLICADO` o `EN_CURSO`; en los viajes terminados quedan como registro histórico.
 
-En este alcance `distancia_km` es la distancia en línea recta entre origen, paradas y destino, y `duracion_min` una estimación a partir de ella. Cuando se integre un servicio de rutas, los mismos campos guardarán los valores reales por calles.
+En este alcance `distancia_km` es la distancia en línea recta entre origen, paradas y destino, y `duracion_min` una estimación a partir de ella, a una velocidad media de 35 km/h. Cuando se integre un servicio de rutas, los mismos campos guardarán los valores reales por calles.
 
 **`reservas`** — la reserva de un pasajero. Copia lo necesario del viaje para mostrar el historial sin consultar `viajes`.
 

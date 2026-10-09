@@ -1,0 +1,35 @@
+# Cerrar sesión
+# POST /auth/logout
+#
+# Requiere token SESSION. Sin cuerpo.
+
+@baseUrl = http://localhost:8080/api
+# token scope PRE_AUTH devuelto por POST /auth/login (vence en 10 min)
+@preAuthToken = pega-aqui-el-token
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Sesión cerrada
+# Respuesta 200 OK
+# {
+#   "message": "Sesión cerrada correctamente"
+# }
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{sessionToken}}
+
+### 403 · Token de otro scope (p. ej. PRE_AUTH)
+# Respuesta 403 Forbidden
+# {
+#   "code": "FORBIDDEN_SCOPE",
+#   "message": "No tienes permiso para realizar esta acción"
+# }
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{preAuthToken}}
+
+### 401 · Sin token
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+POST {{baseUrl}}/auth/logout

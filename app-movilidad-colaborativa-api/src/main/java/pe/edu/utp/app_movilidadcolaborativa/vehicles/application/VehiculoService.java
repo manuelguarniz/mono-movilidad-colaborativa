@@ -27,6 +27,7 @@ import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.ActualizarVehicu
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.RegistrarVehiculoRequest;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /** Registro, consulta y actualización del vehículo del conductor, embebido en su usuario (RF-07, RF-08, RF-22). */
@@ -57,7 +58,8 @@ public class VehiculoService {
 		}
 		validarPlacaLibre(solicitud.plate(), usuarioId);
 
-		Instant ahora = Instant.now();
+		// En milisegundos, la precisión de MongoDB: la respuesta coincide con lo que se lee después.
+		Instant ahora = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 		Vehiculo vehiculo = new Vehiculo(
 				solicitud.plate(),
 				TipoVehiculo.desdeApi(solicitud.type()),
@@ -108,7 +110,8 @@ public class VehiculoService {
 		}
 		validarPlacaLibre(solicitud.plate(), usuarioId);
 
-		Instant ahora = Instant.now();
+		// En milisegundos, la precisión de MongoDB: la respuesta coincide con lo que se lee después.
+		Instant ahora = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 		Vehiculo vehiculo = new Vehiculo(
 				solicitud.plate(),
 				TipoVehiculo.desdeApi(solicitud.type()),

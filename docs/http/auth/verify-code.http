@@ -1,0 +1,102 @@
+# Verificar código OTP (paso 2)
+# POST /auth/verify-code
+#
+# Requiere token PRE_AUTH. Devuelve el token SESSION y el usuario.
+
+@baseUrl = http://localhost:8080/api
+# token scope PRE_AUTH devuelto por POST /auth/login (vence en 10 min)
+@preAuthToken = pega-aqui-el-token
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Código correcto
+# Respuesta 200 OK
+# {
+#   "token": "<jwt>",
+#   "scope": "SESSION",
+#   "expiresIn": 28800,
+#   "user": {
+#     "id": "6ac8653f547b48cd81f1d86a",
+#     "email": "ana.torres@utp.edu.pe",
+#     "firstName": "Ana",
+#     "lastName": "Torres",
+#     "photoUrl": null,
+#     "roles": [
+#       "PASSENGER"
+#     ],
+#     "activeMode": "PASSENGER",
+#     "status": "ACTIVE"
+#   }
+# }
+POST {{baseUrl}}/auth/verify-code
+Content-Type: application/json
+Authorization: Bearer {{preAuthToken}}
+
+{
+    "code": "929072"
+}
+
+### 400 · Código con formato inválido (7 dígitos)
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "code",
+#       "message": "El código debe tener 6 dígitos"
+#     }
+#   ]
+# }
+POST {{baseUrl}}/auth/verify-code
+Content-Type: application/json
+Authorization: Bearer {{preAuthToken}}
+
+{
+    "code": "9290721"
+}
+
+### 400 · Código incorrecto, descuenta un intento
+# Respuesta 400 Bad Request
+# {
+#   "code": "OTP_INVALID",
+#   "message": "Código inválido. Te quedan 2 intentos.",
+#   "details": {
+#     "attemptsLeft": 2
+#   }
+# }
+POST {{baseUrl}}/auth/verify-code
+Content-Type: application/json
+Authorization: Bearer {{preAuthToken}}
+
+{
+    "code": "929071"
+}
+
+### 403 · Token de otro scope (p. ej. SESSION)
+# Respuesta 403 Forbidden
+# {
+#   "code": "FORBIDDEN_SCOPE",
+#   "message": "No tienes permiso para realizar esta acción"
+# }
+POST {{baseUrl}}/auth/verify-code
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "code": "9290721"
+}
+
+### 401 · Token vencido o inválido
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+POST {{baseUrl}}/auth/verify-code
+Content-Type: application/json
+Authorization: Bearer token-vencido
+
+{
+    "code": "9290721"
+}

@@ -1,0 +1,33 @@
+# Listar distritos de un departamento
+# GET /catalogs/districts
+#
+# Público. Requiere el query param departmentId.
+
+@baseUrl = http://localhost:8080/api
+
+### 200 · Distritos del departamento
+# Respuesta 200 OK
+# {
+#   "data": [
+#     {
+#       "id": "6705a1f0c3d4e5f600000201",
+#       "code": "130101",
+#       "name": "Trujillo"
+#     }
+#   ]
+# }
+GET {{baseUrl}}/catalogs/districts?departmentId=6705a1f0c3d4e5f600000101
+
+### 400 · Falta departmentId
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "departmentId",
+#       "message": "El parámetro departmentId es obligatorio"
+#     }
+#   ]
+# }
+GET {{baseUrl}}/catalogs/districts

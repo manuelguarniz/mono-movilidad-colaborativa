@@ -26,6 +26,8 @@ La configuración se pasa por variables de entorno. Las cuatro primeras son obli
 | `JWT_REGISTRATION_TTL`, `JWT_PRE_AUTH_TTL`, `JWT_SESSION_TTL` | Vigencia de cada token. | `15m`, `10m`, `8h` |
 | `OTP_TTL`, `OTP_MAX_ATTEMPTS`, `OTP_RESEND_AFTER` | Reglas del OTP. | `5m`, `3`, `45s` |
 
+Al arrancar, la API crea los índices de `usuarios`, `codigos_otp`, `viajes` y `reservas`, declarados con anotaciones en los modelos; los de los catálogos los crea `docs/seed.js`. La reserva de un viaje usa una transacción de MongoDB, que necesita un replica set: Atlas lo es, pero un `mongod` local sin replica set rechaza la reserva.
+
 ```bash
 ./gradlew bootRun    # API en http://localhost:8080/api
 ./gradlew test       # ApplicationTests necesita las variables obligatorias y acceso a Atlas
@@ -403,6 +405,8 @@ El descuento de plazas y la creación de la reserva van en una misma transacció
 ## 5. Ejemplos con curl
 
 Los ejemplos asumen la API en `http://localhost:8080/api`. Con `MAIL_ENABLED=false` el código OTP aparece en el log del backend.
+
+Las mismas solicitudes están en [docs/http/](../docs/http/), un archivo `.http` por endpoint (para la extensión REST Client de VS Code o el cliente HTTP de IntelliJ), con los casos de error y la respuesta esperada de cada uno. Los tokens se pegan en las variables del inicio de cada archivo.
 
 ```bash
 API=http://localhost:8080/api

@@ -1,0 +1,58 @@
+# Obtener mi perfil
+# GET /users/me
+#
+# Requiere token SESSION.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Perfil del usuario autenticado
+# Respuesta 200 OK
+# {
+#   "id": "6ac8653f547b48cd81f1d86a",
+#   "email": "ana.torres@utp.edu.pe",
+#   "firstName": "Ana",
+#   "lastName": "Torres",
+#   "phone": "+51987654321",
+#   "documentType": "DNI",
+#   "documentNumber": "72345678",
+#   "photoUrl": null,
+#   "department": {
+#     "id": "6705a1f0c3d4e5f600000101",
+#     "name": "La Libertad"
+#   },
+#   "district": {
+#     "id": "6705a1f0c3d4e5f600000201",
+#     "name": "Trujillo"
+#   },
+#   "campus": {
+#     "id": "6705a1f0c3d4e5f600000301",
+#     "name": "UTP Sede Trujillo",
+#     "address": "Av. Nicolás de Piérola 1221, Trujillo"
+#   },
+#   "homeAddress": null,
+#   "roles": [
+#     "PASSENGER"
+#   ],
+#   "activeMode": "PASSENGER",
+#   "status": "ACTIVE",
+#   "vehicle": null,
+#   "stats": {
+#     "trips": 0,
+#     "compliance": 0,
+#     "co2SavedKg": 0.0
+#   },
+#   "rating": null,
+#   "createdAt": "2026-10-09T03:53:35.841Z"
+# }
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{sessionToken}}
+
+### 401 · Sin token
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+GET {{baseUrl}}/users/me

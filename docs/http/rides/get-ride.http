@@ -1,0 +1,64 @@
+# Obtener detalle de un viaje
+# GET /rides/{rideId}
+#
+# Requiere token SESSION.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+@rideId = 6ac889fc5e878d71d8fac58f
+
+### 200 · Detalle del viaje
+# Respuesta 200 OK
+# {
+#   "id": "6ac889fc5e878d71d8fac58f",
+#   "status": "PUBLISHED",
+#   "direction": "TO_HOME",
+#   "departureTime": "2026-10-09T12:30:00Z",
+#   "pricePerSeat": 5,
+#   "totalSeats": 3,
+#   "availableSeats": 3,
+#   "distanceKm": 3.0,
+#   "durationMin": 6,
+#   "driver": {
+#     "id": "6ac8653f547b48cd81f1d86a",
+#     "name": "Ana T.",
+#     "photoUrl": null,
+#     "rating": null
+#   },
+#   "vehicle": {
+#     "brand": "Chevrolet",
+#     "model": "Onix LT",
+#     "color": "blanco",
+#     "plate": "ABC-123"
+#   },
+#   "conditions": [],
+#   "origin": {
+#     "label": "Universidad Tecnológica del Perú",
+#     "address": "Sede Trujillo, Av. Nicolás de Piérola",
+#     "location": {
+#       "lat": -8.0975,
+#       "lng": -79.0353
+#     }
+#   },
+#   "destination": {
+#     "label": "Huaca del Dragón (Arco Iris)",
+#     "address": "La Esperanza, Trujillo",
+#     "location": {
+#       "lat": -8.0716,
+#       "lng": -79.0412
+#     }
+#   },
+#   "stops": [],
+#   "createdAt": "2026-10-09T06:30:20.954Z"
+# }
+GET {{baseUrl}}/rides/{{rideId}}
+Authorization: Bearer {{sessionToken}}
+
+### 401 · Sin token
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+GET {{baseUrl}}/rides/{{rideId}}

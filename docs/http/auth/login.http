@@ -1,0 +1,54 @@
+# Iniciar sesión (paso 1)
+# POST /auth/login
+#
+# Público. Valida credenciales, envía el OTP y devuelve un token PRE_AUTH.
+
+@baseUrl = http://localhost:8080/api
+
+### 200 · Credenciales válidas, OTP enviado
+# Respuesta 200 OK
+# {
+#   "token": "<jwt>",
+#   "scope": "PRE_AUTH",
+#   "expiresIn": 600,
+#   "otp": {
+#     "expiresIn": 300,
+#     "resendAfter": 45,
+#     "attemptsLeft": 3
+#   }
+# }
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "ana.torres@utp.edu.pe",
+    "password": "Clave123.."
+}
+
+### 401 · Contraseña incorrecta
+# Respuesta 401 Unauthorized
+# {
+#   "code": "INVALID_CREDENTIALS",
+#   "message": "Correo o contraseña incorrectos"
+# }
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "ana.torres@utp.edu.pe",
+    "password": "Clave123..."
+}
+
+### 401 · Correo no registrado
+# Respuesta 401 Unauthorized
+# {
+#   "code": "INVALID_CREDENTIALS",
+#   "message": "Correo o contraseña incorrectos"
+# }
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "ana.torres@autp.edu.pe",
+    "password": "Clave123.."
+}

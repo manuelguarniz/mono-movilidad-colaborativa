@@ -1,0 +1,120 @@
+# Actualizar mi vehículo
+# PUT /vehicles/me
+#
+# Requiere token SESSION y tener un vehículo registrado.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Vehículo actualizado
+# Respuesta 200 OK
+# {
+#   "plate": "ABC-123",
+#   "type": "SEDAN",
+#   "brand": "Chevrolet",
+#   "model": "Onix LT",
+#   "color": "blanco",
+#   "year": 2021,
+#   "seats": 4,
+#   "ownerDni": "72345678",
+#   "isOwner": true,
+#   "status": "ACTIVE",
+#   "photoUrl": null,
+#   "registeredAt": "2026-10-09T05:58:06.855Z"
+# }
+PUT {{baseUrl}}/vehicles/me
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "brand": "Chevrolet",
+    "model": "Onix LT",
+    "color": "blanco",
+    "year": 2021,
+    "seats": 4,
+    "isOwner": true,
+    "acceptedTerms": true,
+    "photoFileId": null
+}
+
+### 400 · Faltan color, model y year
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "color",
+#       "message": "El color es obligatorio"
+#     },
+#     {
+#       "field": "model",
+#       "message": "El modelo es obligatorio"
+#     },
+#     {
+#       "field": "year",
+#       "message": "El año de fabricación es obligatorio"
+#     }
+#   ]
+# }
+PUT {{baseUrl}}/vehicles/me
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "brand": "Chevrolet",
+    "seats": 4,
+    "isOwner": true,
+    "acceptedTerms": true,
+    "photoFileId": null
+}
+
+### 404 · El usuario no tiene vehículo
+# Respuesta 404 Not Found
+# {
+#   "code": "VEHICLE_NOT_FOUND",
+#   "message": "No tienes un vehículo registrado"
+# }
+PUT {{baseUrl}}/vehicles/me
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "brand": "Chevrolet",
+    "model": "Onix Turbo",
+    "color": "blanco",
+    "year": 2021,
+    "seats": 4,
+    "isOwner": true,
+    "acceptedTerms": true,
+    "photoFileId": null
+}
+
+### 401 · Sin token
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+PUT {{baseUrl}}/vehicles/me
+Content-Type: application/json
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "brand": "Chevrolet",
+    "model": "Onix Turbo",
+    "color": "blanco",
+    "year": 2021,
+    "seats": 4,
+    "isOwner": true,
+    "acceptedTerms": true,
+    "photoFileId": null
+}

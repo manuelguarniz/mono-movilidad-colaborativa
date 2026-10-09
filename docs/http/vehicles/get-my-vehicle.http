@@ -1,0 +1,44 @@
+# Obtener mi vehículo
+# GET /vehicles/me
+#
+# Requiere token SESSION.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Vehículo registrado
+# Respuesta 200 OK
+# {
+#   "plate": "ABC-123",
+#   "type": "SEDAN",
+#   "brand": "Chevrolet",
+#   "model": "Onix Turbo",
+#   "color": "blanco",
+#   "year": 2021,
+#   "seats": 4,
+#   "ownerDni": "72345678",
+#   "isOwner": true,
+#   "status": "ACTIVE",
+#   "photoUrl": null,
+#   "registeredAt": "2026-10-09T05:58:06.855Z"
+# }
+GET {{baseUrl}}/vehicles/me
+Authorization: Bearer {{sessionToken}}
+
+### 404 · El usuario no tiene vehículo
+# Respuesta 404 Not Found
+# {
+#   "code": "VEHICLE_NOT_FOUND",
+#   "message": "No tienes un vehículo registrado"
+# }
+GET {{baseUrl}}/vehicles/me
+Authorization: Bearer {{sessionToken}}
+
+### 401 · Sin token
+# Respuesta 401 Unauthorized
+# {
+#   "code": "UNAUTHORIZED",
+#   "message": "Tu sesión expiró. Vuelve a iniciar sesión."
+# }
+GET {{baseUrl}}/vehicles/me

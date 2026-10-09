@@ -1,0 +1,39 @@
+# Listar sedes de un distrito
+# GET /catalogs/campuses
+#
+# Público. Requiere el query param districtId.
+
+@baseUrl = http://localhost:8080/api
+
+### 200 · Sedes del distrito
+# Respuesta 200 OK
+# {
+#   "data": [
+#     {
+#       "id": "6705a1f0c3d4e5f600000301",
+#       "name": "UTP Sede Trujillo"
+#     }
+#   ]
+# }
+GET {{baseUrl}}/catalogs/campuses?districtId=6705a1f0c3d4e5f600000201
+
+### 200 · Distrito sin sedes (lista vacía)
+# Respuesta 200 OK
+# {
+#   "data": []
+# }
+GET {{baseUrl}}/catalogs/campuses?districtId=6705a1f0c3d4e5f600000101
+
+### 400 · Falta districtId
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "districtId",
+#       "message": "El parámetro districtId es obligatorio"
+#     }
+#   ]
+# }
+GET {{baseUrl}}/catalogs/campuses

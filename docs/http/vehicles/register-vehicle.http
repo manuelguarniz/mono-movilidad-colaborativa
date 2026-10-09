@@ -1,0 +1,130 @@
+# Registrar mi vehículo
+# POST /vehicles
+#
+# Requiere token REGISTRATION (durante el registro) o SESSION, y el perfil completo.
+# El alta es POST /vehicles; /vehicles/me solo admite GET y PUT.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 201 · Vehículo registrado
+# Respuesta 201 Created
+# {
+#   "plate": "ABC-123",
+#   "type": "SEDAN",
+#   "brand": "Chevrolet",
+#   "model": "Onix Turbo",
+#   "color": "blanco",
+#   "year": 2021,
+#   "seats": 4,
+#   "ownerDni": "72345678",
+#   "isOwner": true,
+#   "status": "ACTIVE",
+#   "photoUrl": null,
+#   "registeredAt": "2026-10-09T05:58:06.855Z"
+# }
+POST {{baseUrl}}/vehicles
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "brand": "Chevrolet",
+    "model": "Onix Turbo",
+    "color": "blanco",
+    "year": 2021,
+    "seats": 4,
+    "ownerDni": "72345678",
+    "isOwner": true,
+    "acceptedTerms": true,
+    "photoFileId": null
+}
+
+### 400 · Faltan brand, color, model y ownerDni
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "brand",
+#       "message": "La marca es obligatoria"
+#     },
+#     {
+#       "field": "color",
+#       "message": "El color es obligatorio"
+#     },
+#     {
+#       "field": "model",
+#       "message": "El modelo es obligatorio"
+#     },
+#     {
+#       "field": "ownerDni",
+#       "message": "El DNI del propietario es obligatorio"
+#     }
+#   ]
+# }
+POST {{baseUrl}}/vehicles
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "year": 2021,
+    "seats": 4,
+    "isOwner": true,
+    "acceptedTerms": true,
+    "photoFileId": null
+}
+
+### 400 · Falta ownerDni
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "ownerDni",
+#       "message": "El DNI del propietario es obligatorio"
+#     }
+#   ]
+# }
+POST {{baseUrl}}/vehicles
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "brand": "Chevrolet",
+    "model": "Onix Turbo",
+    "color": "blanco",
+    "year": 2021,
+    "seats": 4,
+    "isOwner": true,
+    "acceptedTerms": true,
+    "photoFileId": null
+}
+
+### 405 · POST sobre /vehicles/me
+# Respuesta 405 Method Not Allowed
+# {
+#   "code": "METHOD_NOT_ALLOWED",
+#   "message": "La solicitud no es válida"
+# }
+POST {{baseUrl}}/vehicles/me
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "year": 2021,
+    "seats": 4,
+    "isOwner": true,
+    "acceptedTerms": true,
+    "photoFileId": null
+}
