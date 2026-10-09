@@ -1,6 +1,6 @@
 package pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto;
 
-import pe.edu.utp.app_movilidadcolaborativa.auth.domain.model.AlcanceToken;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.AlcanceToken;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.UsuarioSesionDto;
 
 /** Respuesta de register (token REGISTRATION) y de verify-code (token SESSION). */

@@ -5,18 +5,17 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.domain.dto.ErrorDto.ErrorCamp
 
 import java.util.List;
 
-/** Uno o más datos de entrada no cumplen el contrato; se responde 400 VALIDATION_ERROR. */
+/**
+ * Datos de entrada que solo se pueden validar consultando el estado; se responde 400 VALIDATION_ERROR.
+ * El formato de cada campo se declara con anotaciones en el DTO de la solicitud.
+ */
 @Getter
 public class ValidacionException extends RuntimeException {
 
 	private final List<ErrorCampo> errores;
 
-	public ValidacionException(String mensaje, List<ErrorCampo> errores) {
-		super(mensaje);
-		this.errores = List.copyOf(errores);
-	}
-
 	public ValidacionException(String campo, String mensaje) {
-		this(mensaje, List.of(new ErrorCampo(campo, mensaje)));
+		super(mensaje);
+		this.errores = List.of(new ErrorCampo(campo, mensaje));
 	}
 }

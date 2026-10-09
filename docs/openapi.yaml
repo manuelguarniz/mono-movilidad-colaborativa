@@ -101,7 +101,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Revisa los datos de registro
+                message: Revisa los datos enviados
                 errors:
                   - field: email
                     message: El correo debe ser del dominio utp.edu.pe
@@ -159,7 +159,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Faltan datos obligatorios del perfil
+                message: Revisa los datos enviados
                 errors:
                   - field: lastName
                     message: Los apellidos son obligatorios
@@ -204,7 +204,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Correo y contraseña requeridos
+                message: Revisa los datos enviados
                 errors:
                   - field: password
                     message: La contraseña es obligatoria
@@ -381,7 +381,10 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: El parámetro departmentId es obligatorio
+                message: Revisa los datos enviados
+                errors:
+                  - field: departmentId
+                    message: El parámetro departmentId es obligatorio
 
   /catalogs/campuses:
     get:
@@ -417,7 +420,10 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: El parámetro districtId es obligatorio
+                message: Revisa los datos enviados
+                errors:
+                  - field: districtId
+                    message: El parámetro districtId es obligatorio
 
   /files:
     post:
@@ -452,7 +458,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Revisa la imagen
+                message: Revisa los datos enviados
                 errors:
                   - field: file
                     message: La imagen es obligatoria
@@ -516,7 +522,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Revisa los datos del vehículo
+                message: Revisa los datos enviados
                 errors:
                   - field: plate
                     message: La placa debe tener el formato ABC-123
@@ -603,7 +609,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Revisa los datos del vehículo
+                message: Revisa los datos enviados
                 errors:
                   - field: seats
                     message: Las plazas deben estar entre 1 y 10
@@ -699,7 +705,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Revisa los filtros de búsqueda
+                message: Revisa los datos enviados
                 errors:
                   - field: time
                     message: La hora debe tener el formato HH:mm
@@ -749,7 +755,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Revisa los datos del viaje
+                message: Revisa los datos enviados
                 errors:
                   - field: departureTime
                     message: La hora de salida debe ser futura y estar entre las 6:00 y las 23:00
@@ -831,7 +837,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Revisa los datos de la reserva
+                message: Revisa los datos enviados
                 errors:
                   - field: seats
                     message: Debes reservar al menos 1 plaza
@@ -920,7 +926,7 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 code: VALIDATION_ERROR
-                message: Revisa tus datos personales
+                message: Revisa los datos enviados
                 errors:
                   - field: phone
                     message: El teléfono debe tener el formato +51 seguido de 9 dígitos
@@ -1019,10 +1025,15 @@ components:
           example: VALIDATION_ERROR
         message:
           type: string
-          description: Mensaje en español, apto para mostrarse al usuario.
+          description: |
+            Mensaje en español, apto para mostrarse al usuario. Con `VALIDATION_ERROR` y
+            `errors` es siempre el mensaje general `Revisa los datos enviados`: el detalle
+            de cada campo va en `errors`.
         errors:
           type: array
-          description: Errores por campo. Solo con `VALIDATION_ERROR`.
+          description: |
+            Errores por campo, uno por cada campo o parámetro inválido. Solo con
+            `VALIDATION_ERROR`.
           items:
             type: object
             required: [field, message]

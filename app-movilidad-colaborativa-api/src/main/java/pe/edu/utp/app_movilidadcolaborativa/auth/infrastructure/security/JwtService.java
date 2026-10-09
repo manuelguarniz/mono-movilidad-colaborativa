@@ -9,7 +9,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 import pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto.TokenDto;
-import pe.edu.utp.app_movilidadcolaborativa.auth.domain.model.AlcanceToken;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.AlcanceToken;
 import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.config.AppProperties;
 
 import java.time.Duration;

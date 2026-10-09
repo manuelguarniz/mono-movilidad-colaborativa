@@ -1,6 +1,6 @@
 package pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto;
 
-import pe.edu.utp.app_movilidadcolaborativa.auth.domain.model.AlcanceToken;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.AlcanceToken;
 
 /** Respuesta de login: token PRE_AUTH y estado del código OTP enviado. */
 public record LoginResponse(String token, AlcanceToken scope, long expiresIn, OtpInfoDto otp) {

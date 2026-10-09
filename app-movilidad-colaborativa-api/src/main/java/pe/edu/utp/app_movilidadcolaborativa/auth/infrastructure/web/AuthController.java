@@ -1,5 +1,6 @@
 package pe.edu.utp.app_movilidadcolaborativa.auth.infrastructure.web;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
@@ -32,23 +33,25 @@ public class AuthController {
 
 	@PostMapping("/register")
 	@ResponseStatus(HttpStatus.CREATED)
-	public TokenUsuarioResponse registrar(@RequestBody RegistroRequest solicitud) {
+	public TokenUsuarioResponse registrar(@Valid @RequestBody RegistroRequest solicitud) {
 		return registroService.registrar(solicitud);
 	}
 
 	@PostMapping("/complete-profile")
-	public MensajeDto completarPerfil(@AuthenticationPrincipal Jwt jwt, @RequestBody CompletarPerfilRequest solicitud) {
+	public MensajeDto completarPerfil(@AuthenticationPrincipal Jwt jwt,
+			@Valid @RequestBody CompletarPerfilRequest solicitud) {
 		registroService.completarPerfil(usuarioId(jwt), solicitud);
 		return new MensajeDto("Perfil completado correctamente");
 	}
 
 	@PostMapping("/login")
-	public LoginResponse iniciarSesion(@RequestBody LoginRequest solicitud) {
+	public LoginResponse iniciarSesion(@Valid @RequestBody LoginRequest solicitud) {
 		return authService.iniciarSesion(solicitud);
 	}
 
 	@PostMapping("/verify-code")
-	public TokenUsuarioResponse verificarCodigo(@AuthenticationPrincipal Jwt jwt, @RequestBody VerificarCodigoRequest solicitud) {
+	public TokenUsuarioResponse verificarCodigo(@AuthenticationPrincipal Jwt jwt,
+			@Valid @RequestBody VerificarCodigoRequest solicitud) {
 		return authService.verificarCodigo(usuarioId(jwt), solicitud);
 	}
 

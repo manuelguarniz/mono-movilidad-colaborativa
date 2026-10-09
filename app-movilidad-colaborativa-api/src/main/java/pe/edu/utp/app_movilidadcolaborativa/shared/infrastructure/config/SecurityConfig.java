@@ -4,7 +4,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,6 +22,8 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.AlcanceToken;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -37,17 +38,17 @@ import javax.crypto.spec.SecretKeySpec;
 @Configuration
 public class SecurityConfig {
 
-	private static final String REGISTRATION = "SCOPE_REGISTRATION";
-	private static final String PRE_AUTH = "SCOPE_PRE_AUTH";
-	private static final String SESSION = "SCOPE_SESSION";
+	private static final String REGISTRATION = AlcanceToken.REGISTRATION.autoridad();
+	private static final String PRE_AUTH = AlcanceToken.PRE_AUTH.autoridad();
+	private static final String SESSION = AlcanceToken.SESSION.autoridad();
 	private static final int LARGO_MINIMO_CLAVE = 32;
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		AuthenticationEntryPoint sinToken = (request, response, ex) -> escribirError(response,
-				HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Tu sesión expiró. Vuelve a iniciar sesión.");
+				CodigoError.UNAUTHORIZED);
 		AccessDeniedHandler sinPermiso = (request, response, ex) -> escribirError(response,
-				HttpStatus.FORBIDDEN, "FORBIDDEN_SCOPE", "No tienes permiso para realizar esta acción");
+				CodigoError.FORBIDDEN_SCOPE);
 
 		return http
 				.csrf(AbstractHttpConfigurer::disable)
@@ -106,11 +107,10 @@ public class SecurityConfig {
 	}
 
 	// Estos errores ocurren en el filtro, antes de llegar a ManejadorErrores; code y message son constantes.
-	private static void escribirError(HttpServletResponse response, HttpStatus estado, String codigo, String mensaje)
-			throws IOException {
-		response.setStatus(estado.value());
+	private static void escribirError(HttpServletResponse response, CodigoError codigo) throws IOException {
+		response.setStatus(codigo.estado().value());
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-		response.getWriter().write("{\"code\":\"" + codigo + "\",\"message\":\"" + mensaje + "\"}");
+		response.getWriter().write("{\"code\":\"" + codigo.name() + "\",\"message\":\"" + codigo.mensaje() + "\"}");
 	}
 }

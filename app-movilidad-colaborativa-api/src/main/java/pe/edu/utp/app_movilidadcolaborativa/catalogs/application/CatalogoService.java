@@ -9,8 +9,6 @@ import pe.edu.utp.app_movilidadcolaborativa.catalogs.domain.dto.SedeDto;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.persistence.DepartamentoRepository;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.persistence.DistritoRepository;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.persistence.SedeRepository;
-import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
-import pe.edu.utp.app_movilidadcolaborativa.shared.domain.validation.Validacion;
 
 import java.util.List;
 
@@ -28,27 +26,15 @@ public class CatalogoService {
 				.toList();
 	}
 
-	public List<DistritoDto> listarDistritos(String departmentId) {
-		ObjectId id = aObjectId("departmentId", departmentId);
-		return distritoRepository.findByDepartamentoIdOrderByNombreAsc(id).stream()
+	public List<DistritoDto> listarDistritos(ObjectId departmentId) {
+		return distritoRepository.findByDepartamentoIdOrderByNombreAsc(departmentId).stream()
 				.map(DistritoDto::desde)
 				.toList();
 	}
 
-	public List<SedeDto> listarSedes(String districtId) {
-		ObjectId id = aObjectId("districtId", districtId);
-		return sedeRepository.findByDistritoIdAndActivaTrueOrderByNombreAsc(id).stream()
+	public List<SedeDto> listarSedes(ObjectId districtId) {
+		return sedeRepository.findByDistritoIdAndActivaTrueOrderByNombreAsc(districtId).stream()
 				.map(SedeDto::desde)
 				.toList();
-	}
-
-	private static ObjectId aObjectId(String parametro, String valor) {
-		if (valor == null || valor.isBlank()) {
-			throw new ValidacionException(parametro, "El parámetro " + parametro + " es obligatorio");
-		}
-		if (!Validacion.esObjectId(valor)) {
-			throw new ValidacionException(parametro, "El parámetro " + parametro + " no es un identificador válido");
-		}
-		return new ObjectId(valor);
 	}
 }

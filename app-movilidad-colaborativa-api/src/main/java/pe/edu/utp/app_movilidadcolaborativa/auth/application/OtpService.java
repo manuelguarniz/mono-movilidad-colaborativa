@@ -7,7 +7,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto.OtpInfoDto;
@@ -16,6 +15,7 @@ import pe.edu.utp.app_movilidadcolaborativa.auth.domain.model.PropositoOtp;
 import pe.edu.utp.app_movilidadcolaborativa.auth.infrastructure.mail.NotificadorOtp;
 import pe.edu.utp.app_movilidadcolaborativa.auth.infrastructure.persistence.CodigoOtpRepository;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.config.AppProperties;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 
@@ -59,7 +59,7 @@ public class OtpService {
 			Instant permitido = vigente.get().fechaCreacion().plus(propiedades.otp().resendAfter());
 			long espera = Duration.between(Instant.now(), permitido).toSeconds();
 			if (espera > 0) {
-				throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "OTP_RESEND_TOO_SOON",
+				throw new ApiException(CodigoError.OTP_RESEND_TOO_SOON,
 						"Podrás reenviar el código en " + espera + (espera == 1 ? " segundo" : " segundos"),
 						Map.of("retryAfter", espera));
 			}
@@ -71,7 +71,7 @@ public class OtpService {
 	public void verificar(ObjectId usuarioId, String codigo) {
 		CodigoOtp otp = buscarVigente(usuarioId)
 				.filter(vigente -> vigente.fechaExpiracion().isAfter(Instant.now()))
-				.orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "OTP_EXPIRED",
+				.orElseThrow(() -> new ApiException(CodigoError.OTP_EXPIRED,
 						"El código expiró. Solicita uno nuevo."));
 
 		if (passwordEncoder.matches(codigo, otp.codigoHash())) {
@@ -89,10 +89,10 @@ public class OtpService {
 		int restantes = propiedades.otp().maxAttempts() - intentos;
 		if (restantes <= 0) {
 			codigoOtpRepository.deleteById(otp.id());
-			throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "OTP_ATTEMPTS_EXCEEDED",
+			throw new ApiException(CodigoError.OTP_ATTEMPTS_EXCEEDED,
 					"Agotaste los intentos. Solicita un nuevo código.");
 		}
-		throw new ApiException(HttpStatus.BAD_REQUEST, "OTP_INVALID",
+		throw new ApiException(CodigoError.OTP_INVALID,
 				"Código inválido. " + (restantes == 1 ? "Te queda 1 intento." : "Te quedan " + restantes + " intentos."),
 				Map.of("attemptsLeft", restantes));
 	}

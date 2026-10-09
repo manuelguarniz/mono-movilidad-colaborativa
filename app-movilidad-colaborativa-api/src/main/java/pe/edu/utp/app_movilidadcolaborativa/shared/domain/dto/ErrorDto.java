@@ -16,7 +16,7 @@ public record ErrorDto(String code, String message, List<ErrorCampo> errors, Map
 		return new ErrorDto(code, message, null, null);
 	}
 
-	public static ErrorDto deCampo(String code, String field, String message) {
-		return new ErrorDto(code, message, List.of(new ErrorCampo(field, message)), null);
+	public static ErrorDto deCampos(String code, String message, List<ErrorCampo> errors) {
+		return new ErrorDto(code, message, errors, null);
 	}
 }

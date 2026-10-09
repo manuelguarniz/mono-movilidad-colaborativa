@@ -7,13 +7,12 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto.CompletarPerfilRequest;
 import pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto.RegistroRequest;
 import pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto.TokenUsuarioResponse;
-import pe.edu.utp.app_movilidadcolaborativa.auth.domain.model.AlcanceToken;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.AlcanceToken;
 import pe.edu.utp.app_movilidadcolaborativa.auth.infrastructure.security.JwtService;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.domain.model.Departamento;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.domain.model.Distrito;
@@ -25,15 +24,14 @@ import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.Archivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.PropositoArchivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.infrastructure.persistence.ArchivoRepository;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
-import pe.edu.utp.app_movilidadcolaborativa.shared.domain.validation.Validacion;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.UsuarioSesionDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Foto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Rol;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.SedeUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
-import pe.edu.utp.app_movilidadcolaborativa.users.domain.validation.ReglasUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
 
 import java.time.Instant;
@@ -55,16 +53,7 @@ public class RegistroService {
 
 	/** Crea el usuario en PERFIL_PENDIENTE y devuelve un token REGISTRATION. */
 	public TokenUsuarioResponse registrar(RegistroRequest solicitud) {
-		String correo = ReglasUsuario.normalizarCorreo(solicitud.email());
-		new Validacion()
-				.exigir(correo != null && !correo.isEmpty(), "email", "El correo es obligatorio")
-				.exigir(ReglasUsuario.esCorreoUtp(correo), "email", "El correo debe ser del dominio utp.edu.pe")
-				.exigir(ReglasUsuario.esContrasenaValida(solicitud.password()), "password",
-						"La contraseña debe tener entre 8 y 72 caracteres con letras, números y símbolos")
-				.exigir(Boolean.TRUE.equals(solicitud.acceptedTerms()), "acceptedTerms",
-						"Debes aceptar los términos y condiciones")
-				.lanzarSiHayErrores("Revisa los datos de registro");
-
+		String correo = solicitud.email();
 		if (usuarioRepository.existsByCorreo(correo)) {
 			throw correoEnUso();
 		}
@@ -90,30 +79,9 @@ public class RegistroService {
 
 	/** Guarda los datos personales, copia departamento, distrito y sede, y activa la cuenta como pasajero. */
 	public void completarPerfil(ObjectId usuarioId, CompletarPerfilRequest solicitud) {
-		String nombres = solicitud.firstName() == null ? null : solicitud.firstName().trim();
-		String apellidos = solicitud.lastName() == null ? null : solicitud.lastName().trim();
-		// Mientras no exista POST /files la foto es opcional; si llega, se valida.
-		new Validacion()
-				.exigir(nombres != null && !nombres.isEmpty(), "firstName", "Los nombres son obligatorios")
-				.exigir(ReglasUsuario.esNombreValido(nombres), "firstName",
-						"Los nombres deben tener al menos una letra y como máximo 60 caracteres")
-				.exigir(apellidos != null && !apellidos.isEmpty(), "lastName", "Los apellidos son obligatorios")
-				.exigir(ReglasUsuario.esNombreValido(apellidos), "lastName",
-						"Los apellidos deben tener al menos una letra y como máximo 60 caracteres")
-				.exigir(solicitud.departmentId() != null, "departmentId", "El departamento es obligatorio")
-				.exigir(Validacion.esObjectId(solicitud.departmentId()), "departmentId", "El departamento no es válido")
-				.exigir(solicitud.districtId() != null, "districtId", "El distrito es obligatorio")
-				.exigir(Validacion.esObjectId(solicitud.districtId()), "districtId", "El distrito no es válido")
-				.exigir(solicitud.campusId() != null, "campusId", "La sede es obligatoria")
-				.exigir(Validacion.esObjectId(solicitud.campusId()), "campusId", "La sede no es válida")
-				.exigir(solicitud.photoFileId() == null || Validacion.esObjectId(solicitud.photoFileId()),
-						"photoFileId", "La foto de perfil no es válida")
-				.lanzarSiHayErrores("Faltan datos obligatorios del perfil");
-
 		Usuario usuario = usuarioRepository.findById(usuarioId)
 				.filter(encontrado -> encontrado.getEstado() != EstadoUsuario.BLOQUEADO)
-				.orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED",
-						"Tu sesión expiró. Vuelve a iniciar sesión."));
+				.orElseThrow(() -> new ApiException(CodigoError.UNAUTHORIZED));
 
 		Departamento departamento = departamentoRepository.findById(new ObjectId(solicitud.departmentId()))
 				.orElseThrow(() -> catalogoInvalido("El departamento no existe"));
@@ -125,8 +93,8 @@ public class RegistroService {
 				.orElseThrow(() -> catalogoInvalido("La sede no pertenece al distrito"));
 
 		Update cambios = new Update()
-				.set("nombres", nombres)
-				.set("apellidos", apellidos)
+				.set("nombres", solicitud.firstName())
+				.set("apellidos", solicitud.lastName())
 				.set("departamento", new ReferenciaNombre(departamento.id(), departamento.nombre()))
 				.set("distrito", new ReferenciaNombre(distrito.id(), distrito.nombre()))
 				.set("sede", new SedeUsuario(sede.id(), sede.nombre(), sede.direccion()))
@@ -141,7 +109,7 @@ public class RegistroService {
 			Archivo archivo = archivoRepository.findById(new ObjectId(solicitud.photoFileId()))
 					.filter(encontrado -> usuarioId.equals(encontrado.propietarioId())
 							&& encontrado.proposito() == PropositoArchivo.FOTO_PERFIL)
-					.orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FILE_REFERENCE",
+					.orElseThrow(() -> new ApiException(CodigoError.INVALID_FILE_REFERENCE,
 							"La foto de perfil no existe o no te pertenece"));
 			cambios.set("foto", new Foto(archivo.id(), archivo.url()));
 		}
@@ -150,10 +118,10 @@ public class RegistroService {
 	}
 
 	private static ApiException correoEnUso() {
-		return new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_REGISTERED", "El correo ya está en uso");
+		return new ApiException(CodigoError.EMAIL_ALREADY_REGISTERED, "El correo ya está en uso");
 	}
 
 	private static ApiException catalogoInvalido(String mensaje) {
-		return new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CATALOG_REFERENCE", mensaje);
+		return new ApiException(CodigoError.INVALID_CATALOG_REFERENCE, mensaje);
 	}
 }
