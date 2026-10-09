@@ -1,14 +1,17 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BrandLogo } from "@/features/auth/components/BrandLogo";
+import ArrowLeftIcon from "@/assets/images/icons/arrow-left.svg?react";
 import ChevronLeftIcon from "@/assets/images/icons/chevron-left.svg?react";
 
 type AuthStepLayoutProps = {
   backTo: string;
+  backIcon?: "arrow" | "chevron";
   title: string;
   subtitle?: string;
-  showLogo?: boolean;
-  showLogoCard?: boolean;
+  // Recuadro del logo sobre el título: `true`, o `"bordered"` para dibujarlo con borde.
+  showLogo?: boolean | "bordered";
+  // Cabecera con el nombre de la app y título alineado a la izquierda.
   showBrandHeader?: boolean;
   children: ReactNode;
   footer?: ReactNode;
@@ -16,53 +19,51 @@ type AuthStepLayoutProps = {
 
 export function AuthStepLayout({
   backTo,
+  backIcon = "arrow",
   title,
   subtitle,
   showLogo = false,
-  showLogoCard = false,
   showBrandHeader = false,
   children,
   footer,
 }: AuthStepLayoutProps) {
+  const BackIcon = backIcon === "chevron" ? ChevronLeftIcon : ArrowLeftIcon;
+
   return (
     <div className="auth-shell">
       <div className="auth-panel">
         <div className="auth-content">
-          <div className="mb-6 flex items-center">
+          <div className="mb-6 flex items-center gap-3">
             <Link
               to={backTo}
-              className="auth-back-button"
+              className={
+                showBrandHeader
+                  ? "auth-back-button auth-back-button-brand"
+                  : "auth-back-button"
+              }
               aria-label="Volver"
             >
-              <ChevronLeftIcon className="h-6 w-6" />
+              <BackIcon className="h-6 w-6" />
             </Link>
 
             {showBrandHeader ? (
-              <p className="flex-1 text-center text-2xl font-black tracking-tight text-[var(--brand-red)]">
+              <p className="text-2xl font-bold leading-none tracking-tight text-[var(--brand-red)]">
                 ColaboraCar
               </p>
-            ) : (
-              <span className="flex-1" />
-            )}
-
-            <span className="w-10" aria-hidden="true" />
+            ) : null}
           </div>
 
-          {showLogoCard ? (
-            <div className="auth-logo-card">
-              <BrandLogo compact />
-            </div>
-          ) : showLogo ? (
-            <div className="mb-8 flex justify-center">
-              <BrandLogo compact />
+          {showLogo ? (
+            <div className="mb-4">
+              <BrandLogo bordered={showLogo === "bordered"} />
             </div>
           ) : null}
 
           <h1
             className={
               showBrandHeader
-                ? "mt-6 text-left text-3xl font-black leading-tight text-[#2f2a2a]"
-                : "brand-title text-[#2f2a2a]"
+                ? "text-left text-[1.75rem] font-bold leading-tight text-[var(--text-primary)]"
+                : "brand-title text-[var(--text-primary)]"
             }
           >
             {title}
@@ -72,17 +73,17 @@ export function AuthStepLayout({
             <p
               className={
                 showBrandHeader
-                  ? "mt-2 text-base text-[#7a6d6d]"
-                  : "mt-3 text-center text-lg font-light leading-snug text-[#3a2f2f]"
+                  ? "mt-1 text-sm text-[var(--text-brown)]"
+                  : "auth-subtitle"
               }
             >
               {subtitle}
             </p>
           ) : null}
 
-          <div className="mt-8 flex flex-1 flex-col">{children}</div>
+          <div className="mt-7">{children}</div>
 
-          {footer ? <div>{footer}</div> : null}
+          {footer}
         </div>
       </div>
     </div>

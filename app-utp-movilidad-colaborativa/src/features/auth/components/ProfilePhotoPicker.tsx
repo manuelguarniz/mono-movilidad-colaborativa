@@ -1,4 +1,4 @@
-import UserSolidIcon from "@/assets/images/icons/user-solid.svg?react";
+import UserIcon from "@/assets/images/icons/user.svg?react";
 import CameraIcon from "@/assets/images/icons/camera.svg?react";
 
 type ProfilePhotoPickerProps = {
@@ -20,10 +20,7 @@ export function ProfilePhotoPicker({
             className="h-full w-full object-cover"
           />
         ) : (
-          <UserSolidIcon
-            className="h-16 w-16 text-[#9a9a9a]"
-            aria-hidden="true"
-          />
+          <UserIcon className="h-9 w-9" aria-hidden="true" />
         )}
       </div>
 

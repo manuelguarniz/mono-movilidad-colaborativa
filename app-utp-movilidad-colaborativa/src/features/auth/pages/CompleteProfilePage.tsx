@@ -1,19 +1,22 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { AuthField } from "@/features/auth/components/AuthField";
 import { AuthSelectField } from "@/features/auth/components/AuthSelectField";
 import { AuthStepLayout } from "@/features/auth/components/AuthStepLayout";
 import { ProfilePhotoPicker } from "@/features/auth/components/ProfilePhotoPicker";
-import {
-  CAMPUSES,
-  DEPARTMENTS,
-  DISTRICTS,
-} from "@/features/auth/data/profileOptions";
 import { authService } from "@/features/auth/services/authService";
+import {
+  catalogService,
+  type CatalogItem,
+} from "@/features/auth/services/catalogService";
 import UserIcon from "@/assets/images/icons/user.svg?react";
-import ListIcon from "@/assets/images/icons/list.svg?react";
+import MapIcon from "@/assets/images/icons/map.svg?react";
 import MapPinIcon from "@/assets/images/icons/map-pin.svg?react";
 import GraduationCapIcon from "@/assets/images/icons/graduation-cap.svg?react";
+
+const toOptions = (items: CatalogItem[] = []) =>
+  items.map((item) => ({ value: item.id, label: item.name }));
 
 export function CompleteProfilePage() {
   const navigate = useNavigate();
@@ -29,27 +32,29 @@ export function CompleteProfilePage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const pendingRegistration = authService.getPendingProfileRegistration();
-
   useEffect(() => {
-    const pending = authService.getPendingProfileRegistration();
-
-    if (!pending) {
+    if (!authService.getPendingProfileRegistration()) {
       navigate("/auth/register", { replace: true });
-      return;
     }
-
-    const [firstName = "", lastName = ""] = pending.name.split(" ");
-    setForm((current) => ({
-      ...current,
-      firstName,
-      lastName,
-    }));
   }, [navigate]);
 
-  const districtOptions = form.department
-    ? (DISTRICTS[form.department] ?? [])
-    : [];
+  const { data: departments } = useQuery({
+    queryKey: ["catalogs", "departments"],
+    queryFn: catalogService.getDepartments,
+  });
+
+  const { data: districts } = useQuery({
+    queryKey: ["catalogs", "districts", form.department],
+    queryFn: () => catalogService.getDistricts(form.department),
+    enabled: Boolean(form.department),
+  });
+
+  // Las sedes se listan por distrito.
+  const { data: campuses } = useQuery({
+    queryKey: ["catalogs", "campuses", form.district],
+    queryFn: () => catalogService.getCampuses(form.district),
+    enabled: Boolean(form.district),
+  });
 
   const handleChange = (
     field: keyof typeof form,
@@ -60,6 +65,10 @@ export function CompleteProfilePage() {
 
       if (field === "department") {
         next.district = "";
+      }
+
+      if (field === "department" || field === "district") {
+        next.campus = "";
       }
 
       return next;
@@ -95,8 +104,11 @@ export function CompleteProfilePage() {
 
     try {
       await authService.completeProfile({
-        ...form,
-        registrationId: pendingRegistration?.registrationId,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        departmentId: form.department,
+        districtId: form.district,
+        campusId: form.campus,
       });
       navigate("/auth/login", {
         replace: true,
@@ -122,7 +134,7 @@ export function CompleteProfilePage() {
 
       <form onSubmit={handleSubmit} className="mt-6">
         {error ? (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="auth-message auth-message-error">
             {error}
           </div>
         ) : null}
@@ -153,10 +165,10 @@ export function CompleteProfilePage() {
           label="Departamento"
           value={form.department}
           placeholder="Selecciona tu departamento"
-          options={DEPARTMENTS}
+          options={toOptions(departments)}
           onChange={(value) => handleChange("department", value)}
           icon={
-            <ListIcon className="h-6 w-6" />
+            <MapIcon className="h-6 w-6" />
           }
         />
 
@@ -164,7 +176,7 @@ export function CompleteProfilePage() {
           label="Distrito"
           value={form.district}
           placeholder="Selecciona tu distrito"
-          options={districtOptions}
+          options={toOptions(districts)}
           disabled={!form.department}
           onChange={(value) => handleChange("district", value)}
           icon={
@@ -173,10 +185,11 @@ export function CompleteProfilePage() {
         />
 
         <AuthSelectField
-          label="Sede universitaria"
+          label="Sede Universitaria"
           value={form.campus}
           placeholder="Selecciona tu sede"
-          options={CAMPUSES}
+          options={toOptions(campuses)}
+          disabled={!form.district}
           onChange={(value) => handleChange("campus", value)}
           icon={
             <GraduationCapIcon className="h-6 w-6" />
@@ -188,9 +201,9 @@ export function CompleteProfilePage() {
             type="checkbox"
             checked={form.hasVehicle}
             onChange={(event) => handleChange("hasVehicle", event.target.checked)}
-            className="profile-vehicle-checkbox"
+            className="app-checkbox profile-vehicle-checkbox"
           />
-          <span className="text-base font-black text-[#2f2a2a]">
+          <span className="text-lg font-semibold text-[var(--text-primary)]">
             Tengo vehículo
           </span>
         </label>

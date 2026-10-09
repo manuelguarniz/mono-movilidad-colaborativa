@@ -14,8 +14,9 @@ export function LoginPage() {
   const profileCompleted = Boolean(
     (location.state as { profileCompleted?: boolean } | null)?.profileCompleted,
   );
-  const [email, setEmail] = useState("correo@ejemplo.com");
-  const [password, setPassword] = useState("123456");
+  // Cuenta de prueba de la API simulada (ver src/mocks/db.ts).
+  const [email, setEmail] = useState("valeria.rodriguez@utp.edu.pe");
+  const [password, setPassword] = useState("Clave#2026");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -55,13 +56,13 @@ export function LoginPage() {
     >
       <form onSubmit={handleSubmit}>
         {profileCompleted && (
-          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <div className="auth-message auth-message-success">
             Perfil completado. Ya puedes iniciar sesión.
           </div>
         )}
 
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="auth-message auth-message-error">
             {error}
           </div>
         )}
@@ -70,26 +71,21 @@ export function LoginPage() {
           label="Correo electrónico"
           type="email"
           value={email}
-          placeholder="correo@ejemplo.com"
+          placeholder="correo@utp.edu.pe"
           autoComplete="email"
+          uppercaseLabel
           onChange={setEmail}
           icon={<MailIcon className="h-6 w-6" />}
         />
 
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <label className="text-sm font-black uppercase tracking-wide text-[#3a2f2f]">
-            Contraseña
-          </label>
-          <button
-            type="button"
-            className="text-sm font-black text-[#d93a43] transition hover:text-[#c12c33]"
-          >
-            ¿Olvidaste tu contraseña?
-          </button>
-        </div>
-
         <AuthField
-          label=""
+          label="Contraseña"
+          uppercaseLabel
+          labelAction={
+            <button type="button" className="auth-label-action">
+              ¿Olvidaste tu contraseña?
+            </button>
+          }
           type={showPassword ? "text" : "password"}
           value={password}
           placeholder="••••••••"
@@ -100,15 +96,15 @@ export function LoginPage() {
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="flex h-8 w-8 items-center justify-center text-[#2b2b2b]"
+              className="flex h-8 w-8 shrink-0 items-center justify-center text-[var(--text-brown)]"
               aria-label={
                 showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
               }
             >
               {showPassword ? (
-                <EyeOffIcon className="h-7 w-7" />
+                <EyeOffIcon className="h-6 w-6" />
               ) : (
-                <EyeIcon className="h-7 w-7" />
+                <EyeIcon className="h-6 w-6" />
               )}
             </button>
           }

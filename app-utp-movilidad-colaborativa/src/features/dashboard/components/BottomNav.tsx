@@ -17,28 +17,28 @@ const navItems: NavItem[] = [
     label: "Viaje",
     active: true,
     icon: (
-      <RideIcon className="h-5 w-5" />
+      <RideIcon className="h-6 w-6" />
     ),
   },
   {
     id: "history",
     label: "Historial",
     icon: (
-      <HistoryIcon className="h-5 w-5" />
+      <HistoryIcon className="h-6 w-6" />
     ),
   },
   {
     id: "wallet",
     label: "Billetera",
     icon: (
-      <WalletIcon className="h-5 w-5" />
+      <WalletIcon className="h-6 w-6" />
     ),
   },
   {
     id: "profile",
     label: "Perfil",
     icon: (
-      <ProfileIcon className="h-5 w-5" />
+      <ProfileIcon className="h-6 w-6" />
     ),
   },
 ];
@@ -53,11 +53,7 @@ export function BottomNav() {
           className={`bottom-nav-item ${item.active ? "bottom-nav-item-active" : ""}`}
           aria-current={item.active ? "page" : undefined}
         >
-          <span
-            className={`bottom-nav-icon ${item.active ? "bottom-nav-icon-active" : ""}`}
-          >
-            {item.icon}
-          </span>
+          {item.icon}
           <span className="bottom-nav-label">{item.label}</span>
         </button>
       ))}

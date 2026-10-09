@@ -5,7 +5,10 @@ type AuthFieldProps = {
   placeholder?: string;
   onChange: (value: string) => void;
   icon?: React.ReactNode;
+  // Acción dentro del campo, a la derecha (por ejemplo, mostrar la contraseña).
   rightAction?: React.ReactNode;
+  // Acción a la derecha de la etiqueta (por ejemplo, «¿Olvidaste tu contraseña?»).
+  labelAction?: React.ReactNode;
   autoComplete?: string;
   helperText?: string;
   uppercaseLabel?: boolean;
@@ -19,47 +22,36 @@ export function AuthField({
   onChange,
   icon,
   rightAction,
+  labelAction,
   autoComplete,
   helperText,
-  uppercaseLabel = true,
+  uppercaseLabel = false,
 }: AuthFieldProps) {
   return (
-    <div className="mb-6">
-      <div className="mb-2 flex items-center justify-between gap-4">
-        <label
-          className={
-            uppercaseLabel
-              ? "text-sm font-black uppercase tracking-wide text-[#3a2f2f]"
-              : "text-sm font-semibold text-[#6b5f5f]"
-          }
-        >
+    <label className="mb-5 block">
+      <span className="mb-2 flex items-center justify-between gap-4">
+        <span className={uppercaseLabel ? "auth-label-uppercase" : "auth-label"}>
           {label}
-        </label>
-        {rightAction && type !== "password" ? rightAction : null}
-      </div>
+        </span>
+        {labelAction}
+      </span>
 
-      <div className="flex items-center gap-3 rounded-2xl border-[3px] border-[#d95a5f] bg-[#f5efef] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.02)]">
-        {icon && (
-          <div className="flex h-7 w-7 items-center justify-center text-[#9a8f8f]">
-            {icon}
-          </div>
-        )}
+      <span className="auth-input">
+        {icon ? <span className="auth-input-icon">{icon}</span> : null}
         <input
           type={type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          className="input-base text-base font-medium"
+          className="input-base"
         />
-        {rightAction && type === "password" ? (
-          <div className="ml-auto">{rightAction}</div>
-        ) : null}
-      </div>
+        {rightAction}
+      </span>
 
       {helperText ? (
-        <p className="mt-2 text-sm leading-snug text-[#7a6d6d]">{helperText}</p>
+        <span className="auth-helper-text block">{helperText}</span>
       ) : null}
-    </div>
+    </label>
   );
 }

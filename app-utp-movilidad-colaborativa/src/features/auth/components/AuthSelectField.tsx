@@ -68,9 +68,7 @@ export function AuthSelectField({
 
   return (
     <div className="auth-select-wrapper" ref={containerRef}>
-      <label className="mb-2 block text-sm font-black uppercase tracking-wide text-[#3a2f2f]">
-        {label}
-      </label>
+      <span className="auth-label mb-2 block">{label}</span>
 
       <button
         type="button"
@@ -82,23 +80,15 @@ export function AuthSelectField({
         onClick={() => setIsOpen((open) => !open)}
       >
         {icon ? (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center text-[#d93a43]">
-            {icon}
-          </div>
+          <span className="auth-input-icon">{icon}</span>
         ) : null}
 
-        <span
-          className={
-            selectedOption
-              ? "auth-select-value text-[#2f2a2a]"
-              : "auth-select-value auth-select-placeholder"
-          }
-        >
+        <span className="auth-select-value">
           {selectedOption?.label ?? placeholder}
         </span>
 
         <ChevronDownIcon
-          className={`h-5 w-5 shrink-0 text-[#7a6d6d] transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`h-5 w-5 shrink-0 text-[var(--text-brown)] transition-transform ${isOpen ? "rotate-180" : ""}`}
           aria-hidden="true"
         />
       </button>

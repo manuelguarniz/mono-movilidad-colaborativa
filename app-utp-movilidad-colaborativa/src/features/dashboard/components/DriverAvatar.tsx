@@ -1,5 +1,7 @@
 type DriverAvatarProps = {
   name: string;
+  photoUrl?: string | null;
+  className?: string;
 };
 
 function getInitials(name: string) {
@@ -11,13 +13,19 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-export function DriverAvatar({ name }: DriverAvatarProps) {
+/** Foto de la persona o, si no tiene, sus iniciales. */
+export function DriverAvatar({
+  name,
+  photoUrl,
+  className = "driver-avatar",
+}: DriverAvatarProps) {
   return (
-    <div
-      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-200 to-slate-300 text-sm font-bold text-slate-700"
-      aria-hidden="true"
-    >
-      {getInitials(name)}
+    <div className={className} aria-hidden="true">
+      {photoUrl ? (
+        <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        getInitials(name)
+      )}
     </div>
   );
 }

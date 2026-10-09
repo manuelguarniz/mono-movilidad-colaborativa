@@ -104,17 +104,17 @@ export function VerificationPage() {
       backTo="/auth/login"
       title="Verificación"
       subtitle="Ingresa el código de 6 dígitos enviado a tu correo"
-      showLogo
+      showLogo="bordered"
     >
       <form onSubmit={handleSubmit}>
         <OtpInput value={digits} onChange={setDigits} disabled={isSubmitting} />
 
-        <p className="mt-3 text-center text-sm font-semibold text-[#d93a43]">
+        <p className="mb-3 mt-3 text-center text-sm text-[var(--brand-red)]">
           Máximo 3 intentos permitidos
         </p>
 
         {error ? (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="auth-message auth-message-error">
             {error}
           </div>
         ) : null}
@@ -128,16 +128,21 @@ export function VerificationPage() {
         </button>
       </form>
 
-      <div className="mt-auto pt-10 text-center">
-        <p className="text-sm text-[#7a6d6d]">
-          {canResend
-            ? "Ya puedes solicitar un nuevo código"
-            : `Reenviar código en ${formatTimer(secondsLeft)}`}
+      <div className="pt-10 text-center">
+        <p className="text-sm text-[var(--text-muted)]">
+          {canResend ? (
+            "Ya puedes solicitar un nuevo código"
+          ) : (
+            <>
+              Reenviar código en{" "}
+              <span className="font-bold">{formatTimer(secondsLeft)}</span>
+            </>
+          )}
         </p>
 
         <button
           type="button"
-          className="mt-2 text-base font-black text-[#d93a43] disabled:opacity-50"
+          className="mt-2 text-sm font-semibold tracking-wide text-[var(--accent-red)] disabled:opacity-50"
           onClick={handleResend}
           disabled={!canResend || isResending}
         >

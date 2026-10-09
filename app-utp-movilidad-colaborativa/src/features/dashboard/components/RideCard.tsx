@@ -1,78 +1,108 @@
-import type { RideOffer } from "@/features/dashboard/types";
+import type { RideSummary } from "@/features/dashboard/types";
 import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
-import {
-  CarIcon,
-  GoldCoinIcon,
-  LuggageIcon,
-  PassengersIcon,
-} from "@/shared/icons";
+import { CarIcon, GoldCoinIcon, PassengersIcon } from "@/shared/icons";
+import InfoIcon from "@/assets/images/icons/info.svg?react";
+
+const LIMA = "America/Lima";
+
+const timeFormatter = new Intl.DateTimeFormat("es-PE", {
+  timeZone: LIMA,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+const weekdayFormatter = new Intl.DateTimeFormat("es-PE", {
+  timeZone: LIMA,
+  weekday: "long",
+});
+
+// `en-CA` da la fecha como AAAA-MM-DD, que se puede comparar como texto.
+const dayFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: LIMA });
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Día de la salida en la hora de Perú: «hoy», «mañana» o el día de la semana. */
+function getDepartureDay(departure: Date) {
+  const day = dayFormatter.format(departure);
+  const now = Date.now();
+  if (day === dayFormatter.format(now)) {
+    return "hoy";
+  }
+  if (day === dayFormatter.format(now + DAY_MS)) {
+    return "mañana";
+  }
+  return weekdayFormatter.format(departure);
+}
 
 type RideCardProps = {
-  ride: RideOffer;
+  ride: RideSummary;
   onReserve: (rideId: string) => void;
   isReserving?: boolean;
 };
 
 export function RideCard({ ride, onReserve, isReserving }: RideCardProps) {
+  const { vehicle, driver } = ride;
+  const departure = new Date(ride.departureTime);
+
   return (
     <article className="ride-card">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <GoldCoinIcon className="h-14 w-14 shrink-0" />
-          <span className="text-4xl font-black leading-none text-[#2f2a2a]">
-            {ride.price}
+        <div className="flex items-center gap-1.5">
+          <GoldCoinIcon className="h-7 w-7 shrink-0" />
+          <span className="text-[1.75rem] font-bold leading-none text-[var(--text-primary)]">
+            {ride.pricePerSeat}
           </span>
         </div>
 
         <button
           type="button"
           className="ride-info-button"
-          aria-label="Más información del viaje"
+          aria-label="Condiciones del viaje"
         >
-          i
+          <InfoIcon className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="mt-4 flex gap-4">
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex items-center gap-3 text-base font-semibold text-[#2f2a2a]">
-            <CarIcon className="h-7 w-7 shrink-0 text-[#d93a43]" />
-            <span className="truncate">{ride.vehicle}</span>
+      <div className="mt-2 flex gap-3">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-start gap-2 text-sm font-semibold leading-snug text-[var(--text-primary)]">
+            <CarIcon className="mt-px h-5 w-5 shrink-0 text-[var(--text-muted)]" />
+            <span>
+              {vehicle.brand} {vehicle.model} {vehicle.color}{" "}
+              <span className="whitespace-nowrap">• {vehicle.plate}</span>
+            </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-base text-[#5a5a5a]">
-            <span className="inline-flex items-center gap-2">
-              <PassengersIcon className="h-7 w-7" />
-              {ride.availableSeats}
-            </span>
-
-            {ride.luggageAvailable ? (
-              <span className="inline-flex items-center gap-2">
-                <LuggageIcon className="h-7 w-7" />
-                Disponible
-              </span>
-            ) : null}
+          <div className="flex items-center gap-1.5 text-base text-[var(--text-muted)]">
+            <PassengersIcon className="h-5 w-5" />
+            <span aria-label="Asientos disponibles">{ride.availableSeats}</span>
           </div>
 
           <div className="ride-departure-box">
-            <p className="text-xs font-bold uppercase tracking-wide text-[#7a6d6d]">
-              Salida
+            <p className="text-sm text-[var(--text-muted)]">
+              Salida · {getDepartureDay(departure)}
             </p>
-            <p className="mt-1 text-sm font-bold text-[#2f2a2a]">
-              {ride.departure.window}
+            <p className="text-xl font-semibold leading-tight text-[var(--text-primary)]">
+              {timeFormatter.format(departure)}
             </p>
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col items-center text-center">
-          <DriverAvatar name={ride.driver.name} />
-          <p className="mt-2 text-sm font-bold text-[#2f2a2a]">
-            {ride.driver.name}
+        <div className="flex w-[4.5rem] shrink-0 flex-col items-center text-center">
+          <DriverAvatar name={driver.name} photoUrl={driver.photoUrl} />
+          <p className="mt-1.5 text-sm font-semibold leading-tight text-[var(--text-primary)]">
+            {driver.name}
           </p>
-          <p className="mt-0.5 text-xs text-[#7a6d6d]">
-            <span className="text-amber-500">★</span> {ride.driver.rating} (
-            {ride.driver.reviewCount})
-          </p>
+          {driver.rating ? (
+            <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+              <span className="text-amber-500">★</span>{" "}
+              <span className="font-semibold text-[var(--text-primary)]">
+                {driver.rating.average}
+              </span>{" "}
+              ({driver.rating.count})
+            </p>
+          ) : null}
         </div>
       </div>
 

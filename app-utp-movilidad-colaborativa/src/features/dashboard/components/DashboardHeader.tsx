@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
+import { dashboardService } from "@/features/dashboard/services/dashboardService";
 import { authService } from "@/features/auth/services/authService";
 import MenuIcon from "@/assets/images/icons/menu.svg?react";
 
@@ -8,6 +11,11 @@ export function DashboardHeader() {
   const menuRef = useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const { data: user } = useQuery({
+    queryKey: ["users", "me"],
+    queryFn: dashboardService.getCurrentUser,
+  });
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -73,7 +81,11 @@ export function DashboardHeader() {
           aria-haspopup="menu"
           onClick={() => setIsMenuOpen((open) => !open)}
         >
-          <span className="dashboard-profile-avatar" aria-hidden="true" />
+          <DriverAvatar
+            name={user ? `${user.firstName.split(" ")[0]} ${user.lastName}` : ""}
+            photoUrl={user?.photoUrl}
+            className="dashboard-profile-avatar"
+          />
         </button>
 
         {isMenuOpen ? (

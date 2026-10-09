@@ -1,14 +1,12 @@
 import axios from "axios";
 import Cookies from "js-cookie";
+import { API_BASE_URL } from "@/shared/config/env";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
 const AUTH_COOKIE_NAME =
   import.meta.env.VITE_AUTH_COOKIE_NAME ?? "app_auth_token";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },

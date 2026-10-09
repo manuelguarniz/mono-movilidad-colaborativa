@@ -17,22 +17,16 @@ export function AuthLayout({
   return (
     <div className="auth-shell">
       <div className="auth-panel">
-        <div className="auth-content">
-          <div className="mb-4 flex justify-center">
-            <BrandLogo compact />
-          </div>
+        <div className="auth-content justify-center py-6">
+          <BrandLogo />
 
-          <h1 className="brand-title">{title}</h1>
+          <h1 className="brand-title mt-4">{title}</h1>
 
-          {subtitle ? (
-            <p className="mt-3 text-center text-lg font-light leading-snug text-[#3a2f2f]">
-              {subtitle}
-            </p>
-          ) : null}
+          {subtitle ? <p className="auth-subtitle">{subtitle}</p> : null}
 
-          <div className="mt-8 flex flex-1 flex-col">{children}</div>
+          <div className="mt-8">{children}</div>
 
-          {footer ? <div>{footer}</div> : null}
+          {footer}
         </div>
       </div>
     </div>

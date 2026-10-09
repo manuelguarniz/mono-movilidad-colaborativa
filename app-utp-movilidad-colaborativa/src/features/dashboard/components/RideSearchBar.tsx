@@ -1,6 +1,7 @@
 import ClockIcon from "@/assets/images/icons/clock.svg?react";
 import PassengerIcon from "@/assets/images/icons/passenger.svg?react";
-import FilterIcon from "@/assets/images/icons/filter.svg?react";
+import PlusCircleIcon from "@/assets/images/icons/plus-circle.svg?react";
+import TuneIcon from "@/assets/images/icons/tune.svg?react";
 
 type RideSearchBarProps = {
   destination: string;
@@ -16,10 +17,7 @@ export function RideSearchBar({
   return (
     <section className="ride-search-card">
       <div className="ride-destination-field">
-        <span className="ride-destination-icon" aria-hidden="true">
-          <span className="ride-destination-icon-top" />
-          <span className="ride-destination-icon-bottom" />
-        </span>
+        <span className="ride-destination-dot" aria-hidden="true" />
         <span className="ride-destination-text">{destination}</span>
       </div>
 
@@ -35,10 +33,16 @@ export function RideSearchBar({
         </button>
 
         <button type="button" className="ride-filter-chip">
-          <FilterIcon className="h-4 w-4" />
           Filtros
+          <TuneIcon className="h-4 w-4" />
         </button>
       </div>
+
+      {/* La pantalla «Publicar viaje» todavía no está implementada. */}
+      <button type="button" className="ride-publish-button">
+        <PlusCircleIcon className="h-5 w-5" />
+        Publicar un viaje
+      </button>
     </section>
   );
 }

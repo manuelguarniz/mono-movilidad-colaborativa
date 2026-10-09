@@ -23,7 +23,7 @@ function PasswordVisibilityToggle({
     <button
       type="button"
       onClick={onToggle}
-      className="flex h-8 w-8 items-center justify-center text-[#6b5f5f]"
+      className="flex h-8 w-8 shrink-0 items-center justify-center text-[var(--text-brown)]"
       aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
     >
       {visible ? (
@@ -90,14 +90,15 @@ export function RegisterPage() {
   return (
     <AuthStepLayout
       backTo="/auth/login"
+      backIcon="chevron"
       title="Registro"
-      showLogoCard
+      showLogo
       footer={
-        <p className="mt-8 text-center text-base font-medium text-[#4b3d3d]">
+        <p className="mt-6 pb-2 text-center text-base text-[var(--text-brown)]">
           ¿Ya tienes una cuenta?{" "}
           <Link
             to="/auth/login"
-            className="font-black text-[#d93a43] hover:text-[#c12c33]"
+            className="text-sm font-bold text-[var(--brand-red)] hover:text-[var(--brand-red-hover)]"
           >
             Inicia sesión
           </Link>
@@ -106,7 +107,7 @@ export function RegisterPage() {
     >
       <form onSubmit={handleSubmit}>
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="auth-message auth-message-error">
             {error}
           </div>
         )}
@@ -117,7 +118,6 @@ export function RegisterPage() {
           value={form.email}
           placeholder="tu@email.com"
           autoComplete="email"
-          uppercaseLabel={false}
           onChange={(value) => handleChange("email", value)}
           icon={
             <MailIcon className="h-6 w-6" />
@@ -130,7 +130,6 @@ export function RegisterPage() {
           value={form.password}
           placeholder="••••••••"
           autoComplete="new-password"
-          uppercaseLabel={false}
           helperText="Usa al menos 8 caracteres con una mezcla de letras, números y símbolos."
           onChange={(value) => handleChange("password", value)}
           icon={
@@ -150,7 +149,6 @@ export function RegisterPage() {
           value={form.confirmPassword}
           placeholder="••••••••"
           autoComplete="new-password"
-          uppercaseLabel={false}
           onChange={(value) => handleChange("confirmPassword", value)}
           icon={
             <LockConfirmIcon className="h-6 w-6" />
@@ -168,9 +166,9 @@ export function RegisterPage() {
             type="checkbox"
             checked={acceptedTerms}
             onChange={(event) => setAcceptedTerms(event.target.checked)}
-            className="auth-terms-checkbox"
+            className="app-checkbox"
           />
-          <span className="text-sm font-medium text-[#4b3d3d]">
+          <span className="text-base text-[var(--text-brown)]">
             Acepto los términos y condiciones
           </span>
         </label>
@@ -180,7 +178,7 @@ export function RegisterPage() {
           className="auth-button-primary"
           disabled={isSubmitting}
         >
-          {isSubmitting ? "Continuando..." : "Continuar"}
+          {isSubmitting ? "Registrando..." : "Registrar"}
         </button>
       </form>
     </AuthStepLayout>
