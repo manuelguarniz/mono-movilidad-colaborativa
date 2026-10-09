@@ -5,8 +5,9 @@ info:
   version: 0.1.0
   summary: Contrato entre el frontend (React) y el backend (Spring Boot) de ColaboraCar.
   description: |
-    Contrato de la API REST de ColaboraCar para el alcance actual (RF-01 a RF-22 del
-    `README.md`): autenticación, registro, catálogos, vehículo, viajes, reservas y perfil.
+    Contrato de la API REST de ColaboraCar para el alcance actual (RF-01 a RF-22 y
+    RN-01 a RN-16 del `README.md`): autenticación, registro, catálogos, archivos,
+    vehículo, viajes, reservas y perfil.
 
     ## Convenciones
 
@@ -25,8 +26,9 @@ info:
     - **Errores**: toda respuesta 4xx o 5xx tiene el cuerpo `Error`:
       `{ code, message, errors?, details? }`. `message` va en español y se puede mostrar
       al usuario; `code` es estable y es lo que el frontend debe usar para decidir.
-    - **Fotos**: la carga de imágenes está fuera del alcance. Los campos `photoUrl` ya
-      existen en las respuestas, pero llegan en `null`.
+    - **Fotos**: la imagen se sube primero con `POST /files`, que devuelve su `id`. Los
+      formularios de perfil y de vehículo siguen en JSON y envían ese `id` en
+      `photoFileId`; las respuestas devuelven la imagen en `photoUrl`.
 
     ## Autenticación
 
@@ -35,7 +37,7 @@ info:
 
     | `scope` | Lo emite | Sirve para |
     | --- | --- | --- |
-    | `REGISTRATION` | `POST /auth/register` | `POST /auth/complete-profile` y `POST /vehicles` |
+    | `REGISTRATION` | `POST /auth/register` | `POST /files`, `POST /auth/complete-profile` y `POST /vehicles` |
     | `PRE_AUTH` | `POST /auth/login` | `POST /auth/verify-code` y `POST /auth/resend-code` |
     | `SESSION` | `POST /auth/verify-code` | Todos los endpoints protegidos |
 
@@ -54,12 +56,14 @@ tags:
     description: Inicio de sesión con OTP, registro y cierre de sesión (RF-01 a RF-06).
   - name: Catalogs
     description: Departamentos, distritos y sedes para los formularios. Son públicos.
+  - name: Files
+    description: Carga de las fotos de perfil y de vehículo (colección `archivos`).
   - name: Vehicles
     description: Vehículo del conductor, embebido en su usuario (RF-07, RF-08, RF-22).
   - name: Rides
     description: Listado, detalle, publicación y reserva de viajes (RF-09 a RF-18).
   - name: Users
-    description: Perfil del usuario autenticado (RF-19 a RF-21).
+    description: Perfil del usuario autenticado (RF-19 a RF-21, RN-14).
 
 security:
   - bearerAuth: []
@@ -74,6 +78,7 @@ paths:
         Crea el usuario en estado `PROFILE_PENDING` con la contraseña cifrada (BCrypt) y
         devuelve un token `REGISTRATION` para completar el perfil y, si corresponde,
         registrar el vehículo. La confirmación de contraseña se valida solo en el frontend.
+        Solo se admiten correos del dominio `utp.edu.pe` (RN-02).
       security: []
       requestBody:
         required: true
@@ -98,6 +103,8 @@ paths:
                 code: VALIDATION_ERROR
                 message: Revisa los datos de registro
                 errors:
+                  - field: email
+                    message: El correo debe ser del dominio utp.edu.pe
                   - field: password
                     message: La contraseña debe tener al menos 8 caracteres con letras, números y símbolos
                   - field: acceptedTerms
@@ -118,8 +125,9 @@ paths:
       operationId: completeProfile
       summary: Completar el perfil
       description: |
-        Guarda los datos personales, asigna el rol `PASSENGER` y deja la cuenta en estado
-        `ACTIVE`. Admite un token `REGISTRATION` o, si el usuario abandonó el registro y
+        Guarda los datos personales y la foto, asigna el rol `PASSENGER` y deja la cuenta
+        en estado `ACTIVE`. Todos los datos son obligatorios, incluida la foto (RN-04),
+        que se sube antes con `POST /files`. Admite un token `REGISTRATION` o, si el usuario abandonó el registro y
         luego inició sesión, un token `SESSION`.
 
         El backend copia el `id` y el `name` de departamento, distrito y sede dentro del
@@ -141,9 +149,10 @@ paths:
                 message: Perfil completado correctamente
         "400":
           description: |
-            Datos inválidos (`VALIDATION_ERROR`) o catálogo inexistente o inconsistente
+            Datos inválidos (`VALIDATION_ERROR`), catálogo inexistente o inconsistente
             (`INVALID_CATALOG_REFERENCE`): por ejemplo, un distrito que no pertenece al
-            departamento.
+            departamento; o foto inexistente, de otro usuario o de otro propósito
+            (`INVALID_FILE_REFERENCE`).
           content:
             application/json:
               schema:
@@ -156,6 +165,8 @@ paths:
                     message: Los apellidos son obligatorios
                   - field: campusId
                     message: La sede es obligatoria
+                  - field: photoFileId
+                    message: La foto de perfil es obligatoria
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -169,7 +180,8 @@ paths:
       description: |
         Valida correo y contraseña, genera un código OTP de 6 dígitos, lo envía al correo
         y devuelve un token `PRE_AUTH`. Ese token todavía no da acceso a la aplicación:
-        solo permite verificar o reenviar el código.
+        solo permite verificar o reenviar el código. Solo se admiten correos del dominio
+        `utp.edu.pe` (RN-01).
       security: []
       requestBody:
         required: true
@@ -185,7 +197,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/LoginResponse"
         "400":
-          description: Falta el correo o la contraseña (`VALIDATION_ERROR`).
+          description: Falta el correo o la contraseña, o el correo no es del dominio `utp.edu.pe` (`VALIDATION_ERROR`).
           content:
             application/json:
               schema:
@@ -407,6 +419,66 @@ paths:
                 code: VALIDATION_ERROR
                 message: El parámetro districtId es obligatorio
 
+  /files:
+    post:
+      tags: [Files]
+      operationId: uploadFile
+      summary: Subir una foto
+      description: |
+        Guarda la imagen en el servidor, registra el documento en `archivos` y devuelve
+        su `id` y su `url`. El `id` se envía después como `photoFileId` en el formulario
+        de perfil o de vehículo; una imagen que no se llega a usar se puede descartar.
+
+        Admite JPG y PNG de hasta 5 MB. Admite un token `REGISTRATION` (durante el
+        registro) o `SESSION`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FileUploadRequest"
+      responses:
+        "201":
+          description: Imagen guardada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadedFile"
+        "400":
+          description: Falta el archivo o el propósito no es válido (`VALIDATION_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Revisa la imagen
+                errors:
+                  - field: file
+                    message: La imagen es obligatoria
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: La imagen supera los 5 MB (`FILE_TOO_LARGE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: FILE_TOO_LARGE
+                message: La imagen no puede superar los 5 MB
+        "415":
+          description: El archivo no es JPG ni PNG (`UNSUPPORTED_FILE_TYPE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: UNSUPPORTED_FILE_TYPE
+                message: Solo se admiten imágenes JPG o PNG
+
   /vehicles:
     post:
       tags: [Vehicles]
@@ -417,6 +489,9 @@ paths:
         `REGISTRATION` (durante el registro) o `SESSION` (un pasajero que registra su
         vehículo más adelante). El perfil debe estar completo. Un usuario solo puede tener
         un vehículo.
+
+        Todos los campos son obligatorios, excepto la casilla «Soy el propietario» y la
+        foto (RN-06).
       requestBody:
         required: true
         content:
@@ -431,7 +506,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Vehicle"
         "400":
-          description: Datos del vehículo inválidos (`VALIDATION_ERROR`). `errors` detalla cada campo.
+          description: |
+            Datos del vehículo inválidos (`VALIDATION_ERROR`; `errors` detalla cada campo)
+            o foto inexistente, de otro usuario o de otro propósito
+            (`INVALID_FILE_REFERENCE`).
           content:
             application/json:
               schema:
@@ -497,6 +575,10 @@ paths:
         conductor en estado `PUBLISHED` o `IN_PROGRESS`. `ownerDni` no se modifica aquí.
 
         Si `seats` baja, las plazas de los viajes ya publicados no cambian.
+
+        Todos los datos son obligatorios, incluida la foto (RN-15): si el vehículo aún no
+        tiene foto, `photoFileId` es obligatorio. De las casillas, solo es obligatoria la
+        de términos y condiciones (RN-16).
       requestBody:
         required: true
         content:
@@ -511,7 +593,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Vehicle"
         "400":
-          description: Datos del vehículo inválidos (`VALIDATION_ERROR`). `errors` detalla cada campo.
+          description: |
+            Datos del vehículo inválidos (`VALIDATION_ERROR`; `errors` detalla cada campo)
+            o foto inexistente, de otro usuario o de otro propósito
+            (`INVALID_FILE_REFERENCE`).
           content:
             application/json:
               schema:
@@ -521,7 +606,7 @@ paths:
                 message: Revisa los datos del vehículo
                 errors:
                   - field: seats
-                    message: Las plazas deben estar entre 1 y 8
+                    message: Las plazas deben estar entre 1 y 10
                   - field: brand
                     message: La marca es obligatoria
         "401":
@@ -656,7 +741,8 @@ paths:
         "400":
           description: |
             Datos inválidos (`VALIDATION_ERROR`): por ejemplo, `departureTime` en el
-            pasado, `seats` mayor que las plazas del vehículo o más de 5 paradas.
+            pasado o fuera del horario de 6:00 a 23:00, `pricePerSeat` fuera del rango de
+            1 a 10, `seats` mayor que las plazas del vehículo o más de 5 paradas.
           content:
             application/json:
               schema:
@@ -666,7 +752,9 @@ paths:
                 message: Revisa los datos del viaje
                 errors:
                   - field: departureTime
-                    message: La hora de salida debe ser futura
+                    message: La hora de salida debe ser futura y estar entre las 6:00 y las 23:00
+                  - field: pricePerSeat
+                    message: El precio por plaza debe estar entre 1 y 10
                   - field: seats
                     message: Las plazas no pueden superar las de tu vehículo
         "401":
@@ -797,8 +885,14 @@ paths:
       operationId: updateMyProfile
       summary: Actualizar mis datos
       description: |
-        Actualiza nombres, apellidos, teléfono y modalidad activa. El correo y el
-        documento de identidad no son editables: si llegan en el cuerpo, se ignoran.
+        Actualiza foto, nombres, apellidos, teléfono y modalidad activa. Todos los datos
+        son obligatorios, incluida la foto (RN-14).
+
+        El correo no es editable: si llega en el cuerpo, se ignora. El documento de
+        identidad (`documentType` y `documentNumber`) se registra una sola vez: es
+        obligatorio mientras el usuario no tenga uno y, una vez guardado, ya no se puede
+        modificar (si llega en el cuerpo, se ignora). El teléfono sí se puede cambiar
+        siempre.
 
         Si cambia el nombre, el backend actualiza la copia del conductor en sus viajes
         `PUBLISHED` o `IN_PROGRESS`.
@@ -816,7 +910,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserProfile"
         "400":
-          description: Datos personales inválidos (`VALIDATION_ERROR`). `errors` detalla cada campo.
+          description: |
+            Datos personales inválidos (`VALIDATION_ERROR`; `errors` detalla cada campo) o
+            foto inexistente, de otro usuario o de otro propósito
+            (`INVALID_FILE_REFERENCE`).
           content:
             application/json:
               schema:
@@ -829,6 +926,8 @@ paths:
                     message: El teléfono debe tener el formato +51 seguido de 9 dígitos
                   - field: firstName
                     message: Los nombres son obligatorios
+                  - field: documentNumber
+                    message: El DNI debe tener 8 dígitos
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -912,6 +1011,7 @@ components:
             Código estable del error. Valores: `VALIDATION_ERROR`, `UNAUTHORIZED`,
             `FORBIDDEN_SCOPE`, `INVALID_CREDENTIALS`, `ACCOUNT_BLOCKED`,
             `EMAIL_ALREADY_REGISTERED`, `INVALID_CATALOG_REFERENCE`, `PROFILE_INCOMPLETE`,
+            `INVALID_FILE_REFERENCE`, `FILE_TOO_LARGE`, `UNSUPPORTED_FILE_TYPE`,
             `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS_EXCEEDED`, `OTP_RESEND_TOO_SOON`,
             `PLATE_ALREADY_REGISTERED`, `VEHICLE_ALREADY_REGISTERED`, `VEHICLE_NOT_FOUND`,
             `VEHICLE_REQUIRED`, `RIDE_NOT_FOUND`, `RIDE_NOT_AVAILABLE`,
@@ -1000,6 +1100,70 @@ components:
           minimum: 0
           example: 120
 
+    # --------------------------------------------------------------- Archivos
+    FilePurpose:
+      type: string
+      enum: [PROFILE_PHOTO, VEHICLE_PHOTO]
+      description: En MongoDB, `FOTO_PERFIL` y `FOTO_VEHICULO`.
+
+    FileUploadRequest:
+      type: object
+      required: [file, purpose]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Imagen JPG o PNG de hasta 5 MB.
+        purpose:
+          $ref: "#/components/schemas/FilePurpose"
+
+    UploadedFile:
+      type: object
+      description: Colección `archivos`.
+      required: [id, url, purpose, mimeType, sizeBytes]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        url:
+          type: string
+          description: Ruta pública de la imagen.
+          example: /uploads/perfiles/6705a1f0c3d4e5f600000903.jpg
+        purpose:
+          $ref: "#/components/schemas/FilePurpose"
+        mimeType:
+          type: string
+          enum: [image/jpeg, image/png]
+        sizeBytes:
+          type: integer
+          example: 184320
+
+    PhotoFileId:
+      allOf:
+        - $ref: "#/components/schemas/ObjectId"
+      description: |
+        `id` devuelto por `POST /files`. La imagen debe ser del usuario autenticado y del
+        propósito que corresponde al formulario.
+
+    UtpEmail:
+      type: string
+      format: email
+      maxLength: 254
+      pattern: '^[A-Za-z0-9._%+-]+@utp\.edu\.pe$'
+      description: Correo institucional del dominio `utp.edu.pe` (RN-01, RN-02). Se guarda en minúsculas.
+      example: valeria.rodriguez@utp.edu.pe
+
+    PersonName:
+      type: string
+      minLength: 1
+      maxLength: 60
+      pattern: '\p{L}'
+      description: Debe contener al menos una letra (RN-05).
+
+    DocumentType:
+      type: string
+      enum: [DNI, CE]
+      description: Documento nacional de identidad o carné de extranjería.
+
     # ------------------------------------------------------------------- Auth
     AuthToken:
       type: object
@@ -1040,18 +1204,14 @@ components:
       required: [email, password, acceptedTerms]
       properties:
         email:
-          type: string
-          format: email
-          maxLength: 254
-          description: Se guarda en minúsculas.
-          example: valeria.rodriguez@utp.edu.pe
+          $ref: "#/components/schemas/UtpEmail"
         password:
           type: string
           format: password
           minLength: 8
           maxLength: 72
           pattern: '^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$'
-          description: Mínimo 8 caracteres, con letras, números y símbolos.
+          description: Mínimo 8 caracteres, con letras, números y símbolos (RN-03).
         acceptedTerms:
           type: boolean
           const: true
@@ -1069,17 +1229,17 @@ components:
 
     CompleteProfileRequest:
       type: object
-      required: [firstName, lastName, departmentId, districtId, campusId]
+      required: [photoFileId, firstName, lastName, departmentId, districtId, campusId]
       properties:
+        photoFileId:
+          $ref: "#/components/schemas/PhotoFileId"
         firstName:
-          type: string
-          minLength: 1
-          maxLength: 60
+          allOf:
+            - $ref: "#/components/schemas/PersonName"
           example: Valeria Andrea
         lastName:
-          type: string
-          minLength: 1
-          maxLength: 60
+          allOf:
+            - $ref: "#/components/schemas/PersonName"
           example: Rodríguez Paredes
         departmentId:
           $ref: "#/components/schemas/ObjectId"
@@ -1093,8 +1253,7 @@ components:
       required: [email, password]
       properties:
         email:
-          type: string
-          format: email
+          $ref: "#/components/schemas/UtpEmail"
         password:
           type: string
           format: password
@@ -1231,6 +1390,7 @@ components:
         - firstName
         - lastName
         - phone
+        - documentType
         - documentNumber
         - photoUrl
         - department
@@ -1259,14 +1419,23 @@ components:
           example: Mendoza Ruiz
         phone:
           type: [string, "null"]
+          description: "`null` hasta que el usuario lo registra en «Actualizar datos»."
           example: "+51987654321"
+        documentType:
+          oneOf:
+            - $ref: "#/components/schemas/DocumentType"
+            - type: "null"
+          description: "`null` hasta que el usuario registra su documento en «Actualizar datos»."
         documentNumber:
           type: [string, "null"]
-          description: DNI o CE. No editable.
+          description: |
+            `null` hasta que el usuario lo registra en «Actualizar datos». Una vez
+            guardado, no es editable.
           example: "45678912"
         photoUrl:
-          type: [string, "null"]
-          description: Próximo alcance; por ahora `null`.
+          type: string
+          description: Foto de perfil; es obligatoria desde «Completar perfil».
+          example: /uploads/perfiles/6705a1f0c3d4e5f600000903.jpg
         department:
           $ref: "#/components/schemas/NamedRef"
         district:
@@ -1340,14 +1509,28 @@ components:
       type: object
       required: [firstName, lastName, phone, activeMode]
       properties:
+        photoFileId:
+          allOf:
+            - $ref: "#/components/schemas/PhotoFileId"
+          description: Foto nueva. Si no se envía, se conserva la foto actual.
         firstName:
-          type: string
-          minLength: 1
-          maxLength: 60
+          $ref: "#/components/schemas/PersonName"
         lastName:
+          $ref: "#/components/schemas/PersonName"
+        documentType:
+          allOf:
+            - $ref: "#/components/schemas/DocumentType"
+          description: |
+            Obligatorio mientras el usuario no tenga documento registrado. Después se
+            ignora.
+        documentNumber:
           type: string
-          minLength: 1
-          maxLength: 60
+          pattern: '^[A-Za-z0-9]{8,12}$'
+          description: |
+            Obligatorio mientras el usuario no tenga documento registrado; después se
+            ignora. Un DNI tiene exactamente 8 dígitos; un CE, entre 8 y 12 caracteres
+            alfanuméricos.
+          example: "72345678"
         phone:
           type: string
           pattern: '^\+51\d{9}$'
@@ -1390,14 +1573,13 @@ components:
         type:
           $ref: "#/components/schemas/VehicleType"
         brand:
-          type: [string, "null"]
-          description: "`null` hasta que el conductor lo completa en «Actualizar vehículo»."
+          type: string
           example: Toyota
         model:
-          type: [string, "null"]
+          type: string
           example: Yaris
         color:
-          type: [string, "null"]
+          type: string
           example: Blanco
         year:
           type: integer
@@ -1415,14 +1597,15 @@ components:
           $ref: "#/components/schemas/VehicleStatus"
         photoUrl:
           type: [string, "null"]
-          description: Próximo alcance; por ahora `null`.
+          description: "`null` si el vehículo se registró sin foto (es opcional en el registro, RN-06)."
         registeredAt:
           type: string
           format: date-time
 
     VehicleCreateRequest:
       type: object
-      required: [plate, type, year, seats, ownerDni, isOwner, acceptedTerms]
+      required:
+        [plate, type, brand, model, color, year, seats, ownerDni, acceptedTerms]
       properties:
         plate:
           $ref: "#/components/schemas/Plate"
@@ -1438,24 +1621,35 @@ components:
           example: "45678912"
         isOwner:
           type: boolean
-          description: Casilla «Soy el propietario del vehículo».
+          default: false
+          description: Casilla «Soy el propietario del vehículo». Es opcional.
         acceptedTerms:
           type: boolean
           const: true
           description: Debe ser `true`; el backend guarda la fecha de aceptación.
         brand:
           type: string
+          minLength: 1
           maxLength: 40
+          example: Toyota
         model:
           type: string
+          minLength: 1
           maxLength: 40
+          example: Yaris
         color:
           type: string
+          minLength: 1
           maxLength: 30
+          example: Blanco
+        photoFileId:
+          allOf:
+            - $ref: "#/components/schemas/PhotoFileId"
+          description: Foto del vehículo. Es opcional en el registro.
 
     VehicleUpdateRequest:
       type: object
-      required: [plate, type, brand, model, year, seats, isOwner, acceptedTerms]
+      required: [plate, type, brand, model, color, year, seats, acceptedTerms]
       properties:
         plate:
           $ref: "#/components/schemas/Plate"
@@ -1473,15 +1667,24 @@ components:
           example: Yaris
         color:
           type: string
+          minLength: 1
           maxLength: 30
-          description: Si no se envía, se conserva el color actual.
+          example: Blanco
+        photoFileId:
+          allOf:
+            - $ref: "#/components/schemas/PhotoFileId"
+          description: |
+            Foto nueva. Si no se envía, se conserva la actual; es obligatorio si el
+            vehículo aún no tiene foto.
         year:
           $ref: "#/components/schemas/VehicleYear"
         seats:
           $ref: "#/components/schemas/VehicleSeats"
         isOwner:
           type: boolean
-          description: Casilla «Soy el propietario legal o conductor autorizado».
+          description: |
+            Casilla «Soy el propietario legal o conductor autorizado». Es opcional; si no
+            se envía, se conserva el valor actual.
         acceptedTerms:
           type: boolean
           const: true
@@ -1490,21 +1693,21 @@ components:
       type: string
       pattern: "^[A-Za-z0-9]{3}-?[A-Za-z0-9]{3,4}$"
       description: |
-        Placa peruana. El backend la guarda en mayúsculas y con guion (`ABC-123`); es
+        Placa con el formato del Perú (RN-07). El backend la guarda en mayúsculas y con guion (`ABC-123`); es
         única entre todos los usuarios.
       example: ABC-123
 
     VehicleYear:
       type: integer
-      minimum: 1990
-      description: Año de fabricación; como máximo, el año siguiente al actual.
+      minimum: 2000
+      description: Año de fabricación; como mínimo 2000 y como máximo el año actual (RN-08).
       example: 2021
 
     VehicleSeats:
       type: integer
       minimum: 1
-      maximum: 8
-      description: Plazas que el conductor comparte, sin contar la suya.
+      maximum: 10
+      description: Plazas que el conductor comparte, sin contar la suya; entre 1 y 10 (RN-09).
       example: 3
 
     # ----------------------------------------------------------------- Viajes
@@ -1544,13 +1747,13 @@ components:
       required: [brand, model, color, plate]
       properties:
         brand:
-          type: [string, "null"]
+          type: string
           example: Toyota
         model:
-          type: [string, "null"]
+          type: string
           example: Yaris
         color:
-          type: [string, "null"]
+          type: string
           example: Blanco
         plate:
           type: string
@@ -1584,8 +1787,10 @@ components:
           example: "2026-10-09T13:30:00Z"
         pricePerSeat:
           type: integer
+          minimum: 1
+          maximum: 10
           description: Aporte por plaza, en créditos.
-          example: 45
+          example: 5
         totalSeats:
           type: integer
           example: 3
@@ -1665,7 +1870,9 @@ components:
         departureTime:
           type: string
           format: date-time
-          description: Debe ser una fecha futura.
+          description: |
+            Debe ser una fecha futura, con hora entre las 6:00 y las 23:00 de Perú
+            (RN-12).
           example: "2026-10-09T12:30:00Z"
         origin:
           $ref: "#/components/schemas/Place"
@@ -1681,12 +1888,13 @@ components:
         pricePerSeat:
           type: integer
           minimum: 1
-          description: Aporte por plaza, en créditos (1 crédito = 1 sol).
+          maximum: 10
+          description: Aporte por plaza, en créditos (1 crédito = 1 sol); entre 1 y 10 (RN-13).
           example: 5
         seats:
           type: integer
           minimum: 1
-          description: Plazas ofrecidas; como máximo, las plazas del vehículo.
+          description: Plazas ofrecidas; como máximo, las plazas del vehículo (RN-11).
           example: 3
         conditions:
           type: array

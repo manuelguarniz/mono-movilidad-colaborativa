@@ -42,7 +42,7 @@ Son 22 requerimientos agrupados en seis módulos. En este alcance el aporte en c
 | RF-17 | Publicación | El sistema muestra un resumen y pide confirmación antes de publicar; el viaje queda visible de inmediato en el dashboard. | Conductor | 12 |
 | RF-18 | Publicación | Solo los usuarios con un vehículo registrado pueden publicar viajes. | Conductor | 06, 11 |
 | RF-19 | Perfil | El usuario consulta su perfil: datos, estadísticas (viajes, cumplimiento —«Puntualidad» en el perfil del conductor—, ahorro de CO₂), sede, dirección de residencia y estado de cuenta. | Ambos | 13, 14 |
-| RF-20 | Perfil | El usuario actualiza foto, nombres, apellidos y teléfono; el correo institucional y el documento de identidad no son editables. | Ambos | 15 |
+| RF-20 | Perfil | El usuario actualiza foto, nombres, apellidos y teléfono, y registra por única vez su tipo y número de documento de identidad; el correo institucional no es editable y el documento tampoco una vez guardado. | Ambos | 15 |
 | RF-21 | Perfil | El usuario puede alternar su modalidad activa entre pasajero y conductor. | Ambos | 15 |
 | RF-22 | Perfil | El conductor actualiza los datos de su vehículo: foto, placa, tipo, marca y modelo, color, año y plazas. | Conductor | 14, 16 |
 
@@ -65,7 +65,7 @@ Son 16 reglas de validación agrupadas por pantalla. La columna Pantalla indica 
 | RN-11 | 11 — Publicar viaje | Las plazas disponibles son como mínimo 1 y como máximo las plazas del vehículo. |
 | RN-12 | 11 — Publicar viaje | Los horarios deben estar entre las 6:00 y las 23:00. |
 | RN-13 | 11 — Publicar viaje | El monto por plaza es como mínimo S/ 1 y como máximo S/ 10 (1 sol = 1 crédito). |
-| RN-14 | 15 — Actualizar datos | Todos los datos son obligatorios, incluida la foto. |
+| RN-14 | 15 — Actualizar datos | Todos los datos son obligatorios, incluida la foto. El tipo y el número de documento se ingresan una sola vez y luego no se pueden modificar; el teléfono sí. |
 | RN-15 | 16 — Actualizar vehículo | Todos los datos son obligatorios, incluida la foto. |
 | RN-16 | 16 — Actualizar vehículo | De los checks, solo es obligatorio el de términos y condiciones. |
 
@@ -146,7 +146,7 @@ flowchart TB
   end
 
   codigos_otp["<b>codigos_otp</b><br/>usuario_id, codigo_hash<br/>proposito, intentos<br/>fecha_expiracion (índice TTL)"]
-  usuarios["<b>usuarios</b><br/>correo (único), contrasena_hash<br/>nombres, apellidos, telefono<br/>numero_documento<br/>departamento, distrito, sede<br/>(copias con id y nombre)<br/>vehiculo (embebido completo,<br/>placa única)<br/>direccion_residencia<br/>estadisticas, roles, modo_activo<br/>estado, foto<br/>calificacion *<br/>saldo_creditos *"]
+  usuarios["<b>usuarios</b><br/>correo (único), contrasena_hash<br/>nombres, apellidos, telefono<br/>tipo_documento, numero_documento<br/>departamento, distrito, sede<br/>(copias con id y nombre)<br/>vehiculo (embebido completo,<br/>placa única)<br/>direccion_residencia<br/>estadisticas, roles, modo_activo<br/>estado, foto<br/>calificacion *<br/>saldo_creditos *"]
   viajes["<b>viajes</b><br/>conductor, vehiculo, sede<br/>(copias), sentido, fecha_salida<br/>origen, destino, paradas<br/>precio_por_plaza, plazas_totales<br/>plazas_disponibles, condiciones<br/>estado"]
   archivos["<b>archivos</b><br/>propietario_id, proposito<br/>ruta, url (directorio del servidor)<br/>tipo_mime, tamano_bytes"]
   reservas["<b>reservas</b><br/>viaje_id, pasajero, viaje (copias)<br/>plazas, total_creditos, estado"]
@@ -186,6 +186,7 @@ Son 8 colecciones: 5 de negocio y 3 catálogos. Cada una se muestra con un docum
   "nombres": "Carlos Alberto",
   "apellidos": "Mendoza Ruiz",
   "telefono": "+51987654321",
+  "tipo_documento": "DNI",
   "numero_documento": "45678912",
   "departamento": { "id": "6705a1f0c3d4e5f600000101", "nombre": "La Libertad" },
   "distrito": { "id": "6705a1f0c3d4e5f600000201", "nombre": "Trujillo" },
@@ -227,7 +228,7 @@ Son 8 colecciones: 5 de negocio y 3 catálogos. Cada una se muestra con un docum
 }
 ```
 
-`correo` es único y se guarda en minúsculas. `roles` admite `PASAJERO` y `CONDUCTOR`; `modo_activo` es uno de los dos. `estado` es `PERFIL_PENDIENTE`, `ACTIVO` o `BLOQUEADO`. `contrasena_hash` nunca se devuelve en las respuestas de la API.
+`correo` es único y se guarda en minúsculas. `roles` admite `PASAJERO` y `CONDUCTOR`; `modo_activo` es uno de los dos. `estado` es `PERFIL_PENDIENTE`, `ACTIVO` o `BLOQUEADO`. `contrasena_hash` nunca se devuelve en las respuestas de la API. `tipo_documento` es `DNI` o `CE`; junto con `numero_documento` y `telefono` queda vacío hasta que el usuario los registra en «Actualizar datos».
 
 `vehiculo` solo existe si el usuario es conductor; no hay colección de vehículos. `vehiculo.placa` es única y se guarda en mayúsculas. `vehiculo.tipo` es `SEDAN`, `HATCHBACK`, `SUV`, `VAN` o `MOTO`, y `vehiculo.estado` es `ACTIVO` o `INACTIVO`.
 
@@ -318,7 +319,7 @@ En este alcance `distancia_km` es la distancia en línea recta entre origen, par
 
 `fecha_expiracion` tiene un índice TTL: MongoDB elimina el documento al expirar. `intentos` llega como máximo a 3. `proposito` es `INICIO_SESION`; `RECUPERAR_CONTRASENA` queda reservado para la recuperación de contraseña.
 
-**`archivos`** — imagen cargada. El archivo se guarda en un directorio del servidor del backend y se expone por URL.
+**`archivos`** — imagen cargada. El archivo se guarda en un directorio del servidor del backend y se expone por URL. El frontend la sube con `POST /api/files` (JPG o PNG de hasta 5 MB) y envía el `id` que recibe en el formulario de perfil o de vehículo.
 
 ```json
 {
@@ -567,6 +568,8 @@ sequenceDiagram
     end
 
     U->>FE: Ingresa foto, nombres, apellidos, departamento, distrito y sede
+    FE->>API: POST /api/files (foto de perfil)
+    API-->>FE: 201 Id de la imagen
     FE->>API: POST /api/auth/complete-profile
     API->>DB: Actualizar usuario con rol PASAJERO (usuarios)
     API-->>FE: 200 Perfil completado
@@ -702,9 +705,10 @@ sequenceDiagram
     opt Actualizar datos personales
         U->>FE: Pulsa «Actualizar datos»
         U->>FE: Edita foto, nombres, apellidos, teléfono o modalidad
+        U->>FE: Ingresa tipo y número de documento (solo la primera vez)
         U->>FE: Pulsa «Guardar cambios»
         FE->>API: PUT /api/users/me
-        API->>API: Ignorar correo y DNI (no editables)
+        API->>API: Ignorar correo y, si ya existe, el documento (no editables)
         API->>DB: Actualizar usuario (usuarios)
         API-->>FE: 200 Perfil actualizado
         FE->>FE: Invalidar caché del perfil
@@ -783,13 +787,13 @@ Los frames son una referencia visual y difieren de este documento en los puntos 
 | 05, 16 | El registro no pide marca, modelo ni color; la actualización no pide color. | Ambos formularios piden marca, modelo y color (RF-08, RF-22). |
 | 06 | La salida es un rango (14:15 – 14:25). | El viaje tiene una sola hora de salida (`fecha_salida`). |
 | 01, 03, 14 | Correos de ejemplo de otros dominios (`name@company.com`, `carlos.mendoza@sharecar.pe`). | Solo se admiten correos `utp.edu.pe` (RN-01, RN-02). |
+| 15 | El documento de identidad aparece bloqueado y sin tipo de documento. | El usuario elige el tipo (DNI o CE) e ingresa el número una sola vez; luego queda bloqueado (RN-14). |
 | Varios | La marca aparece como «ShareCar». | El nombre del producto es ColaboraCar. |
 
 Pendientes por definir, porque los frames los muestran y este documento aún no los cubre:
 
 - **Cancelación de reservas:** el frame 09 indica «Cancelación gratuita hasta 10 min antes del viaje». El modelo ya tiene el estado `CANCELADA`, pero no hay requerimiento ni regla.
 - **«Cambiar sede» y «Modificar casa»:** los frames 13 y 14 tienen los botones, pero no hay pantalla ni requerimiento. Ninguna pantalla captura la dirección de residencia.
-- **Teléfono y documento de identidad:** la pantalla 15 los exige y el documento no es editable, pero el registro (04) no los pide.
 - **«A/C activo» y «Conductor frecuente»:** aparecen en el frame 09 y no están en el modelo.
 
 ### 11.1 Vista previa de pantallas
