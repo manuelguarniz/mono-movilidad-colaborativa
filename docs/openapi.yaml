@@ -1,0 +1,1708 @@
+openapi: 3.1.0
+
+info:
+  title: ColaboraCar API
+  version: 0.1.0
+  summary: Contrato entre el frontend (React) y el backend (Spring Boot) de ColaboraCar.
+  description: |
+    Contrato de la API REST de ColaboraCar para el alcance actual (RF-01 a RF-22 del
+    `README.md`): autenticación, registro, catálogos, vehículo, viajes, reservas y perfil.
+
+    ## Convenciones
+
+    - **Campos JSON**: inglés en `camelCase`. El backend traduce hacia y desde los
+      documentos de MongoDB, que están en español y `snake_case` (cada schema indica su
+      colección de origen).
+    - **Identificadores**: cadenas de 24 caracteres hexadecimales (ObjectId de MongoDB).
+    - **Fechas**: ISO 8601 en UTC (`2026-10-09T13:30:00Z`). El frontend las muestra en la
+      hora de Perú (`America/Lima`, UTC-5).
+    - **Coordenadas**: objeto `{ lat, lng }` en grados decimales. El backend las convierte
+      al `Point` GeoJSON (`[lng, lat]`) que se guarda en MongoDB.
+    - **Créditos**: enteros. En este alcance solo se muestran y se registran; no hay cobro
+      ni saldo.
+    - **Listas**: se devuelven dentro de `{ "data": [...] }`. Un recurso individual se
+      devuelve directamente, sin envoltorio.
+    - **Errores**: toda respuesta 4xx o 5xx tiene el cuerpo `Error`:
+      `{ code, message, errors?, details? }`. `message` va en español y se puede mostrar
+      al usuario; `code` es estable y es lo que el frontend debe usar para decidir.
+    - **Fotos**: la carga de imágenes está fuera del alcance. Los campos `photoUrl` ya
+      existen en las respuestas, pero llegan en `null`.
+
+    ## Autenticación
+
+    Los endpoints protegidos reciben un JWT en `Authorization: Bearer <token>`. La API es
+    stateless. Hay tres tipos de token, que se distinguen por el claim `scope`:
+
+    | `scope` | Lo emite | Sirve para |
+    | --- | --- | --- |
+    | `REGISTRATION` | `POST /auth/register` | `POST /auth/complete-profile` y `POST /vehicles` |
+    | `PRE_AUTH` | `POST /auth/login` | `POST /auth/verify-code` y `POST /auth/resend-code` |
+    | `SESSION` | `POST /auth/verify-code` | Todos los endpoints protegidos |
+
+    Un token con un `scope` que el endpoint no admite recibe `403 FORBIDDEN_SCOPE`. Las
+    respuestas incluyen `expiresIn` (segundos), así que el frontend no necesita conocer
+    las duraciones.
+
+servers:
+  - url: http://localhost:8080/api
+    description: Backend local (Spring Boot)
+  - url: http://localhost:3000/api
+    description: API simulada con MSW (valor por defecto de VITE_API_BASE_URL)
+
+tags:
+  - name: Auth
+    description: Inicio de sesión con OTP, registro y cierre de sesión (RF-01 a RF-06).
+  - name: Catalogs
+    description: Departamentos, distritos y sedes para los formularios. Son públicos.
+  - name: Vehicles
+    description: Vehículo del conductor, embebido en su usuario (RF-07, RF-08, RF-22).
+  - name: Rides
+    description: Listado, detalle, publicación y reserva de viajes (RF-09 a RF-18).
+  - name: Users
+    description: Perfil del usuario autenticado (RF-19 a RF-21).
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      summary: Crear una cuenta
+      description: |
+        Crea el usuario en estado `PROFILE_PENDING` con la contraseña cifrada (BCrypt) y
+        devuelve un token `REGISTRATION` para completar el perfil y, si corresponde,
+        registrar el vehículo. La confirmación de contraseña se valida solo en el frontend.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Usuario creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterResponse"
+        "400":
+          description: Datos de registro inválidos (`VALIDATION_ERROR`). `errors` detalla cada campo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Revisa los datos de registro
+                errors:
+                  - field: password
+                    message: La contraseña debe tener al menos 8 caracteres con letras, números y símbolos
+                  - field: acceptedTerms
+                    message: Debes aceptar los términos y condiciones
+        "409":
+          description: El correo ya está en uso (`EMAIL_ALREADY_REGISTERED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: EMAIL_ALREADY_REGISTERED
+                message: El correo ya está en uso
+
+  /auth/complete-profile:
+    post:
+      tags: [Auth]
+      operationId: completeProfile
+      summary: Completar el perfil
+      description: |
+        Guarda los datos personales, asigna el rol `PASSENGER` y deja la cuenta en estado
+        `ACTIVE`. Admite un token `REGISTRATION` o, si el usuario abandonó el registro y
+        luego inició sesión, un token `SESSION`.
+
+        El backend copia el `id` y el `name` de departamento, distrito y sede dentro del
+        usuario.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteProfileRequest"
+      responses:
+        "200":
+          description: Perfil completado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Perfil completado correctamente
+        "400":
+          description: |
+            Datos inválidos (`VALIDATION_ERROR`) o catálogo inexistente o inconsistente
+            (`INVALID_CATALOG_REFERENCE`): por ejemplo, un distrito que no pertenece al
+            departamento.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Faltan datos obligatorios del perfil
+                errors:
+                  - field: lastName
+                    message: Los apellidos son obligatorios
+                  - field: campusId
+                    message: La sede es obligatoria
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Iniciar sesión (paso 1, credenciales)
+      description: |
+        Valida correo y contraseña, genera un código OTP de 6 dígitos, lo envía al correo
+        y devuelve un token `PRE_AUTH`. Ese token todavía no da acceso a la aplicación:
+        solo permite verificar o reenviar el código.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Credenciales válidas; código OTP enviado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Falta el correo o la contraseña (`VALIDATION_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Correo y contraseña requeridos
+                errors:
+                  - field: password
+                    message: La contraseña es obligatoria
+        "401":
+          description: Correo o contraseña incorrectos (`INVALID_CREDENTIALS`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: INVALID_CREDENTIALS
+                message: Correo o contraseña incorrectos
+        "403":
+          description: La cuenta está bloqueada (`ACCOUNT_BLOCKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /auth/verify-code:
+    post:
+      tags: [Auth]
+      operationId: verifyCode
+      summary: Iniciar sesión (paso 2, código OTP)
+      description: |
+        Verifica el código OTP del usuario del token `PRE_AUTH`. Si es correcto, elimina
+        el código y devuelve el token `SESSION`. El código expira a los 5 minutos y admite
+        3 intentos (RF-03, RNF-03).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyCodeRequest"
+      responses:
+        "200":
+          description: Código correcto; sesión verificada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyCodeResponse"
+        "400":
+          description: |
+            Código incorrecto (`OTP_INVALID`, con `details.attemptsLeft`), código expirado
+            (`OTP_EXPIRED`, hay que reenviarlo) o formato inválido (`VALIDATION_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: OTP_INVALID
+                message: Código inválido. Te quedan 2 intentos.
+                details:
+                  attemptsLeft: 2
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: |
+            Se agotaron los 3 intentos (`OTP_ATTEMPTS_EXCEEDED`). El código queda
+            invalidado: hay que reenviarlo o volver a iniciar sesión.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /auth/resend-code:
+    post:
+      tags: [Auth]
+      operationId: resendCode
+      summary: Reenviar el código OTP
+      description: |
+        Reemplaza el código OTP vigente por uno nuevo, reinicia los intentos y lo envía al
+        correo. Solo se permite 45 segundos después del último envío (RF-03). No lleva
+        cuerpo.
+      responses:
+        "200":
+          description: Código reenviado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResendCodeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: |
+            Aún no pasan los 45 segundos (`OTP_RESEND_TOO_SOON`, con
+            `details.retryAfter` en segundos).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: OTP_RESEND_TOO_SOON
+                message: Podrás reenviar el código en 20 segundos
+                details:
+                  retryAfter: 20
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Cerrar sesión
+      description: |
+        Como la API es stateless, el cierre de sesión efectivo ocurre en el frontend al
+        eliminar las cookies. El endpoint existe para dejar registro y no lleva cuerpo.
+      responses:
+        "200":
+          description: Sesión cerrada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Sesión cerrada correctamente
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /catalogs/departments:
+    get:
+      tags: [Catalogs]
+      operationId: listDepartments
+      summary: Listar departamentos
+      description: Ordenados por nombre.
+      security: []
+      responses:
+        "200":
+          description: Departamentos.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Department"
+
+  /catalogs/districts:
+    get:
+      tags: [Catalogs]
+      operationId: listDistricts
+      summary: Listar los distritos de un departamento
+      description: Ordenados por nombre.
+      security: []
+      parameters:
+        - name: departmentId
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/ObjectId"
+      responses:
+        "200":
+          description: Distritos del departamento. Lista vacía si el departamento no existe.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/District"
+        "400":
+          description: Falta `departmentId` o no es un identificador válido (`VALIDATION_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: El parámetro departmentId es obligatorio
+
+  /catalogs/campuses:
+    get:
+      tags: [Catalogs]
+      operationId: listCampuses
+      summary: Listar las sedes universitarias de un distrito
+      description: Solo sedes activas, ordenadas por nombre.
+      security: []
+      parameters:
+        - name: districtId
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/ObjectId"
+      responses:
+        "200":
+          description: Sedes del distrito. Lista vacía si el distrito no existe o no tiene sedes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Campus"
+        "400":
+          description: Falta `districtId` o no es un identificador válido (`VALIDATION_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: El parámetro districtId es obligatorio
+
+  /vehicles:
+    post:
+      tags: [Vehicles]
+      operationId: registerVehicle
+      summary: Registrar el vehículo
+      description: |
+        Guarda el vehículo dentro del usuario y le agrega el rol `DRIVER`. Admite un token
+        `REGISTRATION` (durante el registro) o `SESSION` (un pasajero que registra su
+        vehículo más adelante). El perfil debe estar completo. Un usuario solo puede tener
+        un vehículo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleCreateRequest"
+      responses:
+        "201":
+          description: Vehículo registrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Datos del vehículo inválidos (`VALIDATION_ERROR`). `errors` detalla cada campo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Revisa los datos del vehículo
+                errors:
+                  - field: plate
+                    message: La placa debe tener el formato ABC-123
+                  - field: ownerDni
+                    message: El DNI debe tener 8 dígitos
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: |
+            La placa pertenece a otro usuario (`PLATE_ALREADY_REGISTERED`), el usuario ya
+            tiene un vehículo (`VEHICLE_ALREADY_REGISTERED`) o aún no completó su perfil
+            (`PROFILE_INCOMPLETE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: PLATE_ALREADY_REGISTERED
+                message: La placa ya está registrada
+
+  /vehicles/me:
+    get:
+      tags: [Vehicles]
+      operationId: getMyVehicle
+      summary: Consultar mi vehículo
+      description: |
+        Lo usa «Publicar un viaje» para saber si el usuario puede publicar (RF-18).
+      responses:
+        "200":
+          description: Vehículo del usuario.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El usuario no tiene vehículo registrado (`VEHICLE_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VEHICLE_NOT_FOUND
+                message: No tienes un vehículo registrado
+    put:
+      tags: [Vehicles]
+      operationId: updateMyVehicle
+      summary: Actualizar mi vehículo
+      description: |
+        Reemplaza los datos editables del vehículo y actualiza la copia en los viajes del
+        conductor en estado `PUBLISHED` o `IN_PROGRESS`. `ownerDni` no se modifica aquí.
+
+        Si `seats` baja, las plazas de los viajes ya publicados no cambian.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleUpdateRequest"
+      responses:
+        "200":
+          description: Vehículo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Datos del vehículo inválidos (`VALIDATION_ERROR`). `errors` detalla cada campo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Revisa los datos del vehículo
+                errors:
+                  - field: seats
+                    message: Las plazas deben estar entre 1 y 8
+                  - field: brand
+                    message: La marca es obligatoria
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El usuario no tiene vehículo registrado (`VEHICLE_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: La placa pertenece a otro usuario (`PLATE_ALREADY_REGISTERED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /rides:
+    get:
+      tags: [Rides]
+      operationId: listRides
+      summary: Listar los viajes disponibles
+      description: |
+        Devuelve los viajes en estado `PUBLISHED` de una sede, con salida futura y con
+        plazas disponibles, ordenados por `departureTime` ascendente. No incluye los
+        viajes publicados por el propio usuario.
+
+        La búsqueda siempre es por sede: solo se listan los viajes publicados por
+        alumnos de esa sede. Sin `campusId` se usa la sede del usuario autenticado.
+
+        Cada elemento trae `conditions`, de modo que el modal «Condiciones del viaje» no
+        necesita otra petición.
+      parameters:
+        - name: campusId
+          in: query
+          required: false
+          description: |
+            Sede cuyos viajes se listan. Si no se envía, se usa la sede del usuario
+            autenticado. Si la sede no existe, la lista llega vacía.
+          schema:
+            $ref: "#/components/schemas/ObjectId"
+        - name: destination
+          in: query
+          required: false
+          description: |
+            Texto a buscar en la etiqueta o la dirección del destino, sin distinguir
+            mayúsculas ni tildes.
+          schema:
+            type: string
+            maxLength: 100
+          example: Huaca del Dragón
+        - name: time
+          in: query
+          required: false
+          description: |
+            Hora de salida mínima, en formato `HH:mm` de 24 horas y hora de Perú. Devuelve
+            los viajes de hoy que salen a esa hora o después.
+          schema:
+            type: string
+            pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          example: "14:15"
+        - name: passengers
+          in: query
+          required: false
+          description: Plazas que se necesitan; filtra por `availableSeats >= passengers`.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        "200":
+          description: Viajes disponibles.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RideSummary"
+        "400":
+          description: Algún filtro tiene un formato inválido (`VALIDATION_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Revisa los filtros de búsqueda
+                errors:
+                  - field: time
+                    message: La hora debe tener el formato HH:mm
+                  - field: passengers
+                    message: El número de pasajeros debe ser al menos 1
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Rides]
+      operationId: publishRide
+      summary: Publicar un viaje
+      description: |
+        Crea el viaje en estado `PUBLISHED`; queda visible de inmediato en el listado.
+        Solo para usuarios con vehículo registrado (RF-18).
+
+        El backend toma del usuario autenticado el conductor, el vehículo y la sede, y
+        calcula `distanceKm` (línea recta entre origen, paradas y destino) y
+        `durationMin` (estimación a partir de la distancia). El frontend no los envía.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RideCreateRequest"
+      responses:
+        "201":
+          description: Viaje publicado.
+          headers:
+            Location:
+              description: Ruta del viaje creado (`/api/rides/{rideId}`).
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RideDetail"
+        "400":
+          description: |
+            Datos inválidos (`VALIDATION_ERROR`): por ejemplo, `departureTime` en el
+            pasado, `seats` mayor que las plazas del vehículo o más de 5 paradas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Revisa los datos del viaje
+                errors:
+                  - field: departureTime
+                    message: La hora de salida debe ser futura
+                  - field: seats
+                    message: Las plazas no pueden superar las de tu vehículo
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            El usuario no tiene vehículo registrado (`VEHICLE_REQUIRED`) o el token no
+            es de sesión (`FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VEHICLE_REQUIRED
+                message: Registra un vehículo para publicar viajes
+
+  /rides/{rideId}:
+    parameters:
+      - $ref: "#/components/parameters/RideId"
+    get:
+      tags: [Rides]
+      operationId: getRide
+      summary: Consultar el detalle de un viaje
+      description: |
+        Devuelve el viaje con la ruta completa (origen, paradas y destino con
+        coordenadas) para dibujar el mapa. Responde para cualquier estado del viaje.
+      responses:
+        "200":
+          description: Detalle del viaje.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RideDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/RideNotFound"
+
+  /rides/{rideId}/reserve:
+    parameters:
+      - $ref: "#/components/parameters/RideId"
+    post:
+      tags: [Rides]
+      operationId: reserveRide
+      summary: Reservar un viaje
+      description: |
+        Descuenta las plazas de forma atómica y crea la reserva en estado `CONFIRMED`,
+        todo en una misma transacción. Un pasajero solo puede tener una reserva
+        `CONFIRMED` por viaje.
+
+        El cuerpo es opcional: sin cuerpo se reserva 1 plaza.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReserveRideRequest"
+      responses:
+        "201":
+          description: Reserva confirmada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Reserva confirmada
+        "400":
+          description: El valor de `seats` no es un entero mayor o igual a 1 (`VALIDATION_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Revisa los datos de la reserva
+                errors:
+                  - field: seats
+                    message: Debes reservar al menos 1 plaza
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            El conductor no puede reservar su propio viaje (`OWN_RIDE`) o el token no es
+            de sesión (`FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/RideNotFound"
+        "409":
+          description: |
+            No quedan plazas suficientes (`NO_SEATS_AVAILABLE`), el usuario ya tiene una
+            reserva confirmada en este viaje (`ALREADY_BOOKED`) o el viaje ya no está
+            publicado o ya salió (`RIDE_NOT_AVAILABLE`). En los tres casos el frontend
+            debe refrescar el listado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: NO_SEATS_AVAILABLE
+                message: Este viaje ya no tiene asientos disponibles
+
+  /users/me:
+    get:
+      tags: [Users]
+      operationId: getMyProfile
+      summary: Consultar mi perfil
+      description: |
+        Devuelve el perfil completo en una sola respuesta, incluido el vehículo si el
+        usuario es conductor.
+      responses:
+        "200":
+          description: Perfil del usuario.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Users]
+      operationId: updateMyProfile
+      summary: Actualizar mis datos
+      description: |
+        Actualiza nombres, apellidos, teléfono y modalidad activa. El correo y el
+        documento de identidad no son editables: si llegan en el cuerpo, se ignoran.
+
+        Si cambia el nombre, el backend actualiza la copia del conductor en sus viajes
+        `PUBLISHED` o `IN_PROGRESS`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdateRequest"
+      responses:
+        "200":
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: Datos personales inválidos (`VALIDATION_ERROR`). `errors` detalla cada campo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: VALIDATION_ERROR
+                message: Revisa tus datos personales
+                errors:
+                  - field: phone
+                    message: El teléfono debe tener el formato +51 seguido de 9 dígitos
+                  - field: firstName
+                    message: Los nombres son obligatorios
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            `activeMode` es `DRIVER` pero el usuario no tiene vehículo
+            (`VEHICLE_REQUIRED`), o el token no es de sesión (`FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT con el claim `scope` (`REGISTRATION`, `PRE_AUTH` o `SESSION`). Salvo que el
+        endpoint indique otra cosa, se exige `SESSION`.
+
+  parameters:
+    RideId:
+      name: rideId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ObjectId"
+
+  responses:
+    Unauthorized:
+      description: Falta el token, es inválido o expiró (`UNAUTHORIZED`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: UNAUTHORIZED
+            message: Tu sesión expiró. Vuelve a iniciar sesión.
+    Forbidden:
+      description: El token es válido, pero su `scope` no admite este endpoint (`FORBIDDEN_SCOPE`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: FORBIDDEN_SCOPE
+            message: No tienes permiso para realizar esta acción
+    RideNotFound:
+      description: El viaje no existe (`RIDE_NOT_FOUND`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: RIDE_NOT_FOUND
+            message: Viaje no encontrado
+
+  schemas:
+    # ---------------------------------------------------------------- Comunes
+    ObjectId:
+      type: string
+      pattern: "^[0-9a-f]{24}$"
+      description: Identificador de MongoDB (ObjectId) como cadena.
+      example: 6705a1f0c3d4e5f600000501
+
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: |
+            Código estable del error. Valores: `VALIDATION_ERROR`, `UNAUTHORIZED`,
+            `FORBIDDEN_SCOPE`, `INVALID_CREDENTIALS`, `ACCOUNT_BLOCKED`,
+            `EMAIL_ALREADY_REGISTERED`, `INVALID_CATALOG_REFERENCE`, `PROFILE_INCOMPLETE`,
+            `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS_EXCEEDED`, `OTP_RESEND_TOO_SOON`,
+            `PLATE_ALREADY_REGISTERED`, `VEHICLE_ALREADY_REGISTERED`, `VEHICLE_NOT_FOUND`,
+            `VEHICLE_REQUIRED`, `RIDE_NOT_FOUND`, `RIDE_NOT_AVAILABLE`,
+            `NO_SEATS_AVAILABLE`, `ALREADY_BOOKED`, `OWN_RIDE`, `INTERNAL_ERROR`.
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          description: Mensaje en español, apto para mostrarse al usuario.
+        errors:
+          type: array
+          description: Errores por campo. Solo con `VALIDATION_ERROR`.
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+                description: Nombre del campo; con notación de punto si está anidado (`origin.location.lat`).
+              message:
+                type: string
+        details:
+          type: object
+          description: |
+            Datos adicionales de algunos errores: `attemptsLeft` en `OTP_INVALID` y
+            `retryAfter` (segundos) en `OTP_RESEND_TOO_SOON`.
+          additionalProperties: true
+
+    NamedRef:
+      type: object
+      description: Copia del `id` y el `name` de un documento de otra colección.
+      required: [id, name]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        name:
+          type: string
+
+    GeoPoint:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          example: -8.0975
+        lng:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          example: -79.0353
+
+    Place:
+      type: object
+      description: Punto de una ruta o dirección (`etiqueta`, `direccion`, `ubicacion`).
+      required: [label, location]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 80
+          example: Universidad Tecnológica del Perú
+        address:
+          type: [string, "null"]
+          maxLength: 160
+          example: Sede Trujillo, Av. Nicolás de Piérola
+        location:
+          $ref: "#/components/schemas/GeoPoint"
+
+    Rating:
+      type: object
+      description: |
+        Calificación del usuario. Las calificaciones son del próximo alcance: por ahora
+        el backend devuelve el valor guardado, sin forma de modificarlo.
+      required: [average, count]
+      properties:
+        average:
+          type: number
+          minimum: 0
+          maximum: 5
+          example: 4.9
+        count:
+          type: integer
+          minimum: 0
+          example: 120
+
+    # ------------------------------------------------------------------- Auth
+    AuthToken:
+      type: object
+      required: [token, scope, expiresIn]
+      properties:
+        token:
+          type: string
+          description: "JWT que se envía en `Authorization: Bearer`."
+        scope:
+          type: string
+          enum: [REGISTRATION, PRE_AUTH, SESSION]
+        expiresIn:
+          type: integer
+          description: Segundos de validez del token.
+          example: 900
+
+    OtpInfo:
+      type: object
+      description: Estado del código OTP vigente, para el contador de la pantalla de verificación.
+      required: [expiresIn, resendAfter, attemptsLeft]
+      properties:
+        expiresIn:
+          type: integer
+          description: Segundos hasta que expira el código (5 minutos al emitirlo).
+          example: 300
+        resendAfter:
+          type: integer
+          description: Segundos que faltan para poder reenviarlo (45 al emitirlo).
+          example: 45
+        attemptsLeft:
+          type: integer
+          minimum: 0
+          maximum: 3
+          example: 3
+
+    RegisterRequest:
+      type: object
+      required: [email, password, acceptedTerms]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: Se guarda en minúsculas.
+          example: valeria.rodriguez@utp.edu.pe
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+          pattern: '^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$'
+          description: Mínimo 8 caracteres, con letras, números y símbolos.
+        acceptedTerms:
+          type: boolean
+          const: true
+          description: Debe ser `true`; el backend guarda la fecha de aceptación.
+
+    RegisterResponse:
+      allOf:
+        - $ref: "#/components/schemas/AuthToken"
+        - type: object
+          required: [user]
+          properties:
+            user:
+              $ref: "#/components/schemas/SessionUser"
+      description: Token con `scope` `REGISTRATION`; el usuario queda en `PROFILE_PENDING`.
+
+    CompleteProfileRequest:
+      type: object
+      required: [firstName, lastName, departmentId, districtId, campusId]
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 60
+          example: Valeria Andrea
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 60
+          example: Rodríguez Paredes
+        departmentId:
+          $ref: "#/components/schemas/ObjectId"
+        districtId:
+          $ref: "#/components/schemas/ObjectId"
+        campusId:
+          $ref: "#/components/schemas/ObjectId"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      allOf:
+        - $ref: "#/components/schemas/AuthToken"
+        - type: object
+          required: [otp]
+          properties:
+            otp:
+              $ref: "#/components/schemas/OtpInfo"
+      description: Token con `scope` `PRE_AUTH`.
+
+    VerifyCodeRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          example: "482913"
+
+    VerifyCodeResponse:
+      allOf:
+        - $ref: "#/components/schemas/AuthToken"
+        - type: object
+          required: [user]
+          properties:
+            user:
+              $ref: "#/components/schemas/SessionUser"
+      description: Token con `scope` `SESSION`.
+
+    ResendCodeResponse:
+      type: object
+      required: [message, otp]
+      properties:
+        message:
+          type: string
+          example: Código reenviado correctamente
+        otp:
+          $ref: "#/components/schemas/OtpInfo"
+
+    SessionUser:
+      type: object
+      description: Datos mínimos del usuario para que el frontend decida a dónde navegar.
+      required:
+        [id, email, firstName, lastName, photoUrl, roles, activeMode, status]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        email:
+          type: string
+          format: email
+        firstName:
+          type: [string, "null"]
+          description: "`null` mientras el perfil está pendiente."
+        lastName:
+          type: [string, "null"]
+        photoUrl:
+          type: [string, "null"]
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+        activeMode:
+          oneOf:
+            - $ref: "#/components/schemas/Role"
+            - type: "null"
+        status:
+          $ref: "#/components/schemas/UserStatus"
+
+    # --------------------------------------------------------------- Catálogos
+    Department:
+      type: object
+      description: Colección `departamentos`.
+      required: [id, code, name]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        code:
+          type: string
+          description: Ubigeo del departamento.
+          example: "13"
+        name:
+          type: string
+          example: La Libertad
+
+    District:
+      type: object
+      description: Colección `distritos`.
+      required: [id, code, name]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        code:
+          type: string
+          description: Ubigeo del distrito.
+          example: "130101"
+        name:
+          type: string
+          example: Trujillo
+
+    Campus:
+      type: object
+      description: Colección `sedes`.
+      required: [id, name]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        name:
+          type: string
+          example: UTP Sede Trujillo
+
+    # ---------------------------------------------------------------- Usuario
+    Role:
+      type: string
+      enum: [PASSENGER, DRIVER]
+      description: En MongoDB, `PASAJERO` y `CONDUCTOR`.
+
+    UserStatus:
+      type: string
+      enum: [PROFILE_PENDING, ACTIVE, BLOCKED]
+      description: En MongoDB, `PERFIL_PENDIENTE`, `ACTIVO` y `BLOQUEADO`.
+
+    UserProfile:
+      type: object
+      description: |
+        Colección `usuarios`. Nunca incluye `contrasena_hash`. `saldo_creditos` no se
+        expone en este alcance.
+      required:
+        - id
+        - email
+        - firstName
+        - lastName
+        - phone
+        - documentNumber
+        - photoUrl
+        - department
+        - district
+        - campus
+        - homeAddress
+        - roles
+        - activeMode
+        - status
+        - vehicle
+        - stats
+        - rating
+        - createdAt
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        email:
+          type: string
+          format: email
+          description: No editable.
+        firstName:
+          type: string
+          example: Carlos Alberto
+        lastName:
+          type: string
+          example: Mendoza Ruiz
+        phone:
+          type: [string, "null"]
+          example: "+51987654321"
+        documentNumber:
+          type: [string, "null"]
+          description: DNI o CE. No editable.
+          example: "45678912"
+        photoUrl:
+          type: [string, "null"]
+          description: Próximo alcance; por ahora `null`.
+        department:
+          $ref: "#/components/schemas/NamedRef"
+        district:
+          $ref: "#/components/schemas/NamedRef"
+        campus:
+          $ref: "#/components/schemas/UserCampus"
+        homeAddress:
+          oneOf:
+            - $ref: "#/components/schemas/Place"
+            - type: "null"
+          description: Dirección de residencia (`direccion_residencia`).
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+          example: [PASSENGER, DRIVER]
+        activeMode:
+          $ref: "#/components/schemas/Role"
+        status:
+          $ref: "#/components/schemas/UserStatus"
+        vehicle:
+          oneOf:
+            - $ref: "#/components/schemas/Vehicle"
+            - type: "null"
+          description: "`null` si el usuario no es conductor."
+        stats:
+          $ref: "#/components/schemas/UserStats"
+        rating:
+          oneOf:
+            - $ref: "#/components/schemas/Rating"
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+
+    UserCampus:
+      type: object
+      description: Copia de la sede dentro del usuario.
+      required: [id, name, address]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        name:
+          type: string
+          example: UTP Sede Trujillo
+        address:
+          type: string
+          example: Av. Nicolás de Piérola 1221, Trujillo
+
+    UserStats:
+      type: object
+      description: Campo `estadisticas`. Empieza en cero.
+      required: [trips, compliance, co2SavedKg]
+      properties:
+        trips:
+          type: integer
+          minimum: 0
+          example: 342
+        compliance:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Porcentaje de cumplimiento.
+          example: 99
+        co2SavedKg:
+          type: number
+          minimum: 0
+          example: 128
+
+    UserUpdateRequest:
+      type: object
+      required: [firstName, lastName, phone, activeMode]
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 60
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 60
+        phone:
+          type: string
+          pattern: '^\+51\d{9}$'
+          description: Celular peruano en formato E.164.
+          example: "+51987654321"
+        activeMode:
+          $ref: "#/components/schemas/Role"
+
+    # --------------------------------------------------------------- Vehículo
+    VehicleType:
+      type: string
+      enum: [SEDAN, HATCHBACK, SUV, VAN, MOTORCYCLE]
+      description: En MongoDB, `MOTORCYCLE` es `MOTO`; el resto se llama igual.
+
+    VehicleStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+      description: En MongoDB, `ACTIVO` e `INACTIVO`.
+
+    Vehicle:
+      type: object
+      description: Campo embebido `usuarios.vehiculo`.
+      required:
+        - plate
+        - type
+        - brand
+        - model
+        - color
+        - year
+        - seats
+        - ownerDni
+        - isOwner
+        - status
+        - photoUrl
+        - registeredAt
+      properties:
+        plate:
+          type: string
+          example: ABC-123
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        brand:
+          type: [string, "null"]
+          description: "`null` hasta que el conductor lo completa en «Actualizar vehículo»."
+          example: Toyota
+        model:
+          type: [string, "null"]
+          example: Yaris
+        color:
+          type: [string, "null"]
+          example: Blanco
+        year:
+          type: integer
+          example: 2021
+        seats:
+          type: integer
+          description: Plazas que el conductor comparte, sin contar la suya.
+          example: 3
+        ownerDni:
+          type: string
+          example: "45678912"
+        isOwner:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/VehicleStatus"
+        photoUrl:
+          type: [string, "null"]
+          description: Próximo alcance; por ahora `null`.
+        registeredAt:
+          type: string
+          format: date-time
+
+    VehicleCreateRequest:
+      type: object
+      required: [plate, type, year, seats, ownerDni, isOwner, acceptedTerms]
+      properties:
+        plate:
+          $ref: "#/components/schemas/Plate"
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        year:
+          $ref: "#/components/schemas/VehicleYear"
+        seats:
+          $ref: "#/components/schemas/VehicleSeats"
+        ownerDni:
+          type: string
+          pattern: '^\d{8}$'
+          example: "45678912"
+        isOwner:
+          type: boolean
+          description: Casilla «Soy el propietario del vehículo».
+        acceptedTerms:
+          type: boolean
+          const: true
+          description: Debe ser `true`; el backend guarda la fecha de aceptación.
+        brand:
+          type: string
+          maxLength: 40
+        model:
+          type: string
+          maxLength: 40
+        color:
+          type: string
+          maxLength: 30
+
+    VehicleUpdateRequest:
+      type: object
+      required: [plate, type, brand, model, year, seats, isOwner, acceptedTerms]
+      properties:
+        plate:
+          $ref: "#/components/schemas/Plate"
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        brand:
+          type: string
+          minLength: 1
+          maxLength: 40
+          example: Toyota
+        model:
+          type: string
+          minLength: 1
+          maxLength: 40
+          example: Yaris
+        color:
+          type: string
+          maxLength: 30
+          description: Si no se envía, se conserva el color actual.
+        year:
+          $ref: "#/components/schemas/VehicleYear"
+        seats:
+          $ref: "#/components/schemas/VehicleSeats"
+        isOwner:
+          type: boolean
+          description: Casilla «Soy el propietario legal o conductor autorizado».
+        acceptedTerms:
+          type: boolean
+          const: true
+
+    Plate:
+      type: string
+      pattern: "^[A-Za-z0-9]{3}-?[A-Za-z0-9]{3,4}$"
+      description: |
+        Placa peruana. El backend la guarda en mayúsculas y con guion (`ABC-123`); es
+        única entre todos los usuarios.
+      example: ABC-123
+
+    VehicleYear:
+      type: integer
+      minimum: 1990
+      description: Año de fabricación; como máximo, el año siguiente al actual.
+      example: 2021
+
+    VehicleSeats:
+      type: integer
+      minimum: 1
+      maximum: 8
+      description: Plazas que el conductor comparte, sin contar la suya.
+      example: 3
+
+    # ----------------------------------------------------------------- Viajes
+    RideDirection:
+      type: string
+      enum: [TO_CAMPUS, TO_HOME]
+      description: |
+        Sentido del viaje. En MongoDB, `IDA_UNIVERSIDAD` y `REGRESO_CASA`. En
+        `TO_CAMPUS` el destino es la sede; en `TO_HOME`, el origen.
+
+    RideStatus:
+      type: string
+      enum: [PUBLISHED, IN_PROGRESS, COMPLETED, CANCELLED]
+      description: En MongoDB, `PUBLICADO`, `EN_CURSO`, `COMPLETADO` y `CANCELADO`.
+
+    RideDriver:
+      type: object
+      description: Copia del conductor dentro del viaje.
+      required: [id, name, photoUrl, rating]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        name:
+          type: string
+          description: Primer nombre e inicial del apellido.
+          example: Carlos M.
+        photoUrl:
+          type: [string, "null"]
+        rating:
+          oneOf:
+            - $ref: "#/components/schemas/Rating"
+            - type: "null"
+
+    RideVehicle:
+      type: object
+      description: Copia del vehículo dentro del viaje.
+      required: [brand, model, color, plate]
+      properties:
+        brand:
+          type: [string, "null"]
+          example: Toyota
+        model:
+          type: [string, "null"]
+          example: Yaris
+        color:
+          type: [string, "null"]
+          example: Blanco
+        plate:
+          type: string
+          example: ABC-123
+
+    RideBase:
+      type: object
+      required:
+        - id
+        - status
+        - direction
+        - departureTime
+        - pricePerSeat
+        - totalSeats
+        - availableSeats
+        - distanceKm
+        - durationMin
+        - driver
+        - vehicle
+        - conditions
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        status:
+          $ref: "#/components/schemas/RideStatus"
+        direction:
+          $ref: "#/components/schemas/RideDirection"
+        departureTime:
+          type: string
+          format: date-time
+          example: "2026-10-09T13:30:00Z"
+        pricePerSeat:
+          type: integer
+          description: Aporte por plaza, en créditos.
+          example: 45
+        totalSeats:
+          type: integer
+          example: 3
+        availableSeats:
+          type: integer
+          example: 3
+        distanceKm:
+          type: number
+          description: Distancia en línea recta entre origen, paradas y destino.
+          example: 8.5
+        durationMin:
+          type: integer
+          description: Duración estimada a partir de la distancia.
+          example: 15
+        driver:
+          $ref: "#/components/schemas/RideDriver"
+        vehicle:
+          $ref: "#/components/schemas/RideVehicle"
+        conditions:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+          example: [No se admite desvíos, Máximo de espera 5 minutos]
+
+    RideSummary:
+      description: Viaje en el listado del dashboard (colección `viajes`), sin coordenadas.
+      allOf:
+        - $ref: "#/components/schemas/RideBase"
+        - type: object
+          required: [origin, destination]
+          properties:
+            origin:
+              $ref: "#/components/schemas/PlaceSummary"
+            destination:
+              $ref: "#/components/schemas/PlaceSummary"
+
+    PlaceSummary:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          example: Huaca del Dragón (Arco Iris)
+        address:
+          type: [string, "null"]
+          example: La Esperanza, Trujillo
+
+    RideDetail:
+      description: Viaje con la ruta completa para el mapa (colección `viajes`).
+      allOf:
+        - $ref: "#/components/schemas/RideBase"
+        - type: object
+          required: [origin, destination, stops, createdAt]
+          properties:
+            origin:
+              $ref: "#/components/schemas/Place"
+            destination:
+              $ref: "#/components/schemas/Place"
+            stops:
+              type: array
+              maxItems: 5
+              description: Paradas intermedias, en el orden del recorrido.
+              items:
+                $ref: "#/components/schemas/Place"
+            createdAt:
+              type: string
+              format: date-time
+
+    RideCreateRequest:
+      type: object
+      required:
+        [direction, departureTime, origin, destination, pricePerSeat, seats]
+      properties:
+        direction:
+          $ref: "#/components/schemas/RideDirection"
+        departureTime:
+          type: string
+          format: date-time
+          description: Debe ser una fecha futura.
+          example: "2026-10-09T12:30:00Z"
+        origin:
+          $ref: "#/components/schemas/Place"
+        destination:
+          $ref: "#/components/schemas/Place"
+        stops:
+          type: array
+          maxItems: 5
+          default: []
+          description: Paradas intermedias, en el orden del recorrido.
+          items:
+            $ref: "#/components/schemas/Place"
+        pricePerSeat:
+          type: integer
+          minimum: 1
+          description: Aporte por plaza, en créditos (1 crédito = 1 sol).
+          example: 5
+        seats:
+          type: integer
+          minimum: 1
+          description: Plazas ofrecidas; como máximo, las plazas del vehículo.
+          example: 3
+        conditions:
+          type: array
+          maxItems: 10
+          default: []
+          items:
+            type: string
+            minLength: 1
+            maxLength: 120
+
+    # --------------------------------------------------------------- Reservas
+    ReserveRideRequest:
+      type: object
+      properties:
+        seats:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Plazas a reservar.

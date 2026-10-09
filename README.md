@@ -13,13 +13,13 @@ ColaboraCar es una aplicación de movilidad colaborativa para la comunidad de la
 | Backend | API REST con Spring Boot 4 (Java 21), Spring Security y Spring Data MongoDB. |
 | Base de datos | MongoDB Atlas (NoSQL orientada a documentos, clúster administrado en la nube). |
 | Módulos | Autenticación, registro, dashboard de viajes, reserva, publicación de viajes y perfil. |
-| Fuera de alcance | Para un próximo alcance: créditos, pagos y billetera; carga de imágenes (fotos de perfil y de vehículo); y en mapas, el trazado de rutas por calles, la búsqueda de direcciones y el tráfico en tiempo real. Tampoco se incluyen historial de viajes, recuperación de contraseña, chat ni calificaciones. |
+| Fuera de alcance | Para un próximo alcance: créditos, pagos y billetera; y en mapas, el trazado de rutas por calles, la búsqueda de direcciones y el tráfico en tiempo real. Tampoco se incluyen historial de viajes, recuperación de contraseña, chat ni calificaciones. |
 
 Estado actual: el frontend ya implementa login, verificación OTP, registro, completar perfil y dashboard contra una API simulada con MSW. El backend y la base de datos aún no existen.
 
 ## 2. Requerimientos funcionales (RF)
 
-Son 22 requerimientos agrupados en seis módulos. En este alcance el aporte en créditos solo se muestra y se registra, sin cobro ni saldo, y las fotos no se cargan: ambos se refinarán en un próximo alcance. La columna Pantalla indica el mockup de `frames/` que lo respalda.
+Son 22 requerimientos agrupados en seis módulos. En este alcance el aporte en créditos solo se muestra y se registra, sin cobro ni saldo: se refinará en un próximo alcance. La columna Pantalla indica el mockup de `frames/` que lo respalda.
 
 | ID | Módulo | Requerimiento | Actor | Pantalla |
 | --- | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ Son 22 requerimientos agrupados en seis módulos. En este alcance el aporte en c
 | RF-05 | Registro | El sistema permite crear una cuenta con correo, contraseña, confirmación de contraseña y aceptación de términos y condiciones. | Ambos | 03 |
 | RF-06 | Registro | El usuario completa su perfil con foto, nombres, apellidos, departamento, distrito y sede universitaria. | Ambos | 04 |
 | RF-07 | Registro | Si el usuario marca «Tengo vehículo», el sistema solicita los datos del vehículo y lo registra como conductor. | Conductor | 04, 05 |
-| RF-08 | Registro | El registro del vehículo incluye foto, placa, tipo, año de fabricación, cantidad de ocupantes y DNI del propietario. | Conductor | 05 |
+| RF-08 | Registro | El registro del vehículo incluye foto, placa, tipo, marca, modelo, color, año de fabricación, cantidad de ocupantes y DNI del propietario, además de los checks «Soy el propietario» y de términos y condiciones. | Conductor | 05 |
 | RF-09 | Dashboard | El sistema lista los viajes disponibles con aporte, vehículo, asientos libres, horario de salida y datos del conductor. | Pasajero | 06 |
 | RF-10 | Dashboard | El usuario puede filtrar los viajes por destino, hora de salida y número de pasajeros. | Pasajero | 06 |
 | RF-11 | Dashboard | El usuario puede consultar las condiciones que el conductor definió para un viaje. | Pasajero | 07 |
@@ -41,10 +41,33 @@ Son 22 requerimientos agrupados en seis módulos. En este alcance el aporte en c
 | RF-16 | Publicación | El conductor configura sentido del viaje (ida a la universidad o regreso a casa), hora de salida, precio por plaza y plazas disponibles. | Conductor | 11 |
 | RF-17 | Publicación | El sistema muestra un resumen y pide confirmación antes de publicar; el viaje queda visible de inmediato en el dashboard. | Conductor | 12 |
 | RF-18 | Publicación | Solo los usuarios con un vehículo registrado pueden publicar viajes. | Conductor | 06, 11 |
-| RF-19 | Perfil | El usuario consulta su perfil: datos, estadísticas (viajes, cumplimiento, ahorro de CO₂), sede, dirección de residencia y estado de cuenta. | Ambos | 13, 14 |
+| RF-19 | Perfil | El usuario consulta su perfil: datos, estadísticas (viajes, cumplimiento —«Puntualidad» en el perfil del conductor—, ahorro de CO₂), sede, dirección de residencia y estado de cuenta. | Ambos | 13, 14 |
 | RF-20 | Perfil | El usuario actualiza foto, nombres, apellidos y teléfono; el correo institucional y el documento de identidad no son editables. | Ambos | 15 |
 | RF-21 | Perfil | El usuario puede alternar su modalidad activa entre pasajero y conductor. | Ambos | 15 |
-| RF-22 | Perfil | El conductor actualiza los datos de su vehículo: foto, placa, tipo, marca y modelo, año y plazas. | Conductor | 14, 16 |
+| RF-22 | Perfil | El conductor actualiza los datos de su vehículo: foto, placa, tipo, marca y modelo, color, año y plazas. | Conductor | 14, 16 |
+
+### 2.1 Reglas de negocio (RN)
+
+Son 16 reglas de validación agrupadas por pantalla. La columna Pantalla indica el mockup de `frames/` donde se aplica; las pantallas que no figuran no tienen reglas definidas todavía.
+
+| ID | Pantalla | Regla |
+| --- | --- | --- |
+| RN-01 | 01 — Iniciar sesión | Solo se admiten correos del dominio `utp.edu.pe`. |
+| RN-02 | 03 — Registro | Solo se permite registrarse con un correo del dominio `utp.edu.pe`. |
+| RN-03 | 03 — Registro | La contraseña tiene al menos 8 caracteres y combina letras, números y símbolos. |
+| RN-04 | 04 — Completar perfil | Todos los datos son obligatorios, incluida la foto, excepto el check «Tengo vehículo». |
+| RN-05 | 04 — Completar perfil | Los nombres y los apellidos tienen como mínimo una letra. |
+| RN-06 | 05 — Datos del vehículo | Todos los campos son obligatorios, excepto el check «Soy propietario» y la foto. |
+| RN-07 | 05 y 16 — Vehículo | La placa respeta el formato de placas del Perú. |
+| RN-08 | 05 y 16 — Vehículo | El año de fabricación es como mínimo 2000 y como máximo el año actual. |
+| RN-09 | 05 y 16 — Vehículo | Los asientos son como mínimo 1 y como máximo 10. |
+| RN-10 | 11 — Publicar viaje | Todos los campos son obligatorios. |
+| RN-11 | 11 — Publicar viaje | Las plazas disponibles son como mínimo 1 y como máximo las plazas del vehículo. |
+| RN-12 | 11 — Publicar viaje | Los horarios deben estar entre las 6:00 y las 23:00. |
+| RN-13 | 11 — Publicar viaje | El monto por plaza es como mínimo S/ 1 y como máximo S/ 10 (1 sol = 1 crédito). |
+| RN-14 | 15 — Actualizar datos | Todos los datos son obligatorios, incluida la foto. |
+| RN-15 | 16 — Actualizar vehículo | Todos los datos son obligatorios, incluida la foto. |
+| RN-16 | 16 — Actualizar vehículo | De los checks, solo es obligatorio el de términos y condiciones. |
 
 ## 3. Requerimientos no funcionales (RNF)
 
@@ -111,7 +134,7 @@ El detalle de las colecciones está en la sección 5.
 
 ## 5. Modelo de datos
 
-El modelo tiene 12 colecciones en MongoDB Atlas: 7 se implementan en el alcance actual y 5 quedan definidas para el próximo alcance (créditos, pagos, imágenes, calificaciones y chat). `usuarios` es el centro del modelo: casi todas las demás colecciones lo referencian.
+El modelo tiene 12 colecciones en MongoDB Atlas: 8 se implementan en el alcance actual y 4 quedan definidas para el próximo alcance (créditos, pagos, calificaciones y chat). `usuarios` es el centro del modelo: casi todas las demás colecciones lo referencian.
 
 ```mermaid
 flowchart TB
@@ -123,34 +146,35 @@ flowchart TB
   end
 
   codigos_otp["<b>codigos_otp</b><br/>usuario_id, codigo_hash<br/>proposito, intentos<br/>fecha_expiracion (índice TTL)"]
-  usuarios["<b>usuarios</b><br/>correo (único), contrasena_hash<br/>nombres, apellidos, telefono<br/>numero_documento<br/>departamento, distrito, sede<br/>(copias con id y nombre)<br/>vehiculo (embebido completo,<br/>placa única)<br/>direccion_residencia<br/>estadisticas, roles, modo_activo<br/>estado<br/>calificacion *, foto *<br/>saldo_creditos *"]
+  usuarios["<b>usuarios</b><br/>correo (único), contrasena_hash<br/>nombres, apellidos, telefono<br/>numero_documento<br/>departamento, distrito, sede<br/>(copias con id y nombre)<br/>vehiculo (embebido completo,<br/>placa única)<br/>direccion_residencia<br/>estadisticas, roles, modo_activo<br/>estado, foto<br/>calificacion *<br/>saldo_creditos *"]
   viajes["<b>viajes</b><br/>conductor, vehiculo, sede<br/>(copias), sentido, fecha_salida<br/>origen, destino, paradas<br/>precio_por_plaza, plazas_totales<br/>plazas_disponibles, condiciones<br/>estado"]
+  archivos["<b>archivos</b><br/>propietario_id, proposito<br/>ruta, url (directorio del servidor)<br/>tipo_mime, tamano_bytes"]
   reservas["<b>reservas</b><br/>viaje_id, pasajero, viaje (copias)<br/>plazas, total_creditos, estado"]
 
   codigos_otp --> usuarios
   viajes --> usuarios
   reservas --> viajes
   reservas --> usuarios
+  archivos --> usuarios
 
-  subgraph NEXT["Próximo alcance · créditos, pagos, imágenes, calificaciones y chat"]
+  subgraph NEXT["Próximo alcance · créditos, pagos, calificaciones y chat"]
     pagos["<b>pagos</b><br/>usuario_id, monto_centimos<br/>creditos, proveedor, estado<br/>1 sol = 1 crédito"]
     movimientos_creditos["<b>movimientos_creditos</b><br/>usuario_id, tipo, monto<br/>saldo_posterior<br/>pago_id, reserva_id"]
-    archivos["<b>archivos</b><br/>propietario_id, proposito<br/>ruta, url (directorio del servidor)<br/>tipo_mime, tamano_bytes"]
     calificaciones["<b>calificaciones</b><br/>viaje_id, autor, puntaje<br/>usuario_calificado_id"]
     mensajes["<b>mensajes</b><br/>viaje_id, remitente<br/>texto, fecha_envio, leido_por"]
   end
 
-  NEXT -->|"usuario_id, propietario_id"| usuarios
+  NEXT -->|"usuario_id"| usuarios
   style NEXT stroke-dasharray: 5 4
 ```
 
-*Modelo de datos · 12 colecciones y sus referencias: 7 del alcance actual y 5 reservadas para el próximo alcance. Flecha = referencia por id. Los catálogos no se consultan: `usuarios` copia su id y nombre. \* = campo que se usará en el próximo alcance.*
+*Modelo de datos · 12 colecciones y sus referencias: 8 del alcance actual y 4 reservadas para el próximo alcance. Flecha = referencia por id. Los catálogos no se consultan: `usuarios` copia su id y nombre. \* = campo que se usará en el próximo alcance.*
 
 El modelo prioriza la lectura: cada pantalla se resuelve con un solo documento, que embebe lo que es suyo y copia el `id` y el `nombre` de lo que muestra de otras colecciones. Por eso `usuarios` no depende de los catálogos y lleva embebido su vehículo, y `viajes` lleva copiados al conductor, el vehículo y la sede.
 
 ### 5.1 Colecciones del alcance actual
 
-Son 7 colecciones: 4 de negocio y 3 catálogos. Cada una se muestra con un documento de ejemplo. Los nombres de colecciones y campos van en español, en snake\_case y sin tildes ni ñ. En los ejemplos, `_id` y los campos `id` o terminados en `_id` son ObjectId, y las fechas son Date. Solo quedan en inglés `_id`, que lo exige MongoDB, y `type` y `coordinates` dentro de `ubicacion`, que son obligatorios en el formato GeoJSON. Los campos `calificacion`, `foto` y `saldo_creditos` ya están en el modelo, pero se usarán en el próximo alcance.
+Son 8 colecciones: 5 de negocio y 3 catálogos. Cada una se muestra con un documento de ejemplo. Los nombres de colecciones y campos van en español, en snake\_case y sin tildes ni ñ. En los ejemplos, `_id` y los campos `id` o terminados en `_id` son ObjectId, y las fechas son Date. Solo quedan en inglés `_id`, que lo exige MongoDB, y `type` y `coordinates` dentro de `ubicacion`, que son obligatorios en el formato GeoJSON. Los campos `calificacion` y `saldo_creditos` ya están en el modelo, pero se usarán en el próximo alcance.
 
 **`usuarios`** — un documento por cuenta. El perfil se lee con una sola consulta: departamento, distrito y sede van copiados, y el vehículo del conductor va embebido completo.
 
@@ -237,7 +261,7 @@ Son 7 colecciones: 4 de negocio y 3 catálogos. Cada una se muestra con un docum
   "distancia_km": 8.5,
   "duracion_min": 15,
   "fecha_salida": "2026-10-09T13:30:00Z",
-  "precio_por_plaza": 45,
+  "precio_por_plaza": 5,
   "plazas_totales": 3,
   "plazas_disponibles": 3,
   "condiciones": ["No se admite desvíos", "Máximo de espera 5 minutos", "No gritar"],
@@ -247,7 +271,7 @@ Son 7 colecciones: 4 de negocio y 3 catálogos. Cada una se muestra con un docum
 }
 ```
 
-`sentido` es `IDA_UNIVERSIDAD` o `REGRESO_CASA`. `precio_por_plaza` está en créditos. `plazas_disponibles` se descuenta de forma atómica al reservar. `estado` es `PUBLICADO`, `EN_CURSO`, `COMPLETADO` o `CANCELADO`.
+`sentido` es `IDA_UNIVERSIDAD` o `REGRESO_CASA`. `precio_por_plaza` está en créditos, entre 1 y 10 (RN-13). `plazas_disponibles` se descuenta de forma atómica al reservar. `estado` es `PUBLICADO`, `EN_CURSO`, `COMPLETADO` o `CANCELADO`.
 
 `paradas` admite un máximo de 5 elementos y `condiciones` un máximo de 10. Las copias de `conductor` y `vehiculo` solo se actualizan en los viajes en estado `PUBLICADO` o `EN_CURSO`; en los viajes terminados quedan como registro histórico.
 
@@ -268,7 +292,7 @@ En este alcance `distancia_km` es la distancia en línea recta entre origen, par
     "vehiculo": { "marca": "Toyota", "modelo": "Yaris", "color": "Blanco" }
   },
   "plazas": 1,
-  "total_creditos": 45,
+  "total_creditos": 5,
   "estado": "CONFIRMADA",
   "fecha_cancelacion": null,
   "fecha_creacion": "2026-10-08T21:15:00Z",
@@ -293,6 +317,23 @@ En este alcance `distancia_km` es la distancia en línea recta entre origen, par
 ```
 
 `fecha_expiracion` tiene un índice TTL: MongoDB elimina el documento al expirar. `intentos` llega como máximo a 3. `proposito` es `INICIO_SESION`; `RECUPERAR_CONTRASENA` queda reservado para la recuperación de contraseña.
+
+**`archivos`** — imagen cargada. El archivo se guarda en un directorio del servidor del backend y se expone por URL.
+
+```json
+{
+  "_id": "6705a1f0c3d4e5f600000903",
+  "propietario_id": "6705a1f0c3d4e5f600000002",
+  "proposito": "FOTO_PERFIL",
+  "ruta": "perfiles/6705a1f0c3d4e5f600000903.jpg",
+  "url": "/uploads/perfiles/6705a1f0c3d4e5f600000903.jpg",
+  "tipo_mime": "image/jpeg",
+  "tamano_bytes": 184320,
+  "fecha_creacion": "2026-10-01T15:10:00Z"
+}
+```
+
+`proposito` es `FOTO_PERFIL` o `FOTO_VEHICULO`. La `url` se copia en `usuarios.foto` o `usuarios.vehiculo.foto`. La foto de perfil es obligatoria (RN-04, RN-14); la del vehículo es opcional en el registro y obligatoria al actualizarlo (RN-06, RN-15).
 
 **Catálogos** — `departamentos`, `distritos` y `sedes` alimentan los formularios. Los demás documentos copian su `id` y `nombre`.
 
@@ -325,7 +366,7 @@ En este alcance `distancia_km` es la distancia en línea recta entre origen, par
 
 ### 5.2 Colecciones del próximo alcance
 
-Son 5 colecciones que no se implementan todavía, pero el modelo ya las contempla para no reestructurar los datos después. El historial de viajes no necesita colección propia: se consulta desde `viajes` y `reservas`.
+Son 4 colecciones que no se implementan todavía, pero el modelo ya las contempla para no reestructurar los datos después. El historial de viajes no necesita colección propia: se consulta desde `viajes` y `reservas`.
 
 **`pagos`** — recarga de saldo: el usuario paga en soles y recibe créditos a razón de 1 sol = 1 crédito.
 
@@ -353,8 +394,8 @@ Son 5 colecciones que no se implementan todavía, pero el modelo ya las contempl
   "_id": "6705a1f0c3d4e5f600000811",
   "usuario_id": "6705a1f0c3d4e5f600000001",
   "tipo": "PAGO_RESERVA",
-  "monto": -45,
-  "saldo_posterior": 75,
+  "monto": -5,
+  "saldo_posterior": 115,
   "descripcion": "Reserva: UTP Sede Trujillo → Huaca del Dragón",
   "reserva_id": "6705a1f0c3d4e5f600000601",
   "pago_id": null,
@@ -363,23 +404,6 @@ Son 5 colecciones que no se implementan todavía, pero el modelo ya las contempl
 ```
 
 `tipo` es `RECARGA`, `PAGO_RESERVA`, `COBRO_VIAJE` o `REEMBOLSO`. `monto` es positivo si ingresan créditos y negativo si se consumen. Insertar el movimiento y actualizar `usuarios.saldo_creditos` se ejecutan en una misma transacción.
-
-**`archivos`** — imagen cargada. El archivo se guarda en un directorio del servidor del backend y se expone por URL.
-
-```json
-{
-  "_id": "6705a1f0c3d4e5f600000903",
-  "propietario_id": "6705a1f0c3d4e5f600000002",
-  "proposito": "FOTO_PERFIL",
-  "ruta": "perfiles/6705a1f0c3d4e5f600000903.jpg",
-  "url": "/uploads/perfiles/6705a1f0c3d4e5f600000903.jpg",
-  "tipo_mime": "image/jpeg",
-  "tamano_bytes": 184320,
-  "fecha_creacion": "2026-10-01T15:10:00Z"
-}
-```
-
-`proposito` es `FOTO_PERFIL` o `FOTO_VEHICULO`. La `url` se copia en `usuarios.foto` o `usuarios.vehiculo.foto`.
 
 **`calificaciones`** — calificación entre pasajero y conductor al terminar un viaje.
 
@@ -551,7 +575,7 @@ sequenceDiagram
         FE-->>U: Redirige a iniciar sesión
     else Marcó «Tengo vehículo» (conductor)
         FE-->>U: Muestra «Datos del vehículo»
-        U->>FE: Ingresa foto, placa, tipo, año, ocupantes y DNI del propietario
+        U->>FE: Ingresa foto, placa, tipo, marca, modelo, color, año, ocupantes y DNI del propietario
         FE->>API: POST /api/vehicles
         API->>DB: Verificar que la placa no exista (usuarios)
         alt Placa ya registrada
@@ -601,7 +625,7 @@ sequenceDiagram
     else Confirma
         C->>FE: Pulsa «Confirmar y publicar»
         FE->>API: POST /api/rides
-        API->>API: Validar hora futura, precio y plazas según el vehículo
+        API->>API: Validar hora futura entre 6:00 y 23:00, precio de 1 a 10 y plazas según el vehículo
         API->>DB: Crear viaje en estado PUBLICADO (viajes)
         API-->>FE: 201 Viaje publicado
         FE->>FE: Invalidar caché del listado de viajes
@@ -689,7 +713,7 @@ sequenceDiagram
 
     opt Actualizar vehículo (solo conductor)
         U->>FE: Pulsa «Actualizar vehículo»
-        U->>FE: Edita foto, placa, tipo, marca y modelo, año o plazas
+        U->>FE: Edita foto, placa, tipo, marca y modelo, color, año o plazas
         U->>FE: Pulsa «Guardar cambios»
         FE->>API: PUT /api/vehicles/me
         API->>DB: Verificar que la placa no pertenezca a otro usuario (usuarios)
@@ -719,7 +743,7 @@ El plan propone 6 fases en 8 semanas: primero se levanta el backend para las pan
 | Fase | Semanas | Alcance | RF | Entregable |
 | --- | --- | --- | --- | --- |
 | 1. Base del backend | 1 | Proyecto Spring Boot 4 con los paquetes application, domain e infrastructure, clúster en MongoDB Atlas y seguridad con JWT. | — | API desplegable con endpoint de salud, conectada al clúster de Atlas con las colecciones creadas. |
-| 2. Autenticación y registro | 2 | Endpoints de login, OTP, registro y completar perfil; el frontend deja de usar MSW en estos flujos. | RF-01 a RF-06 | Login y registro funcionando contra la API real. |
+| 2. Autenticación y registro | 2 | Endpoints de login, OTP, registro, completar perfil y carga de imágenes; el frontend deja de usar MSW en estos flujos. | RF-01 a RF-06 | Login y registro funcionando contra la API real. |
 | 3. Vehículo | 3 | Pantalla «Datos del vehículo» y endpoint de registro de vehículos. | RF-07, RF-08 | Registro completo de conductores. |
 | 4. Viajes y reserva | 4 y 5 | Listado con filtros, condiciones, detalle con mapa (Leaflet) y reserva con confirmación. | RF-09 a RF-14 | Un pasajero reserva un viaje publicado. |
 | 5. Publicación | 6 | Pantalla «Publicar viaje» con mapa (Leaflet), confirmación y endpoint de creación de viajes. | RF-15 a RF-18 | Un conductor publica un viaje visible en el dashboard. |
@@ -749,6 +773,24 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 14 | [14. perfil_conductor.jpeg](<frames/14. perfil_conductor.jpeg>) | Perfil — conductor | Perfil | Pendiente |
 | 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Pendiente |
 | 16 | [16. perfil_actualizar_vehiculo.jpeg](<frames/16. perfil_actualizar_vehiculo.jpeg>) | Actualizar vehículo | Perfil | Pendiente |
+
+Los frames son una referencia visual y difieren de este documento en los puntos de la tabla. En todos ellos manda este documento.
+
+| Frames | Lo que muestra el frame | Lo que aplica |
+| --- | --- | --- |
+| 06, 08, 09, 10 | Viajes de 45 y 35 créditos. | El precio por plaza va de 1 a 10 créditos (RN-13); los valores del frame son ilustrativos. |
+| 08, 10 | «Revisa los detalles antes de enviar la solicitud al conductor». | La reserva se confirma al instante, sin aprobación del conductor (RF-14). |
+| 05, 16 | El registro no pide marca, modelo ni color; la actualización no pide color. | Ambos formularios piden marca, modelo y color (RF-08, RF-22). |
+| 06 | La salida es un rango (14:15 – 14:25). | El viaje tiene una sola hora de salida (`fecha_salida`). |
+| 01, 03, 14 | Correos de ejemplo de otros dominios (`name@company.com`, `carlos.mendoza@sharecar.pe`). | Solo se admiten correos `utp.edu.pe` (RN-01, RN-02). |
+| Varios | La marca aparece como «ShareCar». | El nombre del producto es ColaboraCar. |
+
+Pendientes por definir, porque los frames los muestran y este documento aún no los cubre:
+
+- **Cancelación de reservas:** el frame 09 indica «Cancelación gratuita hasta 10 min antes del viaje». El modelo ya tiene el estado `CANCELADA`, pero no hay requerimiento ni regla.
+- **«Cambiar sede» y «Modificar casa»:** los frames 13 y 14 tienen los botones, pero no hay pantalla ni requerimiento. Ninguna pantalla captura la dirección de residencia.
+- **Teléfono y documento de identidad:** la pantalla 15 los exige y el documento no es editable, pero el registro (04) no los pide.
+- **«A/C activo» y «Conductor frecuente»:** aparecen en el frame 09 y no están en el modelo.
 
 ### 11.1 Vista previa de pantallas
 
