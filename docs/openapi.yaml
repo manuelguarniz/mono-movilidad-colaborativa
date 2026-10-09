@@ -580,6 +580,11 @@ paths:
         Reemplaza los datos editables del vehículo y actualiza la copia en los viajes del
         conductor en estado `PUBLISHED` o `IN_PROGRESS`. `ownerDni` no se modifica aquí.
 
+        Si el usuario todavía no tiene vehículo, lo registra en lugar de rechazar la
+        solicitud: guarda el vehículo, le agrega el rol `DRIVER` y no hay viajes que
+        actualizar. En ese caso el perfil debe estar completo y `ownerDni` es opcional: si
+        no llega, se usa el DNI del usuario, si lo registró.
+
         Si `seats` baja, las plazas de los viajes ya publicados no cambian.
 
         Todos los datos son obligatorios, incluida la foto (RN-15): si el vehículo aún no
@@ -619,14 +624,10 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "404":
-          description: El usuario no tiene vehículo registrado (`VEHICLE_NOT_FOUND`).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
         "409":
-          description: La placa pertenece a otro usuario (`PLATE_ALREADY_REGISTERED`).
+          description: |
+            La placa pertenece a otro usuario (`PLATE_ALREADY_REGISTERED`) o el usuario no
+            tiene vehículo y aún no completó su perfil (`PROFILE_INCOMPLETE`).
           content:
             application/json:
               schema:
@@ -653,7 +654,8 @@ paths:
           required: false
           description: |
             Sede cuyos viajes se listan. Si no se envía, se usa la sede del usuario
-            autenticado. Si la sede no existe, la lista llega vacía.
+            autenticado. Si la sede no existe, o el usuario aún no tiene sede, la lista
+            llega vacía.
           schema:
             $ref: "#/components/schemas/ObjectId"
         - name: destination
@@ -683,6 +685,7 @@ paths:
           schema:
             type: integer
             minimum: 1
+            maximum: 99
             default: 1
       responses:
         "200":
@@ -858,7 +861,8 @@ paths:
             No quedan plazas suficientes (`NO_SEATS_AVAILABLE`), el usuario ya tiene una
             reserva confirmada en este viaje (`ALREADY_BOOKED`) o el viaje ya no está
             publicado o ya salió (`RIDE_NOT_AVAILABLE`). En los tres casos el frontend
-            debe refrescar el listado.
+            debe refrescar el listado. También si el usuario aún no completó su perfil
+            (`PROFILE_INCOMPLETE`).
           content:
             application/json:
               schema:
@@ -944,6 +948,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "409":
+          description: El usuario aún no completó su perfil (`PROFILE_INCOMPLETE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: PROFILE_INCOMPLETE
+                message: Completa tu perfil antes de actualizar tus datos
 
 components:
   securitySchemes:
@@ -1600,7 +1613,8 @@ components:
           description: Plazas que el conductor comparte, sin contar la suya.
           example: 3
         ownerDni:
-          type: string
+          type: [string, "null"]
+          description: "`null` si el vehículo se registró desde «Actualizar vehículo» sin DNI del propietario."
           example: "45678912"
         isOwner:
           type: boolean
@@ -1691,11 +1705,18 @@ components:
           $ref: "#/components/schemas/VehicleYear"
         seats:
           $ref: "#/components/schemas/VehicleSeats"
+        ownerDni:
+          type: string
+          pattern: '^\d{8}$'
+          description: |
+            Opcional. Solo se usa si el usuario aún no tiene vehículo y la actualización lo
+            registra; si el vehículo ya existe, se ignora.
+          example: "45678912"
         isOwner:
           type: boolean
           description: |
             Casilla «Soy el propietario legal o conductor autorizado». Es opcional; si no
-            se envía, se conserva el valor actual.
+            se envía, se conserva el valor actual (`false` si el vehículo es nuevo).
         acceptedTerms:
           type: boolean
           const: true

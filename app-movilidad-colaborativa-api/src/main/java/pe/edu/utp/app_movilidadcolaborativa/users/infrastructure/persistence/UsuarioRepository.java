@@ -11,4 +11,7 @@ public interface UsuarioRepository extends MongoRepository<Usuario, ObjectId> {
 	Optional<Usuario> findByCorreo(String correo);
 
 	boolean existsByCorreo(String correo);
+
+	/** La placa ya pertenece a otro usuario. */
+	boolean existsByVehiculoPlacaAndIdNot(String placa, ObjectId id);
 }

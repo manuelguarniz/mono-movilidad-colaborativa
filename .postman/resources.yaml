@@ -1,0 +1,10 @@
+workspace:
+  id: 2431fced-cc0e-40ca-81c1-8fdc23aebbdf
+localResources:
+  specs:
+    - ../docs/openapi.yaml
+cloudResources:
+  specs:
+    ../docs/openapi.yaml: da281691-2f9c-4b4f-be3b-a5f894122dbb
+  globals:
+    ../postman/globals/workspace.globals.yaml: 2c6a1d95-ef15-496b-894f-acff35da3828

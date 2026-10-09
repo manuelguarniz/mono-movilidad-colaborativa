@@ -59,6 +59,7 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login").permitAll()
 						.requestMatchers("/auth/verify-code", "/auth/resend-code").hasAuthority(PRE_AUTH)
 						.requestMatchers("/auth/complete-profile").hasAnyAuthority(REGISTRATION, SESSION)
+						.requestMatchers(HttpMethod.POST, "/vehicles").hasAnyAuthority(REGISTRATION, SESSION)
 						.anyRequest().hasAuthority(SESSION))
 				.oauth2ResourceServer(oauth -> oauth
 						.jwt(Customizer.withDefaults())

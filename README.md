@@ -15,7 +15,7 @@ ColaboraCar es una aplicación de movilidad colaborativa para la comunidad de la
 | Módulos | Autenticación, registro, dashboard de viajes, reserva, publicación de viajes y perfil. |
 | Fuera de alcance | Para un próximo alcance: créditos, pagos y billetera; y en mapas, el trazado de rutas por calles, la búsqueda de direcciones y el tráfico en tiempo real. Tampoco se incluyen historial de viajes, recuperación de contraseña, chat ni calificaciones. |
 
-Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación, el registro y los catálogos sobre MongoDB Atlas: 9 de los 19 endpoints del contrato (`docs/openapi.yaml`). Faltan la carga de imágenes, los vehículos, los viajes, las reservas y el perfil. El frontend implementa login, verificación OTP, registro, completar perfil y dashboard, todavía contra una API simulada con MSW. El detalle está en la sección 4.1.
+Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación, el registro, los catálogos, los vehículos, los viajes, las reservas y el perfil sobre MongoDB Atlas: 18 de los 19 endpoints del contrato (`docs/openapi.yaml`). Solo falta la carga de imágenes. El frontend implementa login, verificación OTP, registro, completar perfil y dashboard, todavía contra una API simulada con MSW. El detalle está en la sección 4.1.
 
 ## 2. Requerimientos funcionales (RF)
 
@@ -82,7 +82,7 @@ Son 10 requerimientos básicos, cada uno con un criterio verificable. Los valore
 | RNF-05 | Usabilidad | La interfaz es responsiva para pantallas móviles desde 360 px de ancho y respeta las áreas seguras del WebView. |
 | RNF-06 | Usabilidad | Los formularios validan los datos en el cliente y muestran mensajes de error en español. |
 | RNF-07 | Disponibilidad | El sistema está disponible al menos el 99 % del tiempo en el horario académico (6:00 a 23:00). |
-| RNF-08 | Mantenibilidad | El frontend se organiza por módulos de dominio (`features/`). El backend también se organiza por módulo (`auth`, `catalogs`, `files`, `users` y `shared`), y cada módulo tiene tres capas: application (casos de uso), domain (model, dto y reglas de negocio) e infrastructure (web, persistence, security y mail). |
+| RNF-08 | Mantenibilidad | El frontend se organiza por módulos de dominio (`features/`). El backend también se organiza por módulo (`auth`, `catalogs`, `files`, `users`, `vehicles`, `rides` y `shared`), y cada módulo tiene tres capas: application (casos de uso), domain (model, dto y reglas de negocio) e infrastructure (web, persistence, security y mail). |
 | RNF-09 | Portabilidad | El frontend funciona en WebView de Android e iOS y en las dos últimas versiones de Chrome y Safari. |
 | RNF-10 | Escalabilidad | La API no guarda estado de sesión en memoria (stateless), lo que permite ejecutar varias instancias del backend. |
 
@@ -136,14 +136,17 @@ El detalle de las colecciones está en la sección 5.
 
 El detalle para ejecutar, probar y extender el backend está en su propio documento, [app-movilidad-colaborativa-api/README.md](app-movilidad-colaborativa-api/README.md): variables de entorno, tokens, formato de errores, mensajes de validación por endpoint y ejemplos con curl. El contrato de la API es [docs/openapi.yaml](docs/openapi.yaml). Aquí solo va el resumen.
 
-El backend implementa 9 de los 19 endpoints del contrato:
+El backend implementa 18 de los 19 endpoints del contrato:
 
 | Módulo | Estado |
 | --- | --- |
 | Autenticación (login, OTP, cierre de sesión) | Implementado |
 | Registro (cuenta y completar perfil) | Implementado; la foto de perfil es opcional hasta que exista la carga de imágenes |
 | Catálogos (departamentos, distritos, sedes) | Implementado |
-| Archivos, vehículos, viajes, reservas y perfil | Pendiente |
+| Perfil (consultar y actualizar datos) | Implementado; la foto se conserva si no se envía una nueva |
+| Vehículos (registrar, consultar y actualizar) | Implementado; la foto es opcional hasta que exista la carga de imágenes |
+| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado |
+| Archivos (carga de imágenes) | Pendiente |
 
 Tres decisiones definen cómo se comporta la API:
 
@@ -773,7 +776,7 @@ El plan propone 6 fases en 8 semanas: primero se levanta el backend para las pan
 | 5. Publicación | 6 | Pantalla «Publicar viaje» con mapa (Leaflet), confirmación y endpoint de creación de viajes. | RF-15 a RF-18 | Un conductor publica un viaje visible en el dashboard. |
 | 6. Perfil y cierre | 7 y 8 | Perfil de pasajero y conductor, actualización de datos y vehículo, cierre de sesión, pruebas y documentación. | RF-04, RF-19 a RF-22 | Versión final con pruebas de los flujos principales. |
 
-Avance: la fase 1 está completa, salvo el endpoint de salud. De la fase 2 el backend ya tiene login, OTP, registro, completar perfil y catálogos; faltan la carga de imágenes (`POST /files`) y conectar el frontend, que sigue usando MSW. Las fases 3 a 6 no han empezado en el backend.
+Avance: la fase 1 está completa, salvo el endpoint de salud. De la fase 2 el backend ya tiene login, OTP, registro, completar perfil y catálogos; faltan la carga de imágenes (`POST /files`) y conectar el frontend, que sigue usando MSW. El backend ya tiene también los endpoints de las fases 3 a 6: vehículos, viajes, reservas y perfil. En esas fases queda el trabajo del frontend.
 
 Punto de partida del frontend: 5 de las 16 pantallas están implementadas (login, verificación, registro, completar perfil y dashboard) y las otras 11 pantallas están pendientes: datos del vehículo, condiciones del viaje, las dos confirmaciones de reserva, detalle del viaje, publicar viaje y su confirmación, los dos perfiles, actualizar datos y actualizar vehículo.
 

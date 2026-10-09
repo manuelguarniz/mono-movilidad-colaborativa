@@ -15,7 +15,12 @@ public class ValidacionException extends RuntimeException {
 	private final List<ErrorCampo> errores;
 
 	public ValidacionException(String campo, String mensaje) {
-		super(mensaje);
-		this.errores = List.of(new ErrorCampo(campo, mensaje));
+		this(List.of(new ErrorCampo(campo, mensaje)));
+	}
+
+	/** Varios campos inválidos a la vez; la lista no puede estar vacía. */
+	public ValidacionException(List<ErrorCampo> errores) {
+		super(errores.getFirst().message());
+		this.errores = List.copyOf(errores);
 	}
 }
