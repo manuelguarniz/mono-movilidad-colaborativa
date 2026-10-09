@@ -10,12 +10,12 @@ ColaboraCar es una aplicación de movilidad colaborativa para la comunidad de la
 | --- | --- |
 | Actores | **Pasajero**: busca y reserva viajes. **Conductor**: registra su vehículo y publica viajes. Un usuario puede alternar entre ambos roles (modo dual). |
 | Frontend | React 18 + TypeScript + Vite + Tailwind CSS, incrustado en un WebView móvil. Mapas con Leaflet y OpenStreetMap. |
-| Backend | API REST con Spring Boot 4 (Java 21), Spring Security y Spring Data MongoDB. |
+| Backend | API REST con Spring Boot 4 (Java 25), Spring Security, Spring Validation y Spring Data MongoDB. |
 | Base de datos | MongoDB Atlas (NoSQL orientada a documentos, clúster administrado en la nube). |
 | Módulos | Autenticación, registro, dashboard de viajes, reserva, publicación de viajes y perfil. |
 | Fuera de alcance | Para un próximo alcance: créditos, pagos y billetera; y en mapas, el trazado de rutas por calles, la búsqueda de direcciones y el tráfico en tiempo real. Tampoco se incluyen historial de viajes, recuperación de contraseña, chat ni calificaciones. |
 
-Estado actual: el frontend ya implementa login, verificación OTP, registro, completar perfil y dashboard contra una API simulada con MSW. El backend y la base de datos aún no existen.
+Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación, el registro y los catálogos sobre MongoDB Atlas: 9 de los 19 endpoints del contrato (`docs/openapi.yaml`). Faltan la carga de imágenes, los vehículos, los viajes, las reservas y el perfil. El frontend implementa login, verificación OTP, registro, completar perfil y dashboard, todavía contra una API simulada con MSW. El detalle está en la sección 4.1.
 
 ## 2. Requerimientos funcionales (RF)
 
@@ -82,7 +82,7 @@ Son 10 requerimientos básicos, cada uno con un criterio verificable. Los valore
 | RNF-05 | Usabilidad | La interfaz es responsiva para pantallas móviles desde 360 px de ancho y respeta las áreas seguras del WebView. |
 | RNF-06 | Usabilidad | Los formularios validan los datos en el cliente y muestran mensajes de error en español. |
 | RNF-07 | Disponibilidad | El sistema está disponible al menos el 99 % del tiempo en el horario académico (6:00 a 23:00). |
-| RNF-08 | Mantenibilidad | El frontend se organiza por módulos de dominio (`features/`) y el backend en tres paquetes: application (casos de uso por módulo: auth, registro, viajes, reservas, perfil), domain (model, dto y reglas de negocio) e infrastructure (persistence, server, util y web). |
+| RNF-08 | Mantenibilidad | El frontend se organiza por módulos de dominio (`features/`). El backend también se organiza por módulo (`auth`, `catalogs`, `files`, `users` y `shared`), y cada módulo tiene tres capas: application (casos de uso), domain (model, dto y reglas de negocio) e infrastructure (web, persistence, security y mail). |
 | RNF-09 | Portabilidad | El frontend funciona en WebView de Android e iOS y en las dos últimas versiones de Chrome y Safari. |
 | RNF-10 | Escalabilidad | La API no guarda estado de sesión en memoria (stateless), lo que permite ejecutar varias instancias del backend. |
 
@@ -100,11 +100,11 @@ flowchart TB
     pages --> services --> http
   end
 
-  subgraph BE["Backend · Spring Boot 4 (API REST, Java 21)"]
-    infraIn["<b>infrastructure · web y server</b><br/>controladores REST (web) · seguridad JWT y CORS (server)"]
-    application["<b>application</b><br/>casos de uso: auth, registro,<br/>viajes, reservas y perfil"]
-    domain["<b>domain</b><br/>model y dto<br/>reglas de negocio"]
-    infraOut["<b>infrastructure · persistence y util</b><br/>repositorios Spring Data MongoDB (persistence) · utilidades (util)"]
+  subgraph BE["Backend · Spring Boot 4 (API REST, Java 25)"]
+    infraIn["<b>infrastructure · web y config</b><br/>controladores REST y validación de entrada (web)<br/>seguridad JWT y CORS (config)"]
+    application["<b>application</b><br/>casos de uso: auth, registro,<br/>catálogos, viajes, reservas y perfil"]
+    domain["<b>domain</b><br/>model, dto y validation<br/>reglas de negocio"]
+    infraOut["<b>infrastructure · persistence, security y mail</b><br/>repositorios Spring Data MongoDB (persistence)<br/>emisión de JWT (security) · envío del OTP (mail)"]
     infraIn --> application
     application --> domain
     application --> infraOut
@@ -128,9 +128,28 @@ flowchart TB
 
 *Diagrama de componentes · 3 capas y 1 servicio externo. El frontend React consume una API REST en Spring Boot 4 que persiste en MongoDB Atlas.*
 
-El backend se divide en tres paquetes. Cada petición entra por infrastructure (server aplica la seguridad y web expone los controladores), application ejecuta el caso de uso con los modelos y reglas de domain, y persistence lee o escribe en la colección correspondiente de Atlas.
+El backend se organiza por módulo, y cada módulo tiene las mismas tres capas. Cada petición entra por infrastructure: la configuración de seguridad comprueba el token y el controlador valida el formato de los datos. Luego application ejecuta el caso de uso con los modelos y reglas de domain, y persistence lee o escribe en la colección correspondiente de Atlas.
 
 El detalle de las colecciones está en la sección 5.
+
+### 4.1 Backend
+
+El detalle para ejecutar, probar y extender el backend está en su propio documento, [app-movilidad-colaborativa-api/README.md](app-movilidad-colaborativa-api/README.md): variables de entorno, tokens, formato de errores, mensajes de validación por endpoint y ejemplos con curl. El contrato de la API es [docs/openapi.yaml](docs/openapi.yaml). Aquí solo va el resumen.
+
+El backend implementa 9 de los 19 endpoints del contrato:
+
+| Módulo | Estado |
+| --- | --- |
+| Autenticación (login, OTP, cierre de sesión) | Implementado |
+| Registro (cuenta y completar perfil) | Implementado; la foto de perfil es opcional hasta que exista la carga de imágenes |
+| Catálogos (departamentos, distritos, sedes) | Implementado |
+| Archivos, vehículos, viajes, reservas y perfil | Pendiente |
+
+Tres decisiones definen cómo se comporta la API:
+
+- **Validación:** el formato de los datos se valida en el DTO de la solicitud con Spring Validation, antes de llegar al servicio; las reglas que dependen del estado se quedan en la capa application.
+- **Errores:** toda respuesta de error tiene la forma `{ code, message, errors?, details? }`. El cliente decide por `code`; con `VALIDATION_ERROR` el mensaje general es fijo y el detalle por campo va en `errors`.
+- **Tokens:** la API es stateless con JWT. Cada token tiene un único alcance (`REGISTRATION`, `PRE_AUTH` o `SESSION`) y cada ruta exige uno, por lo que el token del login no sirve como token de sesión.
 
 ## 5. Modelo de datos
 
@@ -494,7 +513,7 @@ Riesgo aceptado: `viajes` copia la calificación del conductor, que cambiará co
 
 ## 6. Secuencia: inicio de sesión
 
-El login tiene dos pasos: validar credenciales y verificar el código OTP; el usuario solo llega al dashboard cuando su sesión queda verificada (RF-01 a RF-03).
+El login tiene dos pasos: validar credenciales y verificar el código OTP; el usuario solo llega al dashboard cuando su sesión queda verificada (RF-01 a RF-03). El primer paso entrega un token `PRE_AUTH`, que solo sirve para verificar o reenviar el código, y el segundo el token `SESSION` (sección 4.1).
 
 ```mermaid
 sequenceDiagram
@@ -511,12 +530,12 @@ sequenceDiagram
     DB-->>API: Usuario
     API->>API: Comparar contraseña con hash BCrypt
     alt Credenciales inválidas
-        API-->>FE: 401 Credenciales incorrectas
+        API-->>FE: 401 INVALID_CREDENTIALS
         FE-->>U: Muestra mensaje de error
     else Credenciales válidas
         API->>DB: Guardar OTP con expiración (codigos_otp)
         API->>MAIL: Enviar código de 6 dígitos
-        API-->>FE: 200 Token temporal (no verificado)
+        API-->>FE: 200 Token PRE_AUTH (no verificado)
         FE-->>U: Muestra pantalla de verificación
     end
 
@@ -525,12 +544,12 @@ sequenceDiagram
     API->>DB: Buscar OTP vigente del usuario
     alt Código correcto
         API->>DB: Eliminar OTP usado
-        API-->>FE: 200 Token JWT de sesión verificada
+        API-->>FE: 200 Token SESSION y datos del usuario
         FE->>FE: Guardar token en cookie
         FE-->>U: Redirige al dashboard
     else Código incorrecto o expirado
         API->>DB: Incrementar intentos (máximo 3)
-        API-->>FE: 400 Código inválido
+        API-->>FE: 400 OTP_INVALID con los intentos restantes
         FE-->>U: Muestra error e intentos restantes
     end
 
@@ -559,19 +578,20 @@ sequenceDiagram
     FE->>API: POST /api/auth/register
     API->>DB: Verificar que el correo no exista (usuarios)
     alt Correo ya registrado
-        API-->>FE: 409 El correo ya está en uso
+        API-->>FE: 409 EMAIL_ALREADY_REGISTERED
         FE-->>U: Muestra mensaje de error
     else Correo disponible
         API->>DB: Crear usuario con contraseña cifrada
-        API-->>FE: 201 Usuario creado
+        API-->>FE: 201 Usuario creado y token REGISTRATION
         FE-->>U: Muestra «Completa tu perfil»
     end
 
     U->>FE: Ingresa foto, nombres, apellidos, departamento, distrito y sede
     FE->>API: POST /api/files (foto de perfil)
     API-->>FE: 201 Id de la imagen
-    FE->>API: POST /api/auth/complete-profile
-    API->>DB: Actualizar usuario con rol PASAJERO (usuarios)
+    FE->>API: POST /api/auth/complete-profile (token REGISTRATION)
+    API->>DB: Validar departamento, distrito y sede (catálogos)
+    API->>DB: Actualizar usuario con rol PASAJERO y estado ACTIVO (usuarios)
     API-->>FE: 200 Perfil completado
 
     alt No marcó «Tengo vehículo» (pasajero)
@@ -752,6 +772,8 @@ El plan propone 6 fases en 8 semanas: primero se levanta el backend para las pan
 | 4. Viajes y reserva | 4 y 5 | Listado con filtros, condiciones, detalle con mapa (Leaflet) y reserva con confirmación. | RF-09 a RF-14 | Un pasajero reserva un viaje publicado. |
 | 5. Publicación | 6 | Pantalla «Publicar viaje» con mapa (Leaflet), confirmación y endpoint de creación de viajes. | RF-15 a RF-18 | Un conductor publica un viaje visible en el dashboard. |
 | 6. Perfil y cierre | 7 y 8 | Perfil de pasajero y conductor, actualización de datos y vehículo, cierre de sesión, pruebas y documentación. | RF-04, RF-19 a RF-22 | Versión final con pruebas de los flujos principales. |
+
+Avance: la fase 1 está completa, salvo el endpoint de salud. De la fase 2 el backend ya tiene login, OTP, registro, completar perfil y catálogos; faltan la carga de imágenes (`POST /files`) y conectar el frontend, que sigue usando MSW. Las fases 3 a 6 no han empezado en el backend.
 
 Punto de partida del frontend: 5 de las 16 pantallas están implementadas (login, verificación, registro, completar perfil y dashboard) y las otras 11 pantallas están pendientes: datos del vehículo, condiciones del viaje, las dos confirmaciones de reserva, detalle del viaje, publicar viaje y su confirmación, los dos perfiles, actualizar datos y actualizar vehículo.
 
