@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import { dashboardService } from "@/features/dashboard/services/dashboardService";
@@ -90,6 +90,14 @@ export function DashboardHeader() {
 
         {isMenuOpen ? (
           <div className="dashboard-menu dashboard-menu-right" role="menu">
+            <Link
+              to="/perfil"
+              role="menuitem"
+              className="dashboard-menu-item"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Mi perfil
+            </Link>
             <button
               type="button"
               role="menuitem"

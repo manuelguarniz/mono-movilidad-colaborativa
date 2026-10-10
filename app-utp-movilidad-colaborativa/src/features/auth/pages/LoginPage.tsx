@@ -11,9 +11,11 @@ import EyeIcon from "@/assets/images/icons/eye.svg?react";
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const profileCompleted = Boolean(
-    (location.state as { profileCompleted?: boolean } | null)?.profileCompleted,
-  );
+  const { profileCompleted, sessionExpired } =
+    (location.state as {
+      profileCompleted?: boolean;
+      sessionExpired?: boolean;
+    } | null) ?? {};
   // Cuenta de prueba de la API simulada (ver src/mocks/db.ts).
   const [email, setEmail] = useState("valeria.rodriguez@utp.edu.pe");
   const [password, setPassword] = useState("Clave#2026");
@@ -58,6 +60,12 @@ export function LoginPage() {
         {profileCompleted && (
           <div className="auth-message auth-message-success">
             Perfil completado. Ya puedes iniciar sesión.
+          </div>
+        )}
+
+        {sessionExpired && !error && (
+          <div className="auth-message auth-message-error">
+            Tu sesión expiró. Vuelve a iniciar sesión.
           </div>
         )}
 

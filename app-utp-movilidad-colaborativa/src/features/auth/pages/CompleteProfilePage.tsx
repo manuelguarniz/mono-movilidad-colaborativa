@@ -10,6 +10,8 @@ import {
   catalogService,
   type CatalogItem,
 } from "@/features/auth/services/catalogService";
+import { getUploadErrorMessage, uploadPhoto } from "@/shared/api/fileService";
+import { usePhotoSelection } from "@/shared/hooks/usePhotoSelection";
 import UserIcon from "@/assets/images/icons/user.svg?react";
 import MapIcon from "@/assets/images/icons/map.svg?react";
 import MapPinIcon from "@/assets/images/icons/map-pin.svg?react";
@@ -20,7 +22,7 @@ const toOptions = (items: CatalogItem[] = []) =>
 
 export function CompleteProfilePage() {
   const navigate = useNavigate();
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photo = usePhotoSelection();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -75,16 +77,6 @@ export function CompleteProfilePage() {
     });
   };
 
-  const handlePhotoSelect = (file: File) => {
-    const previewUrl = URL.createObjectURL(file);
-    setPhotoPreview((current) => {
-      if (current) {
-        URL.revokeObjectURL(current);
-      }
-      return previewUrl;
-    });
-  };
-
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
@@ -103,13 +95,33 @@ export function CompleteProfilePage() {
     setIsSubmitting(true);
 
     try {
+      let photoFileId: string | undefined;
+      if (photo.file) {
+        try {
+          const token = authService.getPendingProfileRegistration()?.token;
+          photoFileId = (await uploadPhoto(photo.file, "PROFILE_PHOTO", token)).id;
+        } catch (uploadError) {
+          setError(getUploadErrorMessage(uploadError));
+          return;
+        }
+      }
+
       await authService.completeProfile({
         firstName: form.firstName,
         lastName: form.lastName,
         departmentId: form.department,
         districtId: form.district,
         campusId: form.campus,
+        photoFileId,
       });
+
+      // Con «Tengo vehículo» el registro continúa con los datos del vehículo (RF-07).
+      if (form.hasVehicle) {
+        navigate("/auth/datos-vehiculo", { replace: true });
+        return;
+      }
+
+      authService.clearPendingProfileRegistration();
       navigate("/auth/login", {
         replace: true,
         state: { profileCompleted: true },
@@ -130,12 +142,16 @@ export function CompleteProfilePage() {
       subtitle="Solo unos datos más para empezar a viajar."
       showBrandHeader
     >
-      <ProfilePhotoPicker previewUrl={photoPreview} onSelect={handlePhotoSelect} />
+      <ProfilePhotoPicker
+        previewUrl={photo.previewUrl}
+        onSelect={photo.select}
+        onRemove={photo.clear}
+      />
 
       <form onSubmit={handleSubmit} className="mt-6">
-        {error ? (
-          <div className="auth-message auth-message-error">
-            {error}
+        {error || photo.error ? (
+          <div className="auth-message auth-message-error" role="alert">
+            {error || photo.error}
           </div>
         ) : null}
 
@@ -213,7 +229,11 @@ export function CompleteProfilePage() {
           className="auth-button-primary"
           disabled={isSubmitting}
         >
-          {isSubmitting ? "Guardando..." : "Terminar"}
+          {isSubmitting
+            ? "Guardando..."
+            : form.hasVehicle
+              ? "Continuar"
+              : "Terminar"}
         </button>
       </form>
     </AuthStepLayout>

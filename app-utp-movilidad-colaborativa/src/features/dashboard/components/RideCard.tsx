@@ -1,52 +1,40 @@
 import type { RideSummary } from "@/features/dashboard/types";
 import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import { CarIcon, GoldCoinIcon, PassengersIcon } from "@/shared/icons";
+import { formatLimaTime, getLimaDayLabel } from "@/shared/utils/limaTime";
 import InfoIcon from "@/assets/images/icons/info.svg?react";
-
-const LIMA = "America/Lima";
-
-const timeFormatter = new Intl.DateTimeFormat("es-PE", {
-  timeZone: LIMA,
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
-const weekdayFormatter = new Intl.DateTimeFormat("es-PE", {
-  timeZone: LIMA,
-  weekday: "long",
-});
-
-// `en-CA` da la fecha como AAAA-MM-DD, que se puede comparar como texto.
-const dayFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: LIMA });
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** Día de la salida en la hora de Perú: «hoy», «mañana» o el día de la semana. */
-function getDepartureDay(departure: Date) {
-  const day = dayFormatter.format(departure);
-  const now = Date.now();
-  if (day === dayFormatter.format(now)) {
-    return "hoy";
-  }
-  if (day === dayFormatter.format(now + DAY_MS)) {
-    return "mañana";
-  }
-  return weekdayFormatter.format(departure);
-}
 
 type RideCardProps = {
   ride: RideSummary;
-  onReserve: (rideId: string) => void;
-  isReserving?: boolean;
+  // Tocar la tarjeta abre el detalle del viaje.
+  onOpen: (rideId: string) => void;
+  onShowConditions: (ride: RideSummary) => void;
+  // Abre la confirmación de la reserva.
+  onReserve: (ride: RideSummary) => void;
 };
 
-export function RideCard({ ride, onReserve, isReserving }: RideCardProps) {
+export function RideCard({
+  ride,
+  onOpen,
+  onShowConditions,
+  onReserve,
+}: RideCardProps) {
   const { vehicle, driver } = ride;
   const departure = new Date(ride.departureTime);
 
   return (
-    <article className="ride-card">
+    <article
+      className="ride-card cursor-pointer transition active:scale-[0.995]"
+      role="link"
+      tabIndex={0}
+      aria-label={`Ver el detalle del viaje de ${driver.name}`}
+      onClick={() => onOpen(ride.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && event.target === event.currentTarget) {
+          onOpen(ride.id);
+        }
+      }}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-1.5">
           <GoldCoinIcon className="h-7 w-7 shrink-0" />
@@ -59,6 +47,10 @@ export function RideCard({ ride, onReserve, isReserving }: RideCardProps) {
           type="button"
           className="ride-info-button"
           aria-label="Condiciones del viaje"
+          onClick={(event) => {
+            event.stopPropagation();
+            onShowConditions(ride);
+          }}
         >
           <InfoIcon className="h-5 w-5" />
         </button>
@@ -81,10 +73,10 @@ export function RideCard({ ride, onReserve, isReserving }: RideCardProps) {
 
           <div className="ride-departure-box">
             <p className="text-sm text-[var(--text-muted)]">
-              Salida · {getDepartureDay(departure)}
+              Salida · {getLimaDayLabel(departure)}
             </p>
             <p className="text-xl font-semibold leading-tight text-[var(--text-primary)]">
-              {timeFormatter.format(departure)}
+              {formatLimaTime(departure)}
             </p>
           </div>
         </div>
@@ -109,10 +101,12 @@ export function RideCard({ ride, onReserve, isReserving }: RideCardProps) {
       <button
         type="button"
         className="ride-reserve-button"
-        onClick={() => onReserve(ride.id)}
-        disabled={isReserving}
+        onClick={(event) => {
+          event.stopPropagation();
+          onReserve(ride);
+        }}
       >
-        {isReserving ? "Reservando..." : "Reservar"}
+        Reservar
       </button>
     </article>
   );

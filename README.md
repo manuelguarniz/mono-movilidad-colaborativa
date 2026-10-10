@@ -15,7 +15,7 @@ ColaboraCar es una aplicación de movilidad colaborativa para la comunidad de la
 | Módulos | Autenticación, registro, dashboard de viajes, reserva, publicación de viajes y perfil. |
 | Fuera de alcance | Para un próximo alcance: créditos, pagos y billetera; y en mapas, el trazado de rutas por calles, la búsqueda de direcciones y el tráfico en tiempo real. Tampoco se incluyen historial de viajes, recuperación de contraseña, chat ni calificaciones. |
 
-Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación, el registro, los catálogos, los vehículos, los viajes, las reservas y el perfil sobre MongoDB Atlas: 18 de los 19 endpoints del contrato (`docs/openapi.yaml`). Solo falta la carga de imágenes. El frontend implementa login, verificación OTP, registro, completar perfil y dashboard, todavía contra una API simulada con MSW. El detalle está en la sección 4.1.
+Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación, el registro, los catálogos, los vehículos, los viajes, las reservas y el perfil sobre MongoDB Atlas: 18 de los 19 endpoints del contrato (`docs/openapi.yaml`). Solo falta la carga de imágenes. El frontend implementa las 16 pantallas de `frames/`; en desarrollo puede usar el backend real o una API simulada con MSW (`VITE_USE_MOCKS`). El detalle está en la sección 4.1.
 
 ## 2. Requerimientos funcionales (RF)
 
@@ -776,9 +776,9 @@ El plan propone 6 fases en 8 semanas: primero se levanta el backend para las pan
 | 5. Publicación | 6 | Pantalla «Publicar viaje» con mapa (Leaflet), confirmación y endpoint de creación de viajes. | RF-15 a RF-18 | Un conductor publica un viaje visible en el dashboard. |
 | 6. Perfil y cierre | 7 y 8 | Perfil de pasajero y conductor, actualización de datos y vehículo, cierre de sesión, pruebas y documentación. | RF-04, RF-19 a RF-22 | Versión final con pruebas de los flujos principales. |
 
-Avance: la fase 1 está completa, salvo el endpoint de salud. De la fase 2 el backend ya tiene login, OTP, registro, completar perfil y catálogos; faltan la carga de imágenes (`POST /files`) y conectar el frontend, que sigue usando MSW. El backend ya tiene también los endpoints de las fases 3 a 6: vehículos, viajes, reservas y perfil. En esas fases queda el trabajo del frontend.
+Avance: la fase 1 está completa, salvo el endpoint de salud. De la fase 2 el backend ya tiene login, OTP, registro, completar perfil y catálogos; falta la carga de imágenes (`POST /files`). El frontend ya se conecta al backend real (`npm run dev:api`) y conserva la API simulada con MSW para desarrollar sin él. El backend ya tiene también los endpoints de las fases 3 a 6: vehículos, viajes, reservas y perfil. El frontend ya cubre esas fases: datos del vehículo, reserva con confirmación, publicación, perfil y actualización de datos y vehículo.
 
-Punto de partida del frontend: 5 de las 16 pantallas están implementadas (login, verificación, registro, completar perfil y dashboard) y las otras 11 pantallas están pendientes: datos del vehículo, condiciones del viaje, las dos confirmaciones de reserva, detalle del viaje, publicar viaje y su confirmación, los dos perfiles, actualizar datos y actualizar vehículo.
+Estado del frontend: las 16 pantallas de `frames/` están implementadas. Quedan por conectar los filtros del dashboard con `GET /rides` y la carga de fotos, que depende de `POST /files` en el backend.
 
 ## 11. Pantallas de referencia (`frames/`)
 
@@ -790,18 +790,18 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 02 | [02. login_verificacion.jpeg](<frames/02. login_verificacion.jpeg>) | Verificación OTP | Autenticación | Implementada |
 | 03 | [03. registro.jpeg](<frames/03. registro.jpeg>) | Registro | Registro | Implementada |
 | 04 | [04. registro_datos_personales.jpeg](<frames/04. registro_datos_personales.jpeg>) | Completar perfil | Registro | Implementada |
-| 05 | [05. registro_vehiculo.jpeg](<frames/05. registro_vehiculo.jpeg>) | Datos del vehículo | Registro | Pendiente |
+| 05 | [05. registro_vehiculo.jpeg](<frames/05. registro_vehiculo.jpeg>) | Datos del vehículo | Registro | Implementada |
 | 06 | [06. dashboard.jpeg](<frames/06. dashboard.jpeg>) | Dashboard / viajes | Dashboard | Implementada |
-| 07 | [07. dashboard_condiciones_viaje.jpeg](<frames/07. dashboard_condiciones_viaje.jpeg>) | Condiciones del viaje | Dashboard | Pendiente |
-| 08 | [08. dashboard_confirm_viaje.jpeg](<frames/08. dashboard_confirm_viaje.jpeg>) | Confirmar reserva (dashboard) | Dashboard | Pendiente |
-| 09 | [09. dashboard_detalle_viaje.jpeg](<frames/09. dashboard_detalle_viaje.jpeg>) | Detalle del viaje | Reserva | Pendiente |
-| 10 | [10. confirm_detalle_viaje.jpeg](<frames/10. confirm_detalle_viaje.jpeg>) | Confirmar reserva (detalle) | Reserva | Pendiente |
-| 11 | [11. publicar_viaje.jpeg](<frames/11. publicar_viaje.jpeg>) | Publicar viaje | Publicación | Pendiente |
-| 12 | [12. confirm_publicar_viaje.jpeg](<frames/12. confirm_publicar_viaje.jpeg>) | Confirmar publicación | Publicación | Pendiente |
-| 13 | [13. perfil_pasajero.jpeg](<frames/13. perfil_pasajero.jpeg>) | Perfil — pasajero | Perfil | Pendiente |
-| 14 | [14. perfil_conductor.jpeg](<frames/14. perfil_conductor.jpeg>) | Perfil — conductor | Perfil | Pendiente |
-| 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Pendiente |
-| 16 | [16. perfil_actualizar_vehiculo.jpeg](<frames/16. perfil_actualizar_vehiculo.jpeg>) | Actualizar vehículo | Perfil | Pendiente |
+| 07 | [07. dashboard_condiciones_viaje.jpeg](<frames/07. dashboard_condiciones_viaje.jpeg>) | Condiciones del viaje | Dashboard | Implementada |
+| 08 | [08. dashboard_confirm_viaje.jpeg](<frames/08. dashboard_confirm_viaje.jpeg>) | Confirmar reserva (dashboard) | Dashboard | Implementada |
+| 09 | [09. dashboard_detalle_viaje.jpeg](<frames/09. dashboard_detalle_viaje.jpeg>) | Detalle del viaje | Reserva | Implementada |
+| 10 | [10. confirm_detalle_viaje.jpeg](<frames/10. confirm_detalle_viaje.jpeg>) | Confirmar reserva (detalle) | Reserva | Implementada |
+| 11 | [11. publicar_viaje.jpeg](<frames/11. publicar_viaje.jpeg>) | Publicar viaje | Publicación | Implementada |
+| 12 | [12. confirm_publicar_viaje.jpeg](<frames/12. confirm_publicar_viaje.jpeg>) | Confirmar publicación | Publicación | Implementada |
+| 13 | [13. perfil_pasajero.jpeg](<frames/13. perfil_pasajero.jpeg>) | Perfil — pasajero | Perfil | Implementada |
+| 14 | [14. perfil_conductor.jpeg](<frames/14. perfil_conductor.jpeg>) | Perfil — conductor | Perfil | Implementada |
+| 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada |
+| 16 | [16. perfil_actualizar_vehiculo.jpeg](<frames/16. perfil_actualizar_vehiculo.jpeg>) | Actualizar vehículo | Perfil | Implementada |
 
 Los frames son una referencia visual y difieren de este documento en los puntos de la tabla. En todos ellos manda este documento.
 

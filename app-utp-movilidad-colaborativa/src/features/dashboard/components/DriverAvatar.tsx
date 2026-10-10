@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { resolveFileUrl } from "@/shared/api/fileService";
+
 type DriverAvatarProps = {
   name: string;
   photoUrl?: string | null;
@@ -13,16 +16,28 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-/** Foto de la persona o, si no tiene, sus iniciales. */
+/** Foto de la persona o, si no tiene o no carga, sus iniciales. */
 export function DriverAvatar({
   name,
   photoUrl,
   className = "driver-avatar",
 }: DriverAvatarProps) {
+  const src = resolveFileUrl(photoUrl);
+  const [hasFailed, setHasFailed] = useState(false);
+
+  useEffect(() => {
+    setHasFailed(false);
+  }, [src]);
+
   return (
     <div className={className} aria-hidden="true">
-      {photoUrl ? (
-        <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+      {src && !hasFailed ? (
+        <img
+          src={src}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setHasFailed(true)}
+        />
       ) : (
         getInitials(name)
       )}

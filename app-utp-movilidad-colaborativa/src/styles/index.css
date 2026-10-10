@@ -104,6 +104,10 @@ body {
     @apply flex h-14 items-center gap-3 rounded-xl border border-[var(--border-soft)] bg-white px-3 transition focus-within:border-[var(--brand-red)];
   }
 
+  .auth-input-disabled {
+    @apply border-transparent bg-[var(--surface-muted)] opacity-80;
+  }
+
   .auth-input-icon {
     @apply flex h-6 w-6 shrink-0 items-center justify-center text-[var(--text-brown)];
   }
@@ -359,7 +363,244 @@ body {
     @apply h-6 w-6 border border-[#dcc3bf] bg-[var(--surface-muted)];
   }
 
+  .form-check-option {
+    @apply mb-3 flex cursor-pointer items-start gap-3 text-[0.9375rem] leading-snug text-[var(--text-primary)];
+  }
+
+  .form-check-option .app-checkbox:not(:checked) {
+    @apply mt-0.5 border border-[#dcc3bf] bg-white;
+  }
+
+  .vehicle-photo-empty {
+    @apply mb-5 flex h-36 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[var(--border-soft)] bg-[#f3f3f3];
+  }
+
   .auth-terms-option {
     @apply mb-4 flex cursor-pointer items-center gap-3;
+  }
+
+  /* Publicar viaje (frames 11 y 12) */
+  .publish-screen {
+    @apply flex min-h-[100dvh] w-full flex-col bg-[var(--webview-bg)];
+  }
+
+  .publish-header {
+    @apply flex shrink-0 items-center gap-4 bg-[var(--webview-bg)] px-[var(--webview-px)] py-3;
+    padding-top: max(0.75rem, var(--safe-top));
+  }
+
+  .publish-header-button {
+    @apply -ml-2 flex h-10 w-10 items-center justify-center rounded-full text-[var(--text-primary)] transition active:scale-95;
+  }
+
+  /* `z-0` encierra las capas de Leaflet, que usan z-index altos. */
+  .publish-map {
+    @apply relative z-0 h-[46dvh] min-h-[18rem] w-full shrink-0 bg-[var(--surface-muted)];
+  }
+
+  /* La hoja inferior tapa el borde del mapa: la atribución de OpenStreetMap sube. */
+  .publish-map .leaflet-bottom {
+    bottom: 1rem;
+  }
+
+  .publish-map-chip {
+    @apply pointer-events-none absolute z-[1000] flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm shadow-md;
+  }
+
+  .publish-map-button {
+    @apply absolute z-[1000] flex h-11 w-11 items-center justify-center rounded-full bg-white text-[var(--text-primary)] shadow-md transition active:scale-95;
+  }
+
+  .publish-sheet {
+    @apply relative z-10 mx-auto -mt-4 flex w-full max-w-lg flex-1 flex-col gap-3 rounded-t-3xl bg-white px-[var(--webview-px)] pt-3;
+    padding-bottom: max(1.25rem, var(--safe-bottom));
+  }
+
+  .publish-sheet-handle {
+    @apply mx-auto h-1.5 w-12 rounded-full bg-[#d9d9d9];
+  }
+
+  .publish-segment {
+    @apply grid grid-cols-2 gap-1 rounded-xl bg-[var(--surface-muted)] p-1;
+  }
+
+  .publish-segment-option {
+    @apply flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[0.8125rem] font-semibold text-[var(--text-muted)] transition;
+  }
+
+  .publish-segment-option-active {
+    @apply bg-[var(--brand-red)] text-white;
+  }
+
+  .publish-card {
+    @apply rounded-xl bg-[#f3f3f3] px-3 py-3;
+  }
+
+  .publish-card-label {
+    @apply text-xs font-medium uppercase tracking-wider text-[var(--text-muted)];
+  }
+
+  .publish-route-row {
+    @apply flex min-h-[2.75rem] items-center gap-2.5 rounded-lg bg-white px-2.5 py-1.5;
+  }
+
+  .publish-route-badge {
+    @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold;
+  }
+
+  .publish-icon-button {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--text-primary)] transition active:scale-95 disabled:opacity-40;
+  }
+
+  .publish-seat-option {
+    @apply flex flex-col items-center gap-1 rounded-lg bg-[var(--surface-muted)] py-2 text-sm font-medium text-[var(--text-primary)] transition;
+  }
+
+  .publish-seat-option-active {
+    @apply bg-[var(--brand-red)] text-white;
+  }
+
+  .route-marker {
+    @apply flex h-full w-full items-center justify-center rounded-full border-2 border-white text-sm font-bold text-white shadow-md;
+  }
+
+  .route-marker svg {
+    @apply h-5 w-5;
+  }
+
+  .route-marker-home {
+    @apply bg-[#0b6e8e];
+  }
+
+  .route-marker-campus {
+    @apply bg-[var(--accent-red)];
+  }
+
+  .route-marker-origin {
+    @apply bg-[var(--brand-red)];
+  }
+
+  .route-marker-destination {
+    @apply bg-[#2f2f2f];
+  }
+
+  .route-marker-stop {
+    @apply border-[5px] border-[var(--brand-red)] bg-white;
+  }
+
+  .route-map-label.leaflet-tooltip {
+    @apply rounded-full border-0 bg-white px-2.5 py-0.5 text-xs font-medium text-[var(--text-primary)] shadow-md;
+    font-family: inherit;
+  }
+
+  .route-map-label-dark.leaflet-tooltip {
+    @apply bg-[#2f2f2f] text-white;
+  }
+
+  .route-map-label.leaflet-tooltip::before {
+    display: none;
+  }
+
+  /* Detalle del viaje (frame 09): recorrido con una línea que une los puntos. */
+  .ride-timeline {
+    @apply space-y-3;
+  }
+
+  .ride-timeline-item {
+    @apply relative pl-7;
+  }
+
+  .ride-timeline-item:not(:last-child)::before {
+    content: "";
+    @apply absolute bottom-[-0.75rem] left-[0.5rem] top-5 w-0.5 -translate-x-1/2 bg-[#d9d9d9];
+  }
+
+  .ride-timeline-dot {
+    @apply absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center rounded-full;
+  }
+
+  .ride-timeline-label {
+    @apply text-xs font-semibold uppercase tracking-wider;
+  }
+
+  .ride-timeline-time {
+    @apply font-medium normal-case tracking-normal text-[var(--text-muted)];
+  }
+
+  .ride-timeline-place {
+    @apply text-[0.9375rem] font-semibold leading-snug text-[var(--text-primary)];
+  }
+
+  .ride-timeline-address {
+    @apply text-sm text-[var(--text-muted)];
+  }
+
+  .app-modal-backdrop {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-[var(--webview-px)] backdrop-blur-[2px];
+  }
+
+  .app-modal {
+    @apply w-full max-w-sm rounded-3xl bg-white px-5 pb-5 pt-7 shadow-xl;
+  }
+
+  /* Perfil (frames 13 y 14) */
+  .profile-card {
+    @apply rounded-2xl border border-[var(--border-neutral)] bg-white p-4;
+  }
+
+  .profile-card-label {
+    @apply text-xs font-medium uppercase tracking-wider text-[var(--text-muted)];
+  }
+
+  .profile-card-icon {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl;
+  }
+
+  .profile-chip {
+    @apply flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+
+  .profile-stat {
+    @apply flex flex-col items-center gap-0.5 rounded-xl bg-[#f3f3f3] px-1 py-2.5 text-center;
+  }
+
+  .profile-action {
+    @apply mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#e9e4e3] text-sm font-semibold uppercase tracking-wide text-[var(--text-primary)] transition active:scale-[0.99];
+  }
+
+  .profile-data {
+    @apply mt-3 space-y-2 rounded-xl bg-[#f3f3f3] px-3 py-3;
+  }
+
+  .profile-data-row {
+    @apply flex items-center justify-between gap-3 text-sm;
+  }
+
+  .profile-data-row dt {
+    @apply flex items-center gap-1.5 text-[var(--text-muted)];
+  }
+
+  .profile-data-row dd {
+    @apply font-semibold text-[var(--text-primary)];
+  }
+
+  .profile-logout {
+    @apply flex h-14 w-full items-center justify-center gap-2 rounded-xl border border-[#e8cac2] bg-[var(--brand-soft)] text-lg font-semibold text-[var(--brand-red)] transition active:scale-[0.99] disabled:opacity-60;
+  }
+
+  .dashboard-message {
+    @apply rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700;
+  }
+
+  .dashboard-message-error {
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+
+  .reserve-modal-label {
+    @apply text-xs font-medium uppercase tracking-wider text-[var(--text-muted)];
+  }
+
+  .reserve-modal-value {
+    @apply text-[0.9375rem] font-semibold leading-snug text-[var(--text-primary)];
   }
 }

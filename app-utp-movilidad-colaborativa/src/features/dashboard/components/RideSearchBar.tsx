@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import ClockIcon from "@/assets/images/icons/clock.svg?react";
 import PassengerIcon from "@/assets/images/icons/passenger.svg?react";
 import PlusCircleIcon from "@/assets/images/icons/plus-circle.svg?react";
@@ -38,11 +39,10 @@ export function RideSearchBar({
         </button>
       </div>
 
-      {/* La pantalla «Publicar viaje» todavía no está implementada. */}
-      <button type="button" className="ride-publish-button">
+      <Link to="/viajes/publicar" className="ride-publish-button">
         <PlusCircleIcon className="h-5 w-5" />
         Publicar un viaje
-      </button>
+      </Link>
     </section>
   );
 }

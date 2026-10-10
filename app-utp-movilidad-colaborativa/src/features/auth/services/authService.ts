@@ -1,18 +1,22 @@
-import Cookies from "js-cookie";
+import { isSessionExpiredError, session } from "@/shared/auth/session";
 import { API_BASE_URL } from "@/shared/config/env";
 
-const COOKIE_NAME = import.meta.env.VITE_AUTH_COOKIE_NAME ?? "app_auth_token";
-const VERIFIED_COOKIE_NAME =
-  import.meta.env.VITE_AUTH_VERIFIED_COOKIE_NAME ?? "app_auth_verified";
 const PENDING_PROFILE_KEY = "pending_profile_registration";
 
 const getAuthHeaders = () => {
-  const token = Cookies.get(COOKIE_NAME);
+  const token = session.getToken();
 
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+};
+
+// Token vencido o inválido: se cierra la sesión y la app vuelve al login.
+const expireSessionIfRejected = (response: Response, data: ApiErrorBody) => {
+  if (isSessionExpiredError(response.status, data)) {
+    session.expire();
+  }
 };
 
 export type CompleteProfilePayload = {
@@ -31,6 +35,7 @@ type PendingProfileRegistration = {
 };
 
 type ApiErrorBody = {
+  code?: string;
   message?: string;
   errors?: Array<{ field: string; message: string }>;
 };
@@ -53,12 +58,7 @@ export const authService = {
       throw new Error(getErrorMessage(data, "Credenciales inválidas"));
     }
 
-    // Token PRE_AUTH: todavía no da acceso, solo permite verificar o reenviar el código.
-    Cookies.set(COOKIE_NAME, data.token, {
-      expires: 7,
-      sameSite: "lax",
-    });
-    Cookies.remove(VERIFIED_COOKIE_NAME);
+    session.startPreAuth(data.token, data.expiresIn);
     return data;
   },
   register: async (payload: { email: string; password: string }) => {
@@ -91,18 +91,11 @@ export const authService = {
     const data = await response.json();
 
     if (!response.ok) {
+      expireSessionIfRejected(response, data);
       throw new Error(getErrorMessage(data, "Código inválido"));
     }
 
-    // El token SESSION reemplaza al PRE_AUTH del login.
-    Cookies.set(COOKIE_NAME, data.token, {
-      expires: 7,
-      sameSite: "lax",
-    });
-    Cookies.set(VERIFIED_COOKIE_NAME, "true", {
-      expires: 7,
-      sameSite: "lax",
-    });
+    session.startSession(data.token, data.expiresIn);
 
     return data;
   },
@@ -115,6 +108,7 @@ export const authService = {
     const data = await response.json();
 
     if (!response.ok) {
+      expireSessionIfRejected(response, data);
       throw new Error(getErrorMessage(data, "No se pudo reenviar el código"));
     }
 
@@ -138,8 +132,12 @@ export const authService = {
       throw new Error(getErrorMessage(data, "No se pudo completar el perfil"));
     }
 
-    sessionStorage.removeItem(PENDING_PROFILE_KEY);
+    // El token REGISTRATION se conserva: «Datos del vehículo» todavía lo necesita.
     return data;
+  },
+  /** Termina el registro: descarta el token REGISTRATION. */
+  clearPendingProfileRegistration: () => {
+    sessionStorage.removeItem(PENDING_PROFILE_KEY);
   },
   getPendingProfileRegistration: (): PendingProfileRegistration | null => {
     const raw = sessionStorage.getItem(PENDING_PROFILE_KEY);
@@ -154,19 +152,16 @@ export const authService = {
     }
   },
   logout: async () => {
-    const token = Cookies.get(COOKIE_NAME);
+    const headers = getAuthHeaders();
+
+    // La sesión se cierra en el cliente aunque la petición falle.
+    session.clear();
+    sessionStorage.removeItem(PENDING_PROFILE_KEY);
 
     const response = await fetch(`${API_BASE_URL}/auth/logout`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers,
     });
-
-    Cookies.remove(COOKIE_NAME);
-    Cookies.remove(VERIFIED_COOKIE_NAME);
-    sessionStorage.removeItem(PENDING_PROFILE_KEY);
 
     if (!response.ok) {
       throw new Error("No se pudo cerrar sesión");
@@ -174,6 +169,6 @@ export const authService = {
 
     return response.json() as Promise<{ message: string }>;
   },
-  isAuthenticated: () => Boolean(Cookies.get(COOKIE_NAME)),
-  isVerified: () => Cookies.get(VERIFIED_COOKIE_NAME) === "true",
+  isAuthenticated: session.isAuthenticated,
+  isVerified: session.isVerified,
 };

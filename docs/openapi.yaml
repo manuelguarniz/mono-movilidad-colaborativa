@@ -1395,14 +1395,24 @@ components:
 
     Campus:
       type: object
-      description: Colección `sedes`.
-      required: [id, name]
+      description: |
+        Colección `sedes`. `address` y `location` los usa «Publicar viaje»: la sede es el
+        destino en `TO_CAMPUS` y el origen en `TO_HOME`.
+      required: [id, name, address, location]
       properties:
         id:
           $ref: "#/components/schemas/ObjectId"
         name:
           type: string
           example: UTP Sede Trujillo
+        address:
+          type: [string, "null"]
+          example: Av. Nicolás de Piérola 1221, Trujillo
+        location:
+          oneOf:
+            - $ref: "#/components/schemas/GeoPoint"
+            - type: "null"
+          description: "`null` si la sede no tiene ubicación registrada."
 
     # ---------------------------------------------------------------- Usuario
     Role:

@@ -75,15 +75,48 @@ Login → Verificación (OTP 6 dígitos) → Dashboard
 Registro → Completar perfil → Login
 ```
 
-### Flujos diseñados (pendientes de implementar)
+### Publicación de un viaje (conductor)
 
 ```
-Completar perfil (con «Tengo vehículo») → Datos del vehículo
-Dashboard → Condiciones del viaje
-Dashboard → Detalle del viaje → Confirmar reserva
-Dashboard → Publicar viaje → Confirmar publicación
-Perfil (pasajero / conductor) → Actualizar datos / Actualizar vehículo
+Dashboard → Publicar viaje → Confirmar publicación → Dashboard
 ```
+
+Solo para usuarios con vehículo registrado. La sede del usuario es siempre un extremo de la ruta: el destino en «Ida a la universidad» y el origen en «Regreso a casa». El conductor toca el mapa para marcar el otro extremo y hasta 5 paradas, y puede arrastrar los puntos para moverlos. Los puntos se unen con líneas rectas.
+
+### Condiciones y detalle de un viaje (pasajero)
+
+```
+Dashboard → icono de información → Condiciones del viaje
+Dashboard → tarjeta del viaje → Detalle del viaje → Reservar
+```
+
+El detalle muestra el mapa con la partida (A), las paradas y el destino (B), el conductor, el recorrido con la hora de salida y la llegada estimada, el vehículo y los asientos disponibles. «Reservar viaje» abre el modal de confirmación.
+
+### Registro de conductores
+
+```
+Registro → Completar perfil (con «Tengo vehículo») → Datos del vehículo → Login
+```
+
+Con «Tengo vehículo» marcado, el registro continúa con los datos del vehículo usando el mismo token `REGISTRATION`. Sin marcarlo, termina en el login.
+
+### Reserva de un viaje (pasajero)
+
+```
+Dashboard o Detalle del viaje → Reservar → ¿Confirmar reserva de viaje? → Reserva confirmada
+```
+
+La reserva siempre pasa por el modal de confirmación, que muestra la ruta, el conductor y el aporte total en créditos. Se confirma al instante, sin aprobación del conductor.
+
+### Perfil
+
+```
+Perfil → Actualizar datos
+Perfil (conductor) → Actualizar vehículo
+Perfil → Cerrar sesión
+```
+
+El perfil se muestra como pasajero o como conductor según la modalidad activa, que se cambia en «Actualizar datos». El documento de identidad se registra una sola vez. Un pasajero sin vehículo puede registrarlo desde «Actualizar datos» al elegir la modalidad de conductor, o desde «Publicar viaje».
 
 ## Rutas
 
@@ -93,7 +126,13 @@ Perfil (pasajero / conductor) → Actualizar datos / Actualizar vehículo
 | `/auth/register` | Registro | Público |
 | `/auth/verificacion` | Verificación OTP | Requiere token (post-login) |
 | `/auth/completar-perfil` | Completar perfil | Tras registro (token `REGISTRATION`) |
+| `/auth/datos-vehiculo` | Datos del vehículo | Tras completar perfil con «Tengo vehículo» (token `REGISTRATION`) |
 | `/dashboard` | Listado de viajes | Requiere sesión verificada |
+| `/viajes/publicar` | Publicar viaje | Requiere sesión verificada y vehículo registrado |
+| `/viajes/:rideId` | Detalle del viaje | Requiere sesión verificada |
+| `/perfil` | Mi perfil (pasajero o conductor) | Requiere sesión verificada |
+| `/perfil/datos` | Actualizar datos | Requiere sesión verificada |
+| `/perfil/vehiculo` | Actualizar vehículo (o registrarlo) | Requiere sesión verificada |
 
 ## Estructura del proyecto
 
@@ -117,6 +156,27 @@ app-utp-movilidad-colaborativa/
 │   │   │   └── services/
 │   │   │       ├── authService.ts
 │   │   │       └── catalogService.ts  # Departamentos, distritos y sedes
+│   │   ├── profile/
+│   │   │   ├── pages/         # ProfilePage, UpdateProfilePage
+│   │   │   └── services/
+│   │   │       └── profileService.ts
+│   │   ├── vehicles/
+│   │   │   ├── components/    # VehicleFields, VehiclePhotoPicker
+│   │   │   ├── pages/         # RegisterVehiclePage, UpdateVehiclePage
+│   │   │   ├── services/
+│   │   │   │   └── vehicleService.ts
+│   │   │   └── utils/
+│   │   │       └── vehicleForm.ts  # Opciones y validación del formulario
+│   │   ├── rides/
+│   │   │   ├── components/    # RouteMap y RideRouteMap (Leaflet), modales de confirmación
+│   │   │   ├── pages/
+│   │   │   │   ├── PublishRidePage.tsx
+│   │   │   │   └── RideDetailPage.tsx
+│   │   │   ├── services/
+│   │   │   │   └── rideService.ts
+│   │   │   ├── utils/
+│   │   │   │   └── route.ts   # Distancia, hora de salida y reglas del viaje
+│   │   │   └── types.ts
 │   │   └── dashboard/
 │   │       ├── components/    # RideCard, BottomNav, DashboardHeader, etc.
 │   │       ├── pages/
@@ -151,7 +211,7 @@ app-utp-movilidad-colaborativa/
 ### Convenciones
 
 - **`src/app`**: configuración global, layouts y rutas.
-- **`src/features`**: módulos por dominio (`auth`, `dashboard`). Cada feature agrupa páginas, componentes y servicios propios.
+- **`src/features`**: módulos por dominio (`auth`, `dashboard`, `rides`, `profile`, `vehicles`). Cada feature agrupa páginas, componentes y servicios propios.
 - **`src/shared`**: código transversal (API client, iconos).
 - **`src/mocks`**: API simulada con MSW, activa solo en desarrollo y con `VITE_USE_MOCKS` distinto de `false`.
 
@@ -219,6 +279,7 @@ Todas usan la contraseña `Clave#2026` y pertenecen a la sede UTP Trujillo. El f
 | [React Router](https://reactrouter.com/) | Navegación |
 | [TanStack Query](https://tanstack.com/query) | Estado asíncrono y caché |
 | [Axios](https://axios-http.com/) | Cliente HTTP |
+| [Leaflet](https://leafletjs.com/) | Mapa de la ruta, con teselas de OpenStreetMap |
 | [js-cookie](https://github.com/js-cookie/js-cookie) | Gestión de cookies |
 | [MSW](https://mswjs.io/) | API mock en desarrollo |
 | [Faker](https://fakerjs.dev/) | Datos de prueba en mocks |
@@ -234,10 +295,7 @@ Todas usan la contraseña `Clave#2026` y pertenecen a la sede UTP Trujillo. El f
 
 ## Próximos pasos sugeridos
 
-- Implementar **Datos del vehículo** y enlazarla desde «Tengo vehículo» en Completar perfil.
-- Agregar al dashboard los modales de **Condiciones del viaje** y **Confirmar reserva**.
-- Implementar **Detalle del viaje** con mapa.
-- Implementar **Publicar viaje** y su confirmación.
-- Implementar **Perfil** de pasajero y conductor, con **Actualizar datos** y **Actualizar vehículo**.
-- Conectar el resto de la navegación inferior (Historial, Billetera).
-- Integrar API backend real reemplazando o desactivando MSW en producción.
+- Carga de fotos: los formularios ya suben la imagen con `POST /files`, pero el backend todavía no implementa ese endpoint. Hasta entonces la foto es opcional y, si se elige una, la carga falla contra el backend real.
+- Conectar los filtros del dashboard (destino, hora y pasajeros) con `GET /rides`.
+- Historial y Billetera de la navegación inferior, que son del próximo alcance.
+- Definir «Cambiar sede», «Modificar casa» y la cancelación de reservas, que los frames muestran y el documento técnico aún no cubre.
