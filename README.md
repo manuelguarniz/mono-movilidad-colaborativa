@@ -1402,7 +1402,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 14 | [14. perfil_conductor.jpeg](<frames/14. perfil_conductor.jpeg>) | Perfil — conductor | Perfil | Implementada |
 | 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada |
 | 16 | [16. perfil_actualizar_vehiculo.jpeg](<frames/16. perfil_actualizar_vehiculo.jpeg>) | Actualizar vehículo | Perfil | Implementada (sin SOAT) |
-| 17 | — | Mis viajes | Mis viajes | Pendiente de diseño |
+| 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Diseño aprobado |
 | 18 | — | Notificaciones | Notificaciones | Pendiente de diseño |
 | 19 | — | Historial | Historial | Pendiente de diseño |
 | 20 | — | Calificar | Calificaciones | Pendiente de diseño |

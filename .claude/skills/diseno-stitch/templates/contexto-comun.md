@@ -25,7 +25,8 @@ Sistema visual (respetar exactamente, es el de las pantallas ya diseñadas):
   (ej. "PRÓXIMO VIAJE"), títulos 28px semibold, horas grandes 28px con cifras tabulares.
 - Iconos de línea (Material Symbols Outlined), estrellas de calificación en ámbar.
 - Encabezado: menú hamburguesa a la izquierda, logotipo "ColaboraCar" en rojo #BD0016
-  bold centrado, campana de notificaciones con punto rojo y avatar a la derecha.
+  bold centrado (solo el texto, sin punto ni adornos), campana de notificaciones con punto
+  rojo y avatar con las iniciales del usuario a la derecha.
 - Barra de navegación inferior blanca, fija abajo a todo el ancho, con 5 pestañas: Viajes,
   Mis viajes, Historial, Billetera, Perfil. La pestaña activa es una píldora roja #BD0016
   con icono y texto blancos. En esta pantalla la activa es "<pestaña>".
@@ -41,9 +42,11 @@ Reglas que el diseño debe reflejar:
 - Cancelar solo está permitido hasta 30 minutos antes de la salida.
 - La necesidad de asistencia de movilidad de un pasajero solo la ve el conductor de su viaje
   (icono de accesibilidad + texto, ej. "Usa silla de ruedas").
+- El modo (pasajero o conductor) se indica con un chip de solo lectura junto al título
+  ("Modo pasajero" o "Modo conductor"). No agregues un selector para cambiar de modo.
 - <reglas propias de la pantalla, con su RN>
 - Nada de "ShareCar", "A/C activo", "Conductor frecuente", "Puntualidad", chat,
-  botón de emergencia, seguimiento en vivo ni correos que no sean @utp.edu.pe.
+  botón de emergencia, seguimiento en vivo, edición del viaje publicado ni correos que no sean @utp.edu.pe.
 - Contenido realista, nada de lorem ipsum.
 ```
 
