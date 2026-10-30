@@ -21,6 +21,8 @@ Sistema visual (respetar exactamente, es el de las pantallas ya diseñadas):
   borde suave #E5BEBB para chips contorneados.
 - Superficie gris #EEEEEE para bloques internos (como el bloque "Salida" del dashboard).
 - Texto principal #1B1B1B, secundario marrón #5B403D, apagado #5F5E5E, placeholder #686C75.
+- Verde para estados positivos y abonos: texto #1B7F3B sobre fondo #E6F4EA (chips "En curso",
+  "Pagado", montos con +).
 - Tipografía Inter. Etiquetas de sección en mayúsculas pequeñas con tracking
   (ej. "PRÓXIMO VIAJE"), títulos 28px semibold, horas grandes 28px con cifras tabulares.
 - Iconos de línea (Material Symbols Outlined), estrellas de calificación en ámbar.
@@ -51,6 +53,8 @@ Reglas que el diseño debe reflejar:
 ```
 
 ## Si Stitch genera una pantalla de escritorio
+
+Pasó en la primera pasada de P17 y de P21. Antes de generar, elegir el modo **App** (móvil) en Stitch, no **Web**, si la versión muestra ese selector junto al prompt: funciona mejor que pedirlo en el texto. Si la conversión deja también los datos cambiados, conviene generar desde cero en modo App en vez de seguir editando la versión de escritorio.
 
 Seleccionar el frame generado y pegar:
 

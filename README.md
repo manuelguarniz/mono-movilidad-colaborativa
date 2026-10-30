@@ -1406,7 +1406,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 18 | — | Notificaciones | Notificaciones | Pendiente de diseño |
 | 19 | — | Historial | Historial | Pendiente de diseño |
 | 20 | — | Calificar | Calificaciones | Pendiente de diseño |
-| 21 | — | Billetera | Billetera | Pendiente de diseño |
+| 21 | [P21-Billetera/v1.1.png](<docs/design/P21-Billetera/v1.1.png>) | Billetera | Billetera | Diseño aprobado |
 
 Los frames son una referencia visual y difieren de este documento en los puntos de la tabla. En todos ellos manda este documento.
 
