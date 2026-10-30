@@ -1,0 +1,19 @@
+Indicaciones de la tarea
+Estimados estudiantes, conforme a las actividades desarrolladas en las semanas previas, durante la semana 12 deberán presentar el tercer avance del proyecto grupal, donde deberán demostrar la evolución del proyecto a partir de los temas tratados y la retroalimentación recibida de los usuarios, la aplicación de los conceptos de hipótesis, MVP, story boards y prototipado. En se sentido, el entregable a presentar deberá contener todo el contenido esperado hasta la segunda entrega, a la cual deben agregar y/o actualizar según corresponda, lo siguiente:
+
+Actualización de la Definición del Problema, en caso corresponda
+Identificación de Usuarios - Actualización
+Deben tener en cuenta que se ha incorporado al proyecto al menos un usuario con discapacidad.
+
+Benchmarking actualizado.
+Requerimientos Funcionales actualizados
+Hipótesis
+Deberá formular los 3 tipos de hipótesis
+
+Storyboards
+Para cada requerimiento funcional, deberá elaborar al menos un storyboard.
+
+Prototipo de la Solución - Actualización
+Propuesta de prototipos de otros especialistas (grupo con quien compartieron su proyecto durante al menos 2 iteraciones) y la que hicieron para otro grupo.
+
+Presentación de un prototipo digital (puede ser en Figma, Balsamiq, Canva u otra herramienta similar).

@@ -17,8 +17,8 @@ export function LoginPage() {
       sessionExpired?: boolean;
     } | null) ?? {};
   // Cuenta de prueba de la API simulada (ver src/mocks/db.ts).
-  const [email, setEmail] = useState("valeria.rodriguez@utp.edu.pe");
-  const [password, setPassword] = useState("Clave#2026");
+  const [email, setEmail] = useState("u24314208@utp.edu.pe");
+  const [password, setPassword] = useState("Peru123..");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -70,9 +70,7 @@ export function LoginPage() {
         )}
 
         {error && (
-          <div className="auth-message auth-message-error">
-            {error}
-          </div>
+          <div className="auth-message auth-message-error">{error}</div>
         )}
 
         <AuthField
