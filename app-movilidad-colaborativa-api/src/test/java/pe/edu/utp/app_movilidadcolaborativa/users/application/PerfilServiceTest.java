@@ -3,6 +3,7 @@ package pe.edu.utp.app_movilidadcolaborativa.users.application;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
+import pe.edu.utp.app_movilidadcolaborativa.rides.application.CancelacionesConductorService;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
@@ -51,7 +52,9 @@ class PerfilServiceTest {
 	private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
 	private final ArchivoRepository archivoRepository = mock(ArchivoRepository.class);
 	private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
-	private final PerfilService servicio = new PerfilService(usuarioRepository, archivoRepository, mongoTemplate);
+	private final CancelacionesConductorService cancelaciones = mock(CancelacionesConductorService.class);
+	private final PerfilService servicio =
+			new PerfilService(usuarioRepository, archivoRepository, mongoTemplate, cancelaciones);
 	private final ObjectId usuarioId = new ObjectId();
 
 	private Usuario.UsuarioBuilder pasajero() {
@@ -77,7 +80,8 @@ class PerfilServiceTest {
 				.tipoDocumento(TipoDocumento.DNI)
 				.numeroDocumento("45678912")
 				.vehiculo(new Vehiculo("ABC-123", TipoVehiculo.MOTO, "Toyota", "Yaris", "Blanco", 2021, 3,
-						"45678912", true, EstadoVehiculo.ACTIVO, null, null, Instant.parse("2026-10-02T10:00:00Z")));
+						"45678912", true, EstadoVehiculo.ACTIVO, null, null, Instant.parse("2026-10-02T10:00:00Z"), null,
+						null));
 	}
 
 	private void existe(Usuario usuario) {
@@ -116,7 +120,19 @@ class PerfilServiceTest {
 		assertThat(perfil.vehicle().photoUrl()).isNull();
 		assertThat(perfil.stats()).isEqualTo(new PerfilUsuarioDto.EstadisticasDto(0, 0, 0));
 		assertThat(perfil.rating()).isNull();
+		assertThat(perfil.cancellationBlock()).isNull();
 		assertThat(perfil.toString()).doesNotContain("hash");
+	}
+
+	@Test
+	void consultarInformaElBloqueoPorCancelacionesDelConductor() {
+		existe(conductor().build());
+		Instant hasta = Instant.parse("2026-11-14T15:00:00Z");
+		when(cancelaciones.bloqueo(eq(usuarioId), any(Instant.class)))
+				.thenReturn(Optional.of(new CancelacionesConductorService.Bloqueo(10, 30, hasta)));
+
+		assertThat(servicio.consultar(usuarioId).cancellationBlock())
+				.isEqualTo(new PerfilUsuarioDto.BloqueoCancelacionesDto(10, hasta));
 	}
 
 	@Test

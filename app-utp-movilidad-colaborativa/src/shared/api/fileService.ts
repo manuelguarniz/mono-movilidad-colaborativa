@@ -1,7 +1,7 @@
 import { ApiError, apiClient } from "@/shared/api/apiClient";
 import { API_BASE_URL } from "@/shared/config/env";
 
-export type FilePurpose = "PROFILE_PHOTO" | "VEHICLE_PHOTO";
+export type FilePurpose = "PROFILE_PHOTO" | "VEHICLE_PHOTO" | "SOAT_PHOTO";
 
 type UploadedFile = { id: string; url: string };
 

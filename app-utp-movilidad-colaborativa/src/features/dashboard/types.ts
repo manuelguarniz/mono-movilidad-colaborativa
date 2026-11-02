@@ -22,6 +22,9 @@ export type RideSummary = {
     model: string;
     color: string;
     plate: string;
+    // RN-18 y RN-36: copias del vehículo al publicar.
+    wheelchairAccessible: boolean;
+    soatEndDate: string | null;
   };
   conditions: string[];
   origin: RidePlaceSummary;

@@ -26,6 +26,8 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoVehiculo;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Soat;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Vehiculo;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.validation.ReglasUsuario;
@@ -34,18 +36,23 @@ import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.Usu
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /** Listado, detalle y publicación de viajes (RF-09 a RF-12 y RF-15 a RF-18). */
 @Service
 @RequiredArgsConstructor
 public class ViajeService {
 
+	private static final DateTimeFormatter DIA_MES = DateTimeFormatter.ofPattern("dd/MM").withZone(ReglasViaje.ZONA_PERU);
+
 	private final UsuarioRepository usuarioRepository;
 	private final ViajeRepository viajeRepository;
 	private final MongoTemplate mongoTemplate;
+	private final CancelacionesConductorService cancelacionesConductorService;
 
 	/**
 	 * Viajes PUBLICADO de una sede, con salida futura y plazas suficientes, sin los del propio usuario.
@@ -96,12 +103,26 @@ public class ViajeService {
 	/**
 	 * Crea el viaje en PUBLICADO. Conductor, vehículo y sede se copian del usuario; la distancia es
 	 * la línea recta entre origen, paradas y destino, y la duración una estimación a partir de ella.
+	 * Exige un vehículo ACTIVO (RN-24), no haber superado el límite de cancelaciones (RN-30) y, si el
+	 * vehículo declaró SOAT, que siga vigente en la fecha de salida (RN-37).
 	 */
 	public ViajeDetalleDto publicar(ObjectId usuarioId, PublicarViajeRequest solicitud) {
 		Usuario usuario = buscarUsuario(usuarioId);
 		Vehiculo vehiculo = usuario.getVehiculo();
-		if (vehiculo == null) {
+		if (vehiculo == null || vehiculo.estado() != EstadoVehiculo.ACTIVO) {
 			throw new ApiException(CodigoError.VEHICLE_REQUIRED, "Registra un vehículo para publicar viajes");
+		}
+		cancelacionesConductorService.bloqueo(usuarioId, Instant.now()).ifPresent(bloqueo -> {
+			throw new ApiException(CodigoError.DRIVER_CANCELLATION_LIMIT,
+					"Cancelaste %d viajes en los últimos %d días. Podrás publicar de nuevo desde el %s."
+							.formatted(bloqueo.cancelaciones(), bloqueo.ventanaDias(), DIA_MES.format(bloqueo.hasta())),
+					Map.of("count", bloqueo.cancelaciones(), "until", bloqueo.hasta()));
+		});
+		// El SOAT es opcional mientras los formularios del vehículo no lo pidan: sin SOAT no se valida.
+		Soat soat = vehiculo.soat();
+		if (soat != null && !soat.vigenteEn(Soat.fechaPeru(solicitud.departureTime()))) {
+			throw new ApiException(CodigoError.SOAT_EXPIRES_BEFORE_DEPARTURE,
+					"Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar.");
 		}
 		// RN-11: depende del vehículo guardado, así que no se puede validar en el DTO.
 		if (solicitud.seats() > vehiculo.plazas()) {
@@ -125,7 +146,8 @@ public class ViajeService {
 						ReglasUsuario.nombrePublico(usuario.getNombres(), usuario.getApellidos()),
 						usuario.getFoto() == null ? null : usuario.getFoto().url(),
 						usuario.getCalificacion()))
-				.vehiculo(new VehiculoViaje(vehiculo.marca(), vehiculo.modelo(), vehiculo.color(), vehiculo.placa()))
+				.vehiculo(new VehiculoViaje(vehiculo.marca(), vehiculo.modelo(), vehiculo.color(), vehiculo.placa(),
+						vehiculo.esApto(), soat == null ? null : soat.fechaFin()))
 				.sede(new ReferenciaNombre(usuario.getSede().id(), usuario.getSede().nombre()))
 				.sentido(SentidoViaje.desdeApi(solicitud.direction()))
 				.origen(origen)

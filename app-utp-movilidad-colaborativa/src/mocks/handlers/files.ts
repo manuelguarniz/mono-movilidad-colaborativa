@@ -7,6 +7,7 @@ const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const FOLDERS: Record<FilePurpose, string> = {
   PROFILE_PHOTO: "perfiles",
   VEHICLE_PHOTO: "vehiculos",
+  SOAT_PHOTO: "soat",
 };
 const EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",

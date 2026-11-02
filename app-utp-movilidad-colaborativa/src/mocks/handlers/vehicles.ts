@@ -1,10 +1,12 @@
 import { http, HttpResponse } from "msw";
 import {
   db,
+  limaDate,
   saveDb,
   syncDriverRides,
   toLima,
   type MockUser,
+  type Soat,
   type Vehicle,
   type VehicleType,
 } from "@/mocks/db";
@@ -24,6 +26,8 @@ import {
 
 const VEHICLE_TYPES = ["SEDAN", "HATCHBACK", "SUV", "VAN", "MOTORCYCLE"];
 const PLATE = /^[A-Z0-9]{3}-?[A-Z0-9]{3,4}$/;
+const POLICY = /^[A-Za-z0-9-]{6,20}$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** La placa se guarda en mayúsculas y con guion (`abc123` queda `ABC-123`). */
 function normalizePlate(value: unknown) {
@@ -142,7 +146,110 @@ function validateVehicle(
     errors.push({ field: "photoFileId", message: "La foto del vehículo no es válida" });
   }
 
+  // RN-36: el SOAT es opcional mientras P05 y P16 no lo pidan; si llega, se valida.
+  if (body.soat != null) {
+    const soat = body.soat as Record<string, unknown>;
+    checkText(
+      soat.insurer,
+      "soat.insurer",
+      60,
+      "La aseguradora es obligatoria",
+      "La aseguradora debe tener como máximo 60 caracteres",
+      errors,
+    );
+    if (isBlank(soat.policyNumber)) {
+      errors.push({ field: "soat.policyNumber", message: "El número de póliza es obligatorio" });
+    } else if (!POLICY.test((soat.policyNumber as string).trim())) {
+      errors.push({
+        field: "soat.policyNumber",
+        message: "El número de póliza debe tener de 6 a 20 letras, números o guiones",
+      });
+    }
+    if (typeof soat.startDate !== "string" || !DATE.test(soat.startDate)) {
+      errors.push({ field: "soat.startDate", message: "La fecha de inicio del SOAT es obligatoria" });
+    }
+    if (typeof soat.endDate !== "string" || !DATE.test(soat.endDate)) {
+      errors.push({ field: "soat.endDate", message: "La fecha de fin del SOAT es obligatoria" });
+    }
+    if (soat.photoFileId != null && !isObjectId(soat.photoFileId)) {
+      errors.push({ field: "soat.photoFileId", message: "La foto del SOAT no es válida" });
+    }
+  }
+
   return errors;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Accesibilidad (RN-18) y SOAT (RN-36) del vehículo. Lo que no llega conserva el valor
+ * anterior; devuelve el error si una moto marca accesibilidad o el SOAT no está vigente hoy.
+ */
+function resolveExtras(
+  body: Record<string, unknown>,
+  user: MockUser,
+  previous: Vehicle | null,
+): Pick<Vehicle, "accessibility" | "soat"> | Response {
+  const isMotorcycle = body.type === "MOTORCYCLE";
+  const none = { wheelchair: false, boardingAssistance: false };
+  let accessibility = isMotorcycle ? none : (previous?.accessibility ?? none);
+  if (body.accessibility != null) {
+    const sent = body.accessibility as Record<string, unknown>;
+    accessibility = {
+      wheelchair: sent.wheelchair === true,
+      boardingAssistance: sent.boardingAssistance === true,
+    };
+    if (isMotorcycle && (accessibility.wheelchair || accessibility.boardingAssistance)) {
+      return validationError([
+        { field: "accessibility", message: "Una moto no puede marcarse como accesible" },
+      ]);
+    }
+  }
+
+  if (body.soat == null) {
+    return { accessibility, soat: previous?.soat ?? null };
+  }
+  const sent = body.soat as Record<string, string>;
+  if (sent.endDate < sent.startDate) {
+    return validationError([
+      { field: "soat.endDate", message: "La fecha de fin debe ser posterior a la de inicio" },
+    ]);
+  }
+  const days = (Date.parse(sent.endDate) - Date.parse(sent.startDate)) / DAY_MS + 1;
+  if (days > 366) {
+    return validationError([
+      { field: "soat.endDate", message: "La vigencia del SOAT no puede superar los 366 días" },
+    ]);
+  }
+  const today = limaDate();
+  if (today < sent.startDate || today > sent.endDate) {
+    return apiError(
+      400,
+      "SOAT_NOT_VALID",
+      "Tu SOAT no está vigente. No puedes registrar el vehículo sin un SOAT vigente.",
+    );
+  }
+  let photoUrl = previous?.soat?.photoUrl ?? null;
+  if (sent.photoFileId != null) {
+    const photo = findOwnFile(sent.photoFileId, user, "SOAT_PHOTO");
+    if (!photo) {
+      return apiError(
+        400,
+        "INVALID_FILE_REFERENCE",
+        "La foto del SOAT no existe o no te pertenece",
+      );
+    }
+    photoUrl = photo.url;
+  }
+  const soat: Soat = {
+    insurer: sent.insurer.trim(),
+    policyNumber: sent.policyNumber.trim().toUpperCase(),
+    startDate: sent.startDate,
+    endDate: sent.endDate,
+    photoUrl,
+    declaredAt: new Date().toISOString(),
+  };
+  return { accessibility, soat };
 }
 
 const plateTaken = (plate: string, user: MockUser) =>
@@ -155,6 +262,7 @@ function registerVehicle(
   plate: string,
   ownerDni: string | null,
   photoUrl: string | null,
+  extras: Pick<Vehicle, "accessibility" | "soat">,
 ) {
   user.vehicle = {
     plate,
@@ -169,6 +277,7 @@ function registerVehicle(
     status: "ACTIVE",
     photoUrl,
     registeredAt: new Date().toISOString(),
+    ...extras,
   };
   if (!user.roles.includes("DRIVER")) {
     user.roles.push("DRIVER");
@@ -237,7 +346,19 @@ export const vehicleHandlers = [
       return photoUrl;
     }
 
-    const vehicle = registerVehicle(user, body, plate, body.ownerDni as string, photoUrl);
+    const extras = resolveExtras(body, user, null);
+    if (extras instanceof Response) {
+      return extras;
+    }
+
+    const vehicle = registerVehicle(
+      user,
+      body,
+      plate,
+      body.ownerDni as string,
+      photoUrl,
+      extras,
+    );
     return HttpResponse.json(vehicle, { status: 201 });
   }),
 
@@ -279,12 +400,19 @@ export const vehicleHandlers = [
       return photoUrl;
     }
 
+    const extras = resolveExtras(body, user, user.vehicle);
+    if (extras instanceof Response) {
+      return extras;
+    }
+
     // Sin vehículo, la actualización lo registra. «Actualizar vehículo» no pide el DNI del
     // propietario: si no llega, se usa el DNI del usuario, si ya lo registró.
     if (!user.vehicle) {
       const ownDni = user.documentType === "DNI" ? user.documentNumber : null;
       const ownerDni = (body.ownerDni as string | undefined) || ownDni;
-      return HttpResponse.json(registerVehicle(user, body, plate, ownerDni, photoUrl));
+      return HttpResponse.json(
+        registerVehicle(user, body, plate, ownerDni, photoUrl, extras),
+      );
     }
 
     const updated: Vehicle = {
@@ -299,6 +427,7 @@ export const vehicleHandlers = [
       isOwner:
         typeof body.isOwner === "boolean" ? body.isOwner : user.vehicle.isOwner,
       photoUrl: photoUrl ?? user.vehicle.photoUrl,
+      ...extras,
     };
     user.vehicle = updated;
     syncDriverRides(user);

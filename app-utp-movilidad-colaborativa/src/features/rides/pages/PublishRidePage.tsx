@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
+import { DiscardRideSheet } from "@/features/rides/components/DiscardRideSheet";
 import { PublishRideConfirmModal } from "@/features/rides/components/PublishRideConfirmModal";
 import { RouteMap } from "@/features/rides/components/RouteMap";
 import { rideService } from "@/features/rides/services/rideService";
@@ -12,72 +12,133 @@ import type {
   RoutePoint,
 } from "@/features/rides/types";
 import {
+  MAX_CONDITIONS,
+  MAX_CONDITION_LENGTH,
   MAX_PRICE,
   MAX_STOPS,
   MIN_PRICE,
-  buildDeparture,
   createRoutePoint,
   findStopPosition,
-  formatTime12h,
-  isDepartureInRange,
+  formatDepartureDay,
+  formatDepartureTime,
+  formatKm,
+  fromLimaInputValue,
+  getDefaultDeparture,
+  isDepartureValid,
   measureRoute,
+  toLimaInputValue,
 } from "@/features/rides/utils/route";
 import { ApiError } from "@/shared/api/apiClient";
+import { GoldCoinIcon } from "@/shared/icons";
+import AccessibleIcon from "@/assets/images/icons/accessible.svg?react";
+import AlertIcon from "@/assets/images/icons/alert-circle.svg?react";
 import CapIcon from "@/assets/images/icons/graduation-cap.svg?react";
 import CarIcon from "@/assets/images/icons/ride.svg?react";
-import CashIcon from "@/assets/images/icons/cash.svg?react";
 import ClockIcon from "@/assets/images/icons/clock.svg?react";
 import CloseIcon from "@/assets/images/icons/close.svg?react";
 import HomeIcon from "@/assets/images/icons/home.svg?react";
 import InfoIcon from "@/assets/images/icons/info.svg?react";
-import PencilIcon from "@/assets/images/icons/pencil.svg?react";
+import LockIcon from "@/assets/images/icons/lock.svg?react";
 import SeatIcon from "@/assets/images/icons/passenger.svg?react";
 import TapIcon from "@/assets/images/icons/tap.svg?react";
 import TargetIcon from "@/assets/images/icons/target.svg?react";
-import TrashIcon from "@/assets/images/icons/trash.svg?react";
+import WarningIcon from "@/assets/images/icons/warning.svg?react";
 
 const DIRECTIONS: Array<{ value: RideDirection; label: string; icon: ReactNode }> = [
   {
     value: "TO_CAMPUS",
     label: "Ida a la universidad",
-    icon: <CapIcon className="h-5 w-5" />,
+    icon: <CapIcon className="h-5 w-5 shrink-0" />,
   },
   {
     value: "TO_HOME",
     label: "Regreso a casa",
-    icon: <HomeIcon className="h-5 w-5" />,
+    icon: <HomeIcon className="h-5 w-5 shrink-0" />,
   },
 ];
 
-const DEFAULT_TIME = "07:30";
 const DEFAULT_PRICE = 5;
 const MAX_LABEL_LENGTH = 80;
-const MAX_CONDITIONS = 10;
-const MAX_CONDITION_LENGTH = 120;
+const VEHICLE_PATH = "/perfil/vehiculo";
+const PUBLISH_PATH = "/viajes/publicar";
+
+// Mensajes de validación de P11 (docs/design/P11-PublicarViaje/prompt.md).
+const MESSAGES = {
+  noVehicle: "Registra un vehículo para usar la modalidad de conductor (o para publicar viajes)",
+  departure: "Elige una salida futura entre las 06:00 y las 23:00.",
+  soat: "Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar.",
+  route: "Toca el mapa para fijar el origen y el destino.",
+  routeNames: "Escribe el nombre de cada punto de la ruta.",
+  maxStops: `Puedes agregar hasta ${MAX_STOPS} paradas.`,
+  maxConditions: `Puedes agregar hasta ${MAX_CONDITIONS} condiciones.`,
+  conditionLength: `Escribe la condición en ${MAX_CONDITION_LENGTH} caracteres o menos.`,
+};
+
+// El formulario se guarda al abrir «Actualizar vehículo» (P16) y se recupera al volver.
+const DRAFT_KEY = "publish-ride-draft";
+
+type Draft = {
+  direction: RideDirection;
+  departure: string;
+  pricePerSeat: number;
+  selectedSeats: number | null;
+  home: RoutePoint | null;
+  stops: RoutePoint[];
+  conditions: string[];
+};
+
+function readDraft(): Draft | null {
+  const raw = sessionStorage.getItem(DRAFT_KEY);
+  try {
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+}
 
 const isNotFound = (error: unknown) =>
   error instanceof ApiError && error.status === 404;
 
+/** `2026-11-14T05:00:00Z` → `14/11`, en la hora de Perú. */
+const formatShortDate = (iso: string) =>
+  toLimaInputValue(new Date(iso)).slice(5, 10).split("-").reverse().join("/");
+
 export function PublishRidePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [draft] = useState(readDraft);
 
-  const [direction, setDirection] = useState<RideDirection>("TO_CAMPUS");
-  const [time, setTime] = useState(DEFAULT_TIME);
-  const [pricePerSeat, setPricePerSeat] = useState(DEFAULT_PRICE);
-  // `null`: todavía no se eligió; se ofrecen todas las plazas del vehículo.
-  const [selectedSeats, setSelectedSeats] = useState<number | null>(null);
+  // El borrador solo sirve para volver una vez desde P16.
+  useEffect(() => {
+    sessionStorage.removeItem(DRAFT_KEY);
+  }, []);
+
+  const [direction, setDirection] = useState<RideDirection>(
+    draft?.direction ?? "TO_CAMPUS",
+  );
+  const [departure, setDeparture] = useState(() =>
+    draft ? new Date(draft.departure) : getDefaultDeparture(),
+  );
+  const [pricePerSeat, setPricePerSeat] = useState(draft?.pricePerSeat ?? DEFAULT_PRICE);
+  // `null`: todavía no se eligió; se ofrecen las plazas del vehículo menos una.
+  const [selectedSeats, setSelectedSeats] = useState<number | null>(
+    draft?.selectedSeats ?? null,
+  );
   // La casa es el extremo de la ruta que marca el conductor; el otro es la sede.
-  const [home, setHome] = useState<RoutePoint | null>(null);
+  const [home, setHome] = useState<RoutePoint | null>(draft?.home ?? null);
   // Paradas en orden de la casa a la sede.
-  const [stops, setStops] = useState<RoutePoint[]>([]);
-  const [conditions, setConditions] = useState<string[]>([]);
+  const [stops, setStops] = useState<RoutePoint[]>(draft?.stops ?? []);
+  const [conditions, setConditions] = useState<string[]>(draft?.conditions ?? []);
   const [conditionDraft, setConditionDraft] = useState("");
-  const [error, setError] = useState("");
+  const [conditionError, setConditionError] = useState("");
+  const [routeError, setRouteError] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [isDirty, setIsDirty] = useState(Boolean(draft));
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isDiscarding, setIsDiscarding] = useState(false);
   const [fitKey, setFitKey] = useState(0);
 
-  // Solo los usuarios con vehículo pueden publicar (RF-18).
+  // Solo los usuarios con vehículo pueden publicar (RN-24).
   const vehicleQuery = useQuery({
     queryKey: ["vehicles", "me"],
     queryFn: rideService.getMyVehicle,
@@ -101,9 +162,10 @@ export function PublishRidePage() {
 
   const vehicle = vehicleQuery.data;
   const campus = campusQuery.data;
-  const seats = Math.min(selectedSeats ?? vehicle?.seats ?? 1, vehicle?.seats ?? 1);
+  const vehicleSeats = vehicle?.seats ?? 1;
+  const seats = Math.min(selectedSeats ?? Math.max(1, vehicleSeats - 1), vehicleSeats);
 
-  // Si el perfil ya tiene la dirección de residencia, se usa como punto de partida.
+  // Con «Ida a la universidad», el origen se precarga con la residencia del perfil.
   const homeAddress = profile?.homeAddress;
   useEffect(() => {
     if (homeAddress) {
@@ -122,7 +184,7 @@ export function PublishRidePage() {
     },
     onError: (mutationError) => {
       setIsConfirming(false);
-      setError(
+      setSubmitError(
         mutationError instanceof Error
           ? mutationError.message
           : "No se pudo publicar el viaje",
@@ -130,37 +192,54 @@ export function PublishRidePage() {
     },
   });
 
+  const leave = () => navigate("/dashboard");
+
+  const handleExit = () => {
+    if (isDirty) {
+      setIsDiscarding(true);
+    } else {
+      leave();
+    }
+  };
+
   const header = (
     <header className="publish-header">
-      <Link to="/dashboard" className="publish-header-button" aria-label="Cerrar">
+      <button
+        type="button"
+        className="publish-header-button"
+        aria-label="Cerrar"
+        onClick={handleExit}
+      >
         <CloseIcon className="h-6 w-6" />
-      </Link>
-      <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-        Publicar Viaje
+      </button>
+      <h1 className="text-[1.375rem] font-semibold text-[var(--text-primary)]">
+        Publicar viaje
       </h1>
-      <DriverAvatar
-        name={
-          profile ? `${profile.firstName.split(" ")[0]} ${profile.lastName}` : ""
-        }
-        photoUrl={profile?.photoUrl}
-        className="dashboard-profile-avatar ml-auto"
-      />
     </header>
   );
 
-  const renderNotice = (title: string, message: string, action?: ReactNode) => (
+  // Frame 11-C: la pantalla entera se bloquea (sin vehículo o por cancelaciones).
+  const renderBlocked = (
+    icon: ReactNode,
+    title: string,
+    message: string,
+    children: ReactNode,
+  ) => (
     <div className="publish-screen">
       {header}
-      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center px-[var(--webview-px)] text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-red)]">
-          <CarIcon className="h-7 w-7" />
+      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center px-[var(--webview-px)] pb-16">
+        <div className="publish-blocked-card">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-red)]">
+            {icon}
+          </div>
+          <h2 className="mt-5 text-[1.375rem] font-semibold leading-tight text-[var(--text-primary)]">
+            {title}
+          </h2>
+          <p className="mt-2 text-[0.9375rem] leading-relaxed text-[var(--text-muted)]">
+            {message}
+          </p>
+          {children}
         </div>
-        <h2 className="mt-4 text-xl font-bold text-[var(--text-primary)]">{title}</h2>
-        <p className="mt-2 text-[0.9375rem] text-[var(--text-brown)]">{message}</p>
-        {action}
-        <Link to="/dashboard" className="auth-button-secondary">
-          Volver a los viajes
-        </Link>
       </div>
     </div>
   );
@@ -177,24 +256,34 @@ export function PublishRidePage() {
   }
 
   if (isNotFound(vehicleQuery.error)) {
-    return renderNotice(
+    return renderBlocked(
+      <CarIcon className="h-7 w-7" />,
       "Registra un vehículo",
-      "Para publicar viajes necesitas tener un vehículo registrado en tu cuenta.",
-      <Link to="/perfil/vehiculo" className="auth-button-primary mt-6">
-        Registrar vehículo
-      </Link>,
+      MESSAGES.noVehicle,
+      <>
+        <Link
+          to={VEHICLE_PATH}
+          state={{ returnTo: PUBLISH_PATH }}
+          className="publish-submit mt-6"
+        >
+          Registrar vehículo
+        </Link>
+        <button type="button" className="publish-secondary-button mt-3" onClick={leave}>
+          Volver
+        </button>
+      </>,
     );
   }
 
-  const loadError =
-    vehicleQuery.error ?? profileQuery.error ?? campusQuery.error;
+  const loadError = vehicleQuery.error ?? profileQuery.error ?? campusQuery.error;
   if (loadError || !vehicle || !profile) {
-    return renderNotice(
+    return renderBlocked(
+      <AlertIcon className="h-7 w-7" />,
       "No se pudieron cargar tus datos",
       loadError instanceof Error ? loadError.message : "Inténtalo nuevamente.",
       <button
         type="button"
-        className="auth-button-primary mt-6"
+        className="publish-submit mt-6"
         onClick={() => {
           vehicleQuery.refetch();
           profileQuery.refetch();
@@ -206,10 +295,33 @@ export function PublishRidePage() {
     );
   }
 
+  const block = profile.cancellationBlock;
+  if (block) {
+    return renderBlocked(
+      <LockIcon className="h-7 w-7" />,
+      "Por ahora no puedes publicar viajes",
+      `Cancelaste ${block.count} viajes en los últimos 30 días. Podrás publicar de nuevo desde el ${formatShortDate(block.until)}.`,
+      <>
+        <p className="mt-6 flex items-start gap-3 rounded-xl bg-[var(--surface-muted)] px-4 py-3 text-left text-sm text-[var(--text-muted)]">
+          <InfoIcon className="mt-0.5 h-5 w-5 shrink-0" />
+          Cuentan los viajes que cancelaste y los que se cancelaron porque no los
+          iniciaste.
+        </p>
+        <button type="button" className="publish-secondary-button" onClick={leave}>
+          Volver
+        </button>
+      </>,
+    );
+  }
+
   if (!campus?.location) {
-    return renderNotice(
+    return renderBlocked(
+      <AlertIcon className="h-7 w-7" />,
       "No encontramos la ubicación de tu sede",
       "La sede es un extremo de la ruta y la API no devolvió sus coordenadas.",
+      <button type="button" className="publish-secondary-button" onClick={leave}>
+        Volver
+      </button>,
     );
   }
 
@@ -229,17 +341,49 @@ export function PublishRidePage() {
     campusLocation,
   ];
   const { distanceKm, durationMin } = measureRoute(routeLocations);
-  const departure = buildDeparture(time);
   const directionLabel = DIRECTIONS.find((item) => item.value === direction)!.label;
+  const departureTime = formatDepartureTime(departure);
+  const departureDay = formatDepartureDay(departure);
+
+  // RN-12 y RN-37 dependen de la fecha elegida: se marcan en el formulario (frame 11-B).
+  const departureError = isDepartureValid(departure) ? "" : MESSAGES.departure;
+  // Sin SOAT declarado no se valida: es opcional mientras P05 y P16 no lo pidan.
+  const departureDate = toLimaInputValue(departure).slice(0, 10);
+  const soat = vehicle.soat;
+  const soatError =
+    soat && (departureDate < soat.startDate || departureDate > soat.endDate)
+      ? MESSAGES.soat
+      : "";
+  const isWheelchairAccessible = vehicle.accessibility.wheelchair;
+
+  const edit = () => {
+    setIsDirty(true);
+    setSubmitError("");
+  };
+
+  // Antes de abrir P16 se guarda el formulario para recuperarlo al volver.
+  const saveDraft = () => {
+    const value: Draft = {
+      direction,
+      departure: departure.toISOString(),
+      pricePerSeat,
+      selectedSeats,
+      home,
+      stops,
+      conditions,
+    };
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(value));
+  };
 
   const handleMapTap = (location: GeoPoint) => {
-    setError("");
+    edit();
+    setRouteError("");
     if (!home) {
       setHome(createRoutePoint("", location));
       return;
     }
     if (stops.length >= MAX_STOPS) {
-      setError(`Puedes agregar como máximo ${MAX_STOPS} paradas`);
+      setRouteError(MESSAGES.maxStops);
       return;
     }
     // La parada se inserta en el tramo donde menos alarga el recorrido.
@@ -252,7 +396,8 @@ export function PublishRidePage() {
   };
 
   const updatePoint = (pointId: string, changes: Partial<RoutePoint>) => {
-    setError("");
+    edit();
+    setRouteError("");
     if (home?.id === pointId) {
       setHome({ ...home, ...changes });
       return;
@@ -262,57 +407,39 @@ export function PublishRidePage() {
     );
   };
 
-  const removePoint = (pointId: string) => {
-    if (home?.id !== pointId) {
-      setStops((current) => current.filter((stop) => stop.id !== pointId));
-      return;
-    }
-    // Sin la casa, la parada más alejada de la sede pasa a ser el extremo de la ruta.
-    setHome(stops[0] ?? null);
-    setStops(stops.slice(1));
+  const removeStop = (pointId: string) => {
+    edit();
+    setRouteError("");
+    setStops((current) => current.filter((stop) => stop.id !== pointId));
   };
 
   const addCondition = () => {
     const condition = conditionDraft.trim();
-    if (!condition || conditions.length >= MAX_CONDITIONS) {
+    if (!condition) {
       return;
     }
+    if (conditions.length >= MAX_CONDITIONS) {
+      setConditionError(MESSAGES.maxConditions);
+      return;
+    }
+    if (condition.length > MAX_CONDITION_LENGTH) {
+      setConditionError(MESSAGES.conditionLength);
+      return;
+    }
+    edit();
     setConditions([...conditions, condition]);
     setConditionDraft("");
-  };
-
-  const handleDiscard = () => {
-    setDirection("TO_CAMPUS");
-    setTime(DEFAULT_TIME);
-    setPricePerSeat(DEFAULT_PRICE);
-    setSelectedSeats(null);
-    setHome(null);
-    setStops([]);
-    setConditions([]);
-    setConditionDraft("");
-    setError("");
-    setFitKey((key) => key + 1);
-  };
-
-  const validate = () => {
-    if (!home) {
-      return isToCampus
-        ? "Toca el mapa para marcar tu punto de partida"
-        : "Toca el mapa para marcar tu destino";
-    }
-    if ([home, ...stops].some((point) => !point.label.trim())) {
-      return "Escribe el nombre de cada punto de la ruta";
-    }
-    if (!isDepartureInRange(time)) {
-      return "La hora de salida debe estar entre las 6:00 y las 23:00";
-    }
-    return "";
+    setConditionError("");
   };
 
   const handleSubmit = () => {
-    const validationError = validate();
-    setError(validationError);
-    if (!validationError) {
+    const nextRouteError = !home
+      ? MESSAGES.route
+      : [home, ...stops].some((point) => !point.label.trim())
+        ? MESSAGES.routeNames
+        : "";
+    setRouteError(nextRouteError);
+    if (!nextRouteError && !departureError && !soatError) {
       setIsConfirming(true);
     }
   };
@@ -326,7 +453,7 @@ export function PublishRidePage() {
 
     publishMutation.mutate({
       direction,
-      departureTime: departure.date.toISOString(),
+      departureTime: departure.toISOString(),
       origin: isToCampus ? homePlace : campusPlace,
       destination: isToCampus ? campusPlace : homePlace,
       stops: orderedStops.map(toPlace),
@@ -336,59 +463,108 @@ export function PublishRidePage() {
     });
   };
 
-  const campusRow = (
-    <li key="campus" className="publish-route-row">
-      <span className="publish-route-badge bg-[var(--accent-red)] text-white">
-        <CapIcon className="h-4 w-4" />
+  const campusItem = (isOrigin: boolean) => (
+    <li key="campus" className="publish-route-item">
+      <span
+        className={
+          isOrigin
+            ? "publish-route-dot border-[2.5px] border-[var(--brand-red)] bg-white"
+            : "publish-route-dot text-[var(--brand-red)]"
+        }
+      >
+        {isOrigin ? null : <CapIcon className="h-5 w-5" />}
       </span>
-      <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-medium text-[var(--text-primary)]">
-        {campus.name}
-      </span>
-      <span className="text-xs text-[var(--text-muted)]">
-        {isToCampus ? "Destino" : "Origen"}
-      </span>
+      <div className="min-w-0 flex-1 py-1">
+        <p className="text-[0.9375rem] text-[var(--text-primary)]">
+          <span
+            className={
+              isOrigin ? "font-semibold" : "font-semibold text-[var(--brand-red)]"
+            }
+          >
+            {isOrigin ? "Origen" : "Destino"}
+          </span>{" "}
+          · {campus.name}
+        </p>
+        {campusPlace.address ? (
+          <p className="text-sm font-medium text-[var(--text-brown)]">
+            {campusPlace.address}
+          </p>
+        ) : null}
+      </div>
     </li>
   );
 
-  const renderPointRow = (point: RoutePoint, isHome: boolean, index: number) => (
-    <li key={point.id} className="publish-route-row">
+  const homeItem = (isOrigin: boolean) => (
+    <li key="home" className="publish-route-item">
       <span
         className={
-          isHome
-            ? "publish-route-badge bg-[#0b6e8e] text-white"
-            : "publish-route-badge border-2 border-[var(--brand-red)] text-[var(--brand-red)]"
+          isOrigin
+            ? "publish-route-dot border-[2.5px] border-[var(--brand-red)] bg-white"
+            : "publish-route-dot bg-[var(--brand-red)] text-white"
         }
       >
-        {isHome ? (isToCampus ? "A" : "B") : index + 1}
+        {isOrigin ? null : <HomeIcon className="h-3 w-3" />}
+      </span>
+      <span
+        className={
+          isOrigin
+            ? "shrink-0 text-[0.9375rem] font-semibold text-[var(--text-primary)]"
+            : "shrink-0 text-[0.9375rem] font-semibold text-[var(--brand-red)]"
+        }
+      >
+        {isOrigin ? "Origen" : "Destino"} ·
+      </span>
+      {home ? (
+        <input
+          type="text"
+          value={home.label}
+          maxLength={MAX_LABEL_LENGTH}
+          placeholder={isOrigin ? "Nombre del origen" : "Nombre del destino"}
+          aria-label={isOrigin ? "Nombre del origen" : "Nombre del destino"}
+          className="publish-route-input"
+          onChange={(event) => updatePoint(home.id, { label: event.target.value })}
+        />
+      ) : (
+        <span className="text-[0.9375rem] text-[var(--text-muted)]">
+          Toca el mapa para fijarlo
+        </span>
+      )}
+    </li>
+  );
+
+  const stopItems = orderedStops.map((stop, index) => (
+    <li key={stop.id} className="publish-route-item">
+      <span className="publish-route-dot bg-[var(--brand-red)] text-white">
+        {index + 1}
+      </span>
+      <span className="shrink-0 text-[0.9375rem] font-semibold text-[var(--text-primary)]">
+        Parada {index + 1} ·
       </span>
       <input
         type="text"
-        value={point.label}
+        value={stop.label}
         maxLength={MAX_LABEL_LENGTH}
-        placeholder={
-          isHome
-            ? isToCampus
-              ? "Nombre del punto de partida"
-              : "Nombre del destino"
-            : "Nombre de la parada"
-        }
-        aria-label={isHome ? "Nombre del punto" : `Nombre de la parada ${index + 1}`}
-        className="input-base flex-1 text-[0.9375rem]"
-        onChange={(event) => updatePoint(point.id, { label: event.target.value })}
+        placeholder="Nombre de la parada"
+        aria-label={`Nombre de la parada ${index + 1}`}
+        className="publish-route-input"
+        onChange={(event) => updatePoint(stop.id, { label: event.target.value })}
       />
       <button
         type="button"
         className="publish-icon-button"
-        aria-label="Quitar punto"
-        onClick={() => removePoint(point.id)}
+        aria-label={`Quitar la parada ${index + 1}`}
+        onClick={() => removeStop(stop.id)}
       >
-        <TrashIcon className="h-4 w-4" />
+        <CloseIcon className="h-5 w-5" />
       </button>
     </li>
-  );
+  ));
 
-  const homeRow = home ? renderPointRow(home, true, 0) : null;
-  const stopRows = orderedStops.map((stop, index) => renderPointRow(stop, false, index));
+  const routeNames = [
+    isToCampus ? home?.label.trim() ?? "" : campus.name,
+    ...orderedStops.map((stop) => stop.label.trim()),
+    isToCampus ? campus.name : home?.label.trim() ?? "",
+  ];
 
   return (
     <div className="publish-screen">
@@ -406,16 +582,15 @@ export function PublishRidePage() {
         />
 
         {home ? (
-          <p className="publish-map-chip right-3 top-3">
+          <p className="publish-map-chip right-3 top-3 font-semibold text-[var(--text-primary)]">
             <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand-red)]" />
-            <span className="font-semibold text-[var(--text-primary)]">
-              {distanceKm.toFixed(1)} km
+            <span className="tabular-nums">
+              {formatKm(distanceKm)} · ~{durationMin} min
             </span>
-            <span className="text-[var(--text-muted)]">• ~{durationMin} min</span>
           </p>
         ) : null}
 
-        <p className="publish-map-chip bottom-7 left-3 max-w-[70%] rounded-xl">
+        <p className="publish-map-chip bottom-7 left-3 max-w-[75%]">
           <TapIcon className="h-5 w-5 shrink-0 text-[var(--brand-red)]" />
           <span className="leading-tight text-[var(--text-primary)]">
             Toca el mapa para agregar o mover paradas
@@ -432,10 +607,14 @@ export function PublishRidePage() {
         </button>
       </div>
 
-      <section className="publish-sheet">
+      <section className="publish-sheet gap-5">
         <span className="publish-sheet-handle" aria-hidden="true" />
 
-        <div className="publish-segment" role="radiogroup" aria-label="Sentido del viaje">
+        <div
+          className="publish-segment -mt-2"
+          role="radiogroup"
+          aria-label="Sentido del viaje"
+        >
           {DIRECTIONS.map((item) => (
             <button
               key={item.value}
@@ -447,7 +626,10 @@ export function PublishRidePage() {
                   ? "publish-segment-option publish-segment-option-active"
                   : "publish-segment-option"
               }
-              onClick={() => setDirection(item.value)}
+              onClick={() => {
+                edit();
+                setDirection(item.value);
+              }}
             >
               {item.icon}
               {item.label}
@@ -455,116 +637,175 @@ export function PublishRidePage() {
           ))}
         </div>
 
-        <div className="publish-card">
-          <div className="flex items-center justify-between gap-3">
-            <p className="publish-card-label">Ruta</p>
-            <p className="text-xs text-[var(--text-muted)]">
-              {stops.length} de {MAX_STOPS} paradas
-            </p>
+        {/* La accesibilidad es del vehículo (RN-18): solo se muestra. */}
+        <div className="publish-vehicle">
+          <p className="flex items-center gap-2.5 text-base font-semibold text-[var(--text-primary)]">
+            <CarIcon className="h-6 w-6 shrink-0 text-[var(--text-muted)]" />
+            <span>
+              {vehicle.brand} {vehicle.model} {vehicle.color?.toLowerCase()} •{" "}
+              {vehicle.plate} · {vehicle.seats}{" "}
+              {vehicle.seats === 1 ? "plaza" : "plazas"}
+            </span>
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {isWheelchairAccessible ? (
+              <span className="publish-chip bg-[#e6f4ea] text-[#1b7f3b]">
+                <AccessibleIcon className="h-4 w-4" />
+                Apto para silla de ruedas
+              </span>
+            ) : (
+              <span className="text-sm text-[var(--text-muted)]">
+                Sin accesibilidad declarada ·{" "}
+                <Link
+                  to={VEHICLE_PATH}
+                  state={{ returnTo: PUBLISH_PATH }}
+                  className="font-semibold text-[var(--brand-red)]"
+                  onClick={saveDraft}
+                >
+                  Configurar en mi vehículo
+                </Link>
+              </span>
+            )}
+            <span className="publish-chip bg-[var(--surface-muted)] text-[var(--text-muted)]">
+              {campus.name}
+            </span>
           </div>
-          <ul className="mt-2 space-y-2">
-            {isToCampus ? homeRow : campusRow}
-            {stopRows}
-            {isToCampus ? campusRow : homeRow}
-          </ul>
-          {!home ? (
-            <p className="mt-2 text-sm text-[var(--text-muted)]">
-              {isToCampus
-                ? "Toca el mapa para marcar de dónde sales."
-                : "Toca el mapa para marcar a dónde vas."}
-            </p>
-          ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="publish-card">
-            <div className="flex items-center justify-between">
-              <label htmlFor="publish-time" className="publish-card-label">
-                Salida
-              </label>
-              <ClockIcon className="h-5 w-5 text-[var(--brand-red)]" />
+        <div>
+          <div className="grid grid-cols-2 items-start gap-3">
+            <div>
+              <div
+                className={
+                  departureError ? "publish-block publish-block-error" : "publish-block"
+                }
+              >
+                <label htmlFor="publish-departure" className="publish-label">
+                  Salida
+                </label>
+                {/* El selector nativo de fecha y hora cubre todo el bloque. */}
+                <div className="relative">
+                  <p
+                    className={
+                      departureError
+                        ? "mt-1 text-[1.75rem] font-semibold leading-tight tabular-nums text-[var(--brand-red)]"
+                        : "mt-1 text-[1.75rem] font-semibold leading-tight tabular-nums text-[var(--text-primary)]"
+                    }
+                  >
+                    {departureTime}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
+                    <ClockIcon className="h-4 w-4 shrink-0" />
+                    {departureDay}
+                  </p>
+                  <input
+                    id="publish-departure"
+                    type="datetime-local"
+                    value={toLimaInputValue(departure)}
+                    min={toLimaInputValue(new Date())}
+                    aria-invalid={Boolean(departureError)}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    onChange={(event) => {
+                      const value = fromLimaInputValue(event.target.value);
+                      if (value) {
+                        edit();
+                        setDeparture(value);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+              {departureError ? (
+                <p className="publish-field-error" role="alert">
+                  <AlertIcon className="h-4 w-4 shrink-0" />
+                  {departureError}
+                </p>
+              ) : null}
             </div>
-            <div className="relative mt-2 flex items-center justify-between gap-2">
-              <p className="text-xl font-bold text-[var(--text-primary)]">
-                {formatTime12h(time)}
-              </p>
-              <span className="publish-icon-button">
-                <PencilIcon className="h-4 w-4" />
-              </span>
-              {/* El selector nativo cubre toda la fila: tocarla abre el reloj. */}
-              <input
-                id="publish-time"
-                type="time"
-                value={time}
-                min="06:00"
-                max="23:00"
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                onChange={(event) => {
-                  setError("");
-                  setTime(event.target.value || DEFAULT_TIME);
-                }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">Sale {departure.day}</p>
-          </div>
 
-          <div className="publish-card">
-            <div className="flex items-center justify-between">
-              <p className="publish-card-label">Precio / plaza</p>
-              <CashIcon className="h-5 w-5 text-[#0b6e8e]" />
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-1">
-              <p className="text-xl font-bold text-[var(--text-primary)]">
-                <span className="text-base font-normal text-[var(--text-muted)]">S/</span>{" "}
-                {pricePerSeat.toFixed(2)}
-              </p>
-              <div className="flex gap-1">
+            <div className="publish-block">
+              <p className="publish-label">Precio por plaza</p>
+              <div className="mt-2 flex items-center justify-between gap-1">
                 <button
                   type="button"
-                  className="publish-icon-button text-lg font-bold"
+                  className="publish-stepper-button"
                   aria-label="Bajar el precio"
                   disabled={pricePerSeat <= MIN_PRICE}
-                  onClick={() => setPricePerSeat(pricePerSeat - 1)}
+                  onClick={() => {
+                    edit();
+                    setPricePerSeat(pricePerSeat - 1);
+                  }}
                 >
                   −
                 </button>
+                <p className="flex items-center gap-1.5">
+                  <GoldCoinIcon className="h-5 w-5 shrink-0" />
+                  <span className="text-[1.75rem] font-semibold leading-none tabular-nums text-[var(--text-primary)]">
+                    {pricePerSeat}
+                  </span>
+                  <span className="text-sm text-[var(--text-muted)]">
+                    {pricePerSeat === 1 ? "crédito" : "créditos"}
+                  </span>
+                </p>
                 <button
                   type="button"
-                  className="publish-icon-button text-lg font-bold"
+                  className="publish-stepper-button"
                   aria-label="Subir el precio"
                   disabled={pricePerSeat >= MAX_PRICE}
-                  onClick={() => setPricePerSeat(pricePerSeat + 1)}
+                  onClick={() => {
+                    edit();
+                    setPricePerSeat(pricePerSeat + 1);
+                  }}
                 >
                   +
                 </button>
               </div>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                De {MIN_PRICE} a {MAX_PRICE} créditos por plaza
+              </p>
             </div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              {pricePerSeat} {pricePerSeat === 1 ? "crédito" : "créditos"}
-            </p>
           </div>
+
+          {soatError ? (
+            <div className="publish-alert mt-3" role="alert">
+              <WarningIcon className="h-5 w-5 shrink-0 text-[var(--brand-red)]" />
+              <span className="flex-1">{soatError}</span>
+              <Link
+                to={VEHICLE_PATH}
+                state={{ returnTo: PUBLISH_PATH }}
+                className="shrink-0 text-sm font-semibold text-[var(--brand-red)]"
+                onClick={saveDraft}
+              >
+                Actualizar SOAT
+              </Link>
+            </div>
+          ) : null}
         </div>
 
-        <div className="publish-card">
+        <div>
           <div className="flex items-center justify-between gap-3">
-            <p className="publish-card-label">Plazas disponibles</p>
-            <p className="text-sm font-semibold text-[var(--brand-red)]">
-              {seats} {seats === 1 ? "asiento libre" : "asientos libres"}
+            <p className="publish-label">Plazas disponibles</p>
+            <p className="text-base font-semibold text-[var(--brand-red)]">
+              {seats} de {vehicle.seats}
             </p>
           </div>
-          <div className="mt-3 grid grid-cols-5 gap-2">
+          <div className="mt-3 grid grid-cols-5 gap-2.5">
             {Array.from({ length: vehicle.seats }, (_, index) => index + 1).map(
               (option) => (
                 <button
                   key={option}
                   type="button"
                   aria-pressed={seats === option}
+                  aria-label={`${option} ${option === 1 ? "plaza" : "plazas"}`}
                   className={
                     seats === option
                       ? "publish-seat-option publish-seat-option-active"
                       : "publish-seat-option"
                   }
-                  onClick={() => setSelectedSeats(option)}
+                  onClick={() => {
+                    edit();
+                    setSelectedSeats(option);
+                  }}
                 >
                   <SeatIcon className="h-5 w-5" />
                   {option}
@@ -574,107 +815,138 @@ export function PublishRidePage() {
           </div>
         </div>
 
-        <div className="publish-card">
+        <div>
           <div className="flex items-center justify-between gap-3">
-            <label htmlFor="publish-condition" className="publish-card-label">
-              Condiciones del viaje
+            <p className="publish-label">Ruta</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              {stops.length} de {MAX_STOPS} paradas
+            </p>
+          </div>
+          <ol className="publish-route-list">
+            {isToCampus ? homeItem(true) : campusItem(true)}
+            {stopItems}
+            {isToCampus ? campusItem(false) : homeItem(false)}
+          </ol>
+          {routeError ? (
+            <p className="publish-field-error" role="alert">
+              <AlertIcon className="h-4 w-4 shrink-0" />
+              {routeError}
+            </p>
+          ) : null}
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            Paradas referenciales definidas por ti
+          </p>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="publish-condition" className="publish-label">
+              Condiciones (opcional)
             </label>
-            <p className="text-xs text-[var(--text-muted)]">Opcional</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              {conditions.length} de {MAX_CONDITIONS}
+            </p>
           </div>
           {conditions.length ? (
-            <ul className="mt-2 space-y-1.5">
+            <ul className="mt-3 flex flex-wrap gap-2">
               {conditions.map((condition, index) => (
-                <li key={`${condition}-${index}`} className="publish-route-row">
-                  <span className="min-w-0 flex-1 text-[0.9375rem] text-[var(--text-primary)]">
-                    {condition}
-                  </span>
+                <li key={`${condition}-${index}`} className="publish-condition-chip">
+                  <span className="min-w-0 break-words">{condition}</span>
                   <button
                     type="button"
-                    className="publish-icon-button"
-                    aria-label="Quitar condición"
-                    onClick={() =>
-                      setConditions(conditions.filter((_, item) => item !== index))
-                    }
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                    aria-label={`Quitar la condición «${condition}»`}
+                    onClick={() => {
+                      edit();
+                      setConditionError("");
+                      setConditions(conditions.filter((_, item) => item !== index));
+                    }}
                   >
-                    <TrashIcon className="h-4 w-4" />
+                    <CloseIcon className="h-4 w-4" />
                   </button>
                 </li>
               ))}
             </ul>
           ) : null}
-          {conditions.length < MAX_CONDITIONS ? (
-            <div className="publish-route-row mt-2">
-              <input
-                id="publish-condition"
-                type="text"
-                value={conditionDraft}
-                maxLength={MAX_CONDITION_LENGTH}
-                placeholder="Ej. Máximo de espera 5 minutos"
-                className="input-base flex-1 text-[0.9375rem]"
-                onChange={(event) => setConditionDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addCondition();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="text-sm font-semibold text-[var(--brand-red)] disabled:opacity-40"
-                disabled={!conditionDraft.trim()}
-                onClick={addCondition}
-              >
-                Agregar
-              </button>
-            </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              id="publish-condition"
+              type="text"
+              value={conditionDraft}
+              placeholder="Agregar condición"
+              disabled={conditions.length >= MAX_CONDITIONS}
+              className="publish-input"
+              onChange={(event) => {
+                setConditionError("");
+                setConditionDraft(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addCondition();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="publish-add-button"
+              disabled={!conditionDraft.trim() || conditions.length >= MAX_CONDITIONS}
+              onClick={addCondition}
+            >
+              Agregar
+            </button>
+          </div>
+          {conditionError || conditions.length >= MAX_CONDITIONS ? (
+            <p className="publish-field-error" role="alert">
+              <AlertIcon className="h-4 w-4 shrink-0" />
+              {conditionError || MESSAGES.maxConditions}
+            </p>
           ) : null}
         </div>
 
-        <p className="publish-card flex items-start gap-3 text-sm text-[var(--text-muted)]">
-          <InfoIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#0b6e8e]" />
-          <span>
-            El precio por plaza va de{" "}
-            <span className="font-semibold text-[var(--text-primary)]">
-              S/ {MIN_PRICE.toFixed(2)} a S/ {MAX_PRICE.toFixed(2)}
-            </span>{" "}
-            (1 sol = 1 crédito). La salida debe estar entre las 6:00 y las 23:00.
-          </span>
-        </p>
-
-        {error ? (
+        {submitError ? (
           <div className="auth-message auth-message-error mb-0" role="alert">
-            {error}
+            {submitError}
           </div>
         ) : null}
 
-        <button
-          type="button"
-          className="auth-button-primary mt-0 gap-2"
-          onClick={handleSubmit}
-        >
-          <CarIcon className="h-6 w-6" />
-          Publicar Viaje Universitario
-        </button>
-
-        <button
-          type="button"
-          className="w-full py-1 text-center text-[0.9375rem] text-[var(--text-muted)]"
-          onClick={handleDiscard}
-        >
-          Descartar configuración
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            className="publish-submit"
+            disabled={Boolean(departureError || soatError)}
+            onClick={handleSubmit}
+          >
+            Revisar y publicar
+          </button>
+          <button
+            type="button"
+            className="w-full py-2 text-center text-base text-[var(--text-muted)]"
+            onClick={handleExit}
+          >
+            Descartar
+          </button>
+        </div>
       </section>
 
       {isConfirming ? (
         <PublishRideConfirmModal
           directionLabel={directionLabel}
-          departureLabel={`${formatTime12h(time)}, ${departure.day}`}
+          departureLabel={`${departureDay} · ${departureTime}`}
+          route={routeNames}
           seats={seats}
           pricePerSeat={pricePerSeat}
+          conditions={conditions}
           isPublishing={publishMutation.isPending}
           onConfirm={handleConfirm}
           onCancel={() => setIsConfirming(false)}
+        />
+      ) : null}
+
+      {isDiscarding ? (
+        <DiscardRideSheet
+          onConfirm={leave}
+          onCancel={() => setIsDiscarding(false)}
         />
       ) : null}
     </div>

@@ -251,7 +251,7 @@ class ValidacionSolicitudesTest {
 		ArgumentCaptor<RegistrarVehiculoRequest> solicitud = ArgumentCaptor.forClass(RegistrarVehiculoRequest.class);
 		verify(vehiculoService).registrar(any(ObjectId.class), solicitud.capture());
 		assertThat(solicitud.getValue()).isEqualTo(new RegistrarVehiculoRequest("ABC-123", "SEDAN", "Toyota", "Yaris",
-				"Blanco", 2021, 3, "45678912", null, true, null));
+				"Blanco", 2021, 3, "45678912", null, true, null, null, null));
 	}
 
 	@Test
@@ -292,6 +292,27 @@ class ValidacionSolicitudesTest {
 				.andExpect(jsonPath("$.errors[?(@.field=='seats')].message").value("Las plazas son obligatorias"))
 				.andExpect(jsonPath("$.errors[?(@.field=='year')].message")
 						.value("El año de fabricación debe estar entre 2000 y el año actual"));
+		verifyNoInteractions(vehiculoService);
+	}
+
+	@Test
+	void soatInvalidoDevuelveUnErrorPorCampo() throws Exception {
+		mvc.perform(post("/vehicles").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"plate\":\"ABC-123\",\"type\":\"SEDAN\",\"brand\":\"Toyota\",\"model\":\"Yaris\","
+								+ "\"color\":\"Blanco\",\"year\":2021,\"seats\":3,\"ownerDni\":\"45678912\","
+								+ "\"acceptedTerms\":true,\"accessibility\":{\"wheelchair\":true},"
+								+ "\"soat\":{\"insurer\":\" \",\"policyNumber\":\"12 34\",\"photoFileId\":\"zzz\"}}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors", hasSize(5)))
+				.andExpect(jsonPath("$.errors[?(@.field=='soat.insurer')].message").value("La aseguradora es obligatoria"))
+				.andExpect(jsonPath("$.errors[?(@.field=='soat.policyNumber')].message")
+						.value("El número de póliza debe tener de 6 a 20 letras, números o guiones"))
+				.andExpect(jsonPath("$.errors[?(@.field=='soat.startDate')].message")
+						.value("La fecha de inicio del SOAT es obligatoria"))
+				.andExpect(jsonPath("$.errors[?(@.field=='soat.endDate')].message")
+						.value("La fecha de fin del SOAT es obligatoria"))
+				.andExpect(jsonPath("$.errors[?(@.field=='soat.photoFileId')].message")
+						.value("La foto del SOAT no es válida"));
 		verifyNoInteractions(vehiculoService);
 	}
 

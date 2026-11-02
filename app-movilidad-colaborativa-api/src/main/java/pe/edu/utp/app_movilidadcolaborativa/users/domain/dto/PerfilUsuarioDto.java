@@ -11,7 +11,10 @@ import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import java.time.Instant;
 import java.util.List;
 
-/** Perfil completo del usuario. Nunca incluye contrasena_hash ni saldo_creditos. */
+/**
+ * Perfil completo del usuario. Nunca incluye contrasena_hash ni saldo_creditos. cancellationBlock solo existe si
+ * el conductor superó el límite de cancelaciones (RN-30): «Publicar viaje» se bloquea desde la entrada.
+ */
 public record PerfilUsuarioDto(
 		String id,
 		String email,
@@ -31,7 +34,12 @@ public record PerfilUsuarioDto(
 		VehiculoDto vehicle,
 		EstadisticasDto stats,
 		CalificacionDto rating,
-		Instant createdAt) {
+		Instant createdAt,
+		BloqueoCancelacionesDto cancellationBlock) {
+
+	/** count: viajes cancelados en la ventana; until: desde cuándo podrá publicar de nuevo. */
+	public record BloqueoCancelacionesDto(int count, Instant until) {
+	}
 
 	public record Referencia(String id, String name) {
 
@@ -88,6 +96,10 @@ public record PerfilUsuarioDto(
 	}
 
 	public static PerfilUsuarioDto desde(Usuario usuario) {
+		return desde(usuario, null);
+	}
+
+	public static PerfilUsuarioDto desde(Usuario usuario, BloqueoCancelacionesDto bloqueo) {
 		List<Rol> roles = usuario.getRoles() == null ? List.of() : usuario.getRoles();
 		return new PerfilUsuarioDto(
 				usuario.getId().toHexString(),
@@ -108,6 +120,7 @@ public record PerfilUsuarioDto(
 				usuario.getVehiculo() == null ? null : VehiculoDto.desde(usuario.getVehiculo()),
 				EstadisticasDto.desde(usuario.getEstadisticas()),
 				CalificacionDto.desde(usuario.getCalificacion()),
-				usuario.getFechaCreacion());
+				usuario.getFechaCreacion(),
+				bloqueo);
 	}
 }

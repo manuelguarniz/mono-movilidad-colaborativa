@@ -1,5 +1,5 @@
 import { HttpResponse } from "msw";
-import { db, type MockUser } from "@/mocks/db";
+import { db, type FilePurpose, type MockUser } from "@/mocks/db";
 import { API_BASE_URL } from "@/shared/config/env";
 
 export const api = (path: string) => `${API_BASE_URL}${path}`;
@@ -148,7 +148,7 @@ export function checkPersonName(
 export const findOwnFile = (
   fileId: string,
   user: MockUser,
-  purpose: "PROFILE_PHOTO" | "VEHICLE_PHOTO",
+  purpose: FilePurpose,
 ) =>
   db.files.find(
     (file) =>

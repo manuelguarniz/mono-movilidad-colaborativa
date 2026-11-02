@@ -16,7 +16,9 @@ public record VehiculoDto(
 		Boolean isOwner,
 		String status,
 		String photoUrl,
-		Instant registeredAt) {
+		Instant registeredAt,
+		AccesibilidadDto accessibility,
+		SoatDto soat) {
 
 	public static VehiculoDto desde(Vehiculo vehiculo) {
 		return new VehiculoDto(
@@ -31,6 +33,8 @@ public record VehiculoDto(
 				vehiculo.esPropietario(),
 				vehiculo.estado() == null ? null : vehiculo.estado().getApi(),
 				vehiculo.foto() == null ? null : vehiculo.foto().url(),
-				vehiculo.fechaRegistro());
+				vehiculo.fechaRegistro(),
+				AccesibilidadDto.desde(vehiculo.accesibilidad()),
+				SoatDto.desde(vehiculo.soat()));
 	}
 }

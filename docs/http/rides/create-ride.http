@@ -31,7 +31,9 @@
 #     "brand": "Chevrolet",
 #     "model": "Onix LT",
 #     "color": "blanco",
-#     "plate": "ABC-123"
+#     "plate": "ABC-123",
+#     "wheelchairAccessible": false,
+#     "soatEndDate": null
 #   },
 #   "conditions": [],
 #   "origin": {
@@ -105,6 +107,80 @@ Authorization: Bearer {{sessionToken}}
 {
   "direction": "TO_HOME",
   "departureTime": "2026-10-09T12:30:00Z",
+  "stops": [],
+  "pricePerSeat": 5,
+  "seats": 3,
+  "conditions": []
+}
+
+### 403 · Límite de cancelaciones (DRIVER_CANCELLATION_LIMIT, RN-30)
+# Respuesta 403 Forbidden
+# {
+#   "code": "DRIVER_CANCELLATION_LIMIT",
+#   "message": "Cancelaste 10 viajes en los últimos 30 días. Podrás publicar de nuevo desde el 14/11.",
+#   "details": {
+#     "count": 10,
+#     "until": "2026-11-14T15:00:00Z"
+#   }
+# }
+POST {{baseUrl}}/rides
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+  "direction": "TO_HOME",
+  "departureTime": "2026-10-09T12:30:00Z",
+  "origin": {
+    "label": "Universidad Tecnológica del Perú",
+    "address": "Sede Trujillo, Av. Nicolás de Piérola",
+    "location": {
+      "lat": -8.0975,
+      "lng": -79.0353
+    }
+  },
+  "destination": {
+    "label": "Huaca del Dragón (Arco Iris)",
+    "address": "La Esperanza, Trujillo",
+    "location": {
+      "lat": -8.0716,
+      "lng": -79.0412
+    }
+  },
+  "stops": [],
+  "pricePerSeat": 5,
+  "seats": 3,
+  "conditions": []
+}
+
+### 409 · El SOAT vence antes de la salida (SOAT_EXPIRES_BEFORE_DEPARTURE, RN-37)
+# Respuesta 409 Conflict
+# {
+#   "code": "SOAT_EXPIRES_BEFORE_DEPARTURE",
+#   "message": "Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar."
+# }
+POST {{baseUrl}}/rides
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+  "direction": "TO_HOME",
+  "departureTime": "2026-10-09T12:30:00Z",
+  "origin": {
+    "label": "Universidad Tecnológica del Perú",
+    "address": "Sede Trujillo, Av. Nicolás de Piérola",
+    "location": {
+      "lat": -8.0975,
+      "lng": -79.0353
+    }
+  },
+  "destination": {
+    "label": "Huaca del Dragón (Arco Iris)",
+    "address": "La Esperanza, Trujillo",
+    "location": {
+      "lat": -8.0716,
+      "lng": -79.0412
+    }
+  },
   "stops": [],
   "pricePerSeat": 5,
   "seats": 3,

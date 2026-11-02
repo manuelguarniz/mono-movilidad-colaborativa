@@ -425,7 +425,7 @@ body {
   }
 
   .publish-segment-option {
-    @apply flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[0.8125rem] font-semibold text-[var(--text-muted)] transition;
+    @apply flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2.5 text-sm font-semibold text-[var(--text-muted)] transition;
   }
 
   .publish-segment-option-active {
@@ -440,24 +440,112 @@ body {
     @apply text-xs font-medium uppercase tracking-wider text-[var(--text-muted)];
   }
 
-  .publish-route-row {
-    @apply flex min-h-[2.75rem] items-center gap-2.5 rounded-lg bg-white px-2.5 py-1.5;
+  .publish-vehicle {
+    @apply rounded-2xl border border-[var(--border-neutral)] bg-[#f6f6f6] px-3 py-3;
   }
 
-  .publish-route-badge {
-    @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold;
+  .publish-chip {
+    @apply inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 py-1 text-sm;
   }
 
-  .publish-icon-button {
-    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--text-primary)] transition active:scale-95 disabled:opacity-40;
+  .publish-block {
+    @apply rounded-2xl border-[1.5px] border-transparent bg-[var(--surface-muted)] px-3 py-3;
+  }
+
+  .publish-block-error {
+    @apply border-[var(--brand-red)];
+  }
+
+  .publish-label {
+    @apply text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)];
+  }
+
+  .publish-field-error {
+    @apply mt-1.5 flex items-start gap-1.5 text-xs text-[var(--brand-red)];
+  }
+
+  .publish-alert {
+    @apply flex items-center gap-3 rounded-xl border border-[#f2b8b5] bg-[var(--brand-soft)] px-3 py-3 text-sm text-[var(--text-primary)];
+  }
+
+  .publish-stepper-button {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--border-neutral)] bg-white text-lg font-bold text-[var(--text-primary)] transition active:scale-95 disabled:opacity-40;
   }
 
   .publish-seat-option {
-    @apply flex flex-col items-center gap-1 rounded-lg bg-[var(--surface-muted)] py-2 text-sm font-medium text-[var(--text-primary)] transition;
+    @apply flex flex-col items-center gap-1 rounded-xl bg-[var(--surface-muted)] py-3 text-sm font-medium text-[var(--text-primary)] transition;
   }
 
   .publish-seat-option-active {
-    @apply bg-[var(--brand-red)] text-white;
+    @apply bg-[var(--brand-red)] text-white ring-2 ring-[var(--brand-red)] ring-offset-2;
+  }
+
+  .publish-route-list {
+    @apply mt-2 space-y-1;
+  }
+
+  .publish-route-item {
+    @apply relative flex min-h-[2.75rem] items-center gap-3 pl-8;
+  }
+
+  /* Línea que une los puntos de la ruta. */
+  .publish-route-item:not(:last-child)::before {
+    content: "";
+    @apply absolute bottom-[-0.875rem] left-[0.625rem] top-7 w-0.5 bg-[#e1e1e1];
+  }
+
+  .publish-route-dot {
+    @apply absolute left-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[0.6875rem] font-bold;
+  }
+
+  .publish-route-input {
+    @apply min-w-0 flex-1 rounded-md bg-transparent py-1 text-[0.9375rem] text-[var(--text-muted)] outline-none placeholder:text-[var(--text-placeholder,#686c75)] focus:bg-[var(--surface-muted)] focus:px-2;
+  }
+
+  .publish-icon-button {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--text-primary)] transition active:scale-95 disabled:opacity-40;
+  }
+
+  .publish-condition-chip {
+    @apply inline-flex max-w-full items-center gap-1.5 rounded-full bg-[var(--surface-muted)] py-1.5 pl-4 pr-2 text-[0.9375rem] text-[var(--text-primary)];
+  }
+
+  .publish-input {
+    @apply h-12 min-w-0 flex-1 rounded-xl bg-[var(--surface-muted)] px-4 text-[0.9375rem] text-[var(--text-primary)] outline-none placeholder:text-[#686c75] focus:ring-2 focus:ring-[var(--brand-red)] disabled:opacity-60;
+  }
+
+  .publish-add-button {
+    @apply h-12 shrink-0 rounded-xl bg-[var(--brand-soft)] px-5 text-[0.9375rem] font-semibold text-[var(--brand-red)] transition active:scale-95 disabled:opacity-50;
+  }
+
+  .publish-submit {
+    @apply inline-flex h-[3.25rem] w-full items-center justify-center rounded-xl bg-[var(--brand-red)] px-5 text-lg font-semibold text-white shadow-md transition active:scale-[0.99];
+  }
+
+  .publish-submit:not(:disabled):hover {
+    background-color: var(--brand-red-hover);
+  }
+
+  .publish-submit:disabled {
+    @apply bg-[var(--surface-muted)] text-[var(--text-muted)] shadow-none;
+  }
+
+  .publish-blocked-card {
+    @apply w-full rounded-2xl border border-[var(--border-neutral)] bg-white px-6 py-8 text-center shadow-sm;
+  }
+
+  .publish-secondary-button {
+    @apply mt-6 inline-flex h-12 w-full items-center justify-center rounded-xl bg-[var(--surface-muted)] px-5 text-base font-semibold text-[var(--text-primary)] transition active:scale-[0.99];
+  }
+
+  /* Hoja inferior de confirmación (mismo estilo que P17-C). */
+  .app-sheet-backdrop {
+    @apply fixed inset-0 z-50 flex items-end justify-center bg-black/55 backdrop-blur-[2px];
+  }
+
+  .app-sheet {
+    @apply w-full max-w-lg rounded-t-3xl bg-white px-[var(--webview-px)] pt-3 shadow-xl;
+    padding-bottom: max(1.25rem, var(--safe-bottom));
   }
 
   .route-marker {
@@ -486,6 +574,24 @@ body {
 
   .route-marker-stop {
     @apply border-[5px] border-[var(--brand-red)] bg-white;
+  }
+
+  /* Marcadores de «Publicar viaje» (frame 11). */
+  .route-marker-start {
+    @apply border-[3px] border-[var(--brand-red)] bg-white text-[var(--brand-red)];
+  }
+
+  .route-marker-start:empty::after {
+    content: "";
+    @apply h-2.5 w-2.5 rounded-full bg-[var(--brand-red)];
+  }
+
+  .route-marker-end {
+    @apply bg-[var(--brand-red)];
+  }
+
+  .route-marker-stop-number {
+    @apply bg-[var(--brand-red)] text-xs;
   }
 
   .route-map-label.leaflet-tooltip {

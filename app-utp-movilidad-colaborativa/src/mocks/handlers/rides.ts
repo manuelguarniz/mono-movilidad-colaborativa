@@ -6,6 +6,7 @@ import {
   publicName,
   saveDb,
   toLima,
+  toRideVehicle,
   type MockRide,
   type Place,
   type RideDirection,
@@ -305,11 +306,21 @@ export const rideHandlers = [
       return validationError(errors);
     }
 
-    if (!user.vehicle) {
+    if (!user.vehicle || user.vehicle.status !== "ACTIVE") {
       return apiError(
         403,
         "VEHICLE_REQUIRED",
         "Registra un vehículo para publicar viajes",
+      );
+    }
+    // RN-37: sin SOAT declarado no se valida (es opcional mientras P05 y P16 no lo pidan).
+    const soat = user.vehicle.soat;
+    const departureDay = toLima(departure).toISOString().slice(0, 10);
+    if (soat && (departureDay < soat.startDate || departureDay > soat.endDate)) {
+      return apiError(
+        409,
+        "SOAT_EXPIRES_BEFORE_DEPARTURE",
+        "Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar.",
       );
     }
     const seats = body.seats as number;
@@ -327,7 +338,6 @@ export const rideHandlers = [
     const origin = toPlace(body.origin);
     const destination = toPlace(body.destination);
     const route = stops.map(toPlace);
-    const { brand, model, color, plate } = user.vehicle;
     const ride: MockRide = {
       id: faker.database.mongodbObjectId(),
       campusId: user.campus!.id,
@@ -344,7 +354,7 @@ export const rideHandlers = [
         photoUrl: user.photoUrl,
         rating: user.rating,
       },
-      vehicle: { brand, model, color, plate },
+      vehicle: toRideVehicle(user.vehicle),
       conditions: conditions.map((condition) => (condition as string).trim()),
       origin,
       destination,

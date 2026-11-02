@@ -5,8 +5,10 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Lugar;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.VehiculoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.CalificacionDto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Soat;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 /** Viaje en el listado del dashboard, sin coordenadas. Trae las condiciones para no pedirlas aparte. */
@@ -34,10 +36,14 @@ public record ViajeResumenDto(
 		}
 	}
 
-	public record Vehiculo(String brand, String model, String color, String plate) {
+	/** wheelchairAccessible: vehículo apto para movilidad reducida (RN-18). soatEndDate es null si no hay SOAT. */
+	public record Vehiculo(String brand, String model, String color, String plate, boolean wheelchairAccessible,
+			LocalDate soatEndDate) {
 
 		static Vehiculo desde(VehiculoViaje vehiculo) {
-			return new Vehiculo(vehiculo.marca(), vehiculo.modelo(), vehiculo.color(), vehiculo.placa());
+			return new Vehiculo(vehiculo.marca(), vehiculo.modelo(), vehiculo.color(), vehiculo.placa(),
+					Boolean.TRUE.equals(vehiculo.aptoMovilidadReducida()),
+					vehiculo.soatFechaFin() == null ? null : Soat.fechaPeru(vehiculo.soatFechaFin()));
 		}
 	}
 

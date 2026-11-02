@@ -22,11 +22,13 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.CalificacionDto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Accesibilidad;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Calificacion;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoVehiculo;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Foto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.SedeUsuario;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Soat;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.TipoVehiculo;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Vehiculo;
@@ -53,7 +55,9 @@ class ViajeServiceTest {
 	private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
 	private final ViajeRepository viajeRepository = mock(ViajeRepository.class);
 	private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
-	private final ViajeService servicio = new ViajeService(usuarioRepository, viajeRepository, mongoTemplate);
+	private final CancelacionesConductorService cancelaciones = mock(CancelacionesConductorService.class);
+	private final ViajeService servicio =
+			new ViajeService(usuarioRepository, viajeRepository, mongoTemplate, cancelaciones);
 	private final ObjectId usuarioId = new ObjectId();
 
 	private Usuario.UsuarioBuilder pasajero() {
@@ -67,9 +71,22 @@ class ViajeServiceTest {
 				.estado(EstadoUsuario.ACTIVO);
 	}
 
+	// Salida de solicitud(): 15/01/2030 a las 13:30 de Perú.
+	private static final LocalDate DIA_SALIDA = LocalDate.of(2030, 1, 15);
+
+	private static Vehiculo vehiculo(EstadoVehiculo estado, Accesibilidad accesibilidad, Soat soat) {
+		return new Vehiculo("ABC-123", TipoVehiculo.SEDAN, "Toyota", "Yaris", "Blanco", 2021, 3, "45678912", true,
+				estado, null, null, Instant.now(), accesibilidad, soat);
+	}
+
+	private static Soat soatHasta(LocalDate fin) {
+		return new Soat("Rímac Seguros", "2401-123456", Soat.inicioDelDia(fin.minusDays(365)), Soat.inicioDelDia(fin),
+				null, Instant.now());
+	}
+
+	// Vehículo registrado antes de RN-18 y RN-36: sin accesibilidad ni SOAT.
 	private Usuario conductor() {
-		return pasajero().vehiculo(new Vehiculo("ABC-123", TipoVehiculo.SEDAN, "Toyota", "Yaris", "Blanco", 2021, 3,
-				"45678912", true, EstadoVehiculo.ACTIVO, null, null, Instant.now())).build();
+		return pasajero().vehiculo(vehiculo(EstadoVehiculo.ACTIVO, null, null)).build();
 	}
 
 	private void existe(Usuario usuario) {
@@ -131,10 +148,26 @@ class ViajeServiceTest {
 		assertThat(respuesta.availableSeats()).isEqualTo(3);
 		assertThat(respuesta.driver()).isEqualTo(new ViajeResumenDto.Conductor(usuarioId.toHexString(), "Carlos M.",
 				"/uploads/perfiles/c.jpg", new CalificacionDto(4.9, 120)));
-		assertThat(respuesta.vehicle()).isEqualTo(new ViajeResumenDto.Vehiculo("Toyota", "Yaris", "Blanco", "ABC-123"));
+		assertThat(respuesta.vehicle())
+				.isEqualTo(new ViajeResumenDto.Vehiculo("Toyota", "Yaris", "Blanco", "ABC-123", false, null));
 		assertThat(respuesta.origin()).isEqualTo(solicitud(3).origin());
 		assertThat(respuesta.stops()).isEqualTo(solicitud(3).stops());
 		assertThat(respuesta.conditions()).containsExactly("No gritar");
+	}
+
+	@Test
+	void publicarCopiaLaAccesibilidadYElFinDelSoatDelVehiculo() {
+		existe(pasajero().vehiculo(vehiculo(EstadoVehiculo.ACTIVO, new Accesibilidad(true, false),
+				soatHasta(DIA_SALIDA))).build());
+
+		ViajeDetalleDto respuesta = servicio.publicar(usuarioId, solicitud(3));
+
+		ArgumentCaptor<Viaje> guardado = ArgumentCaptor.forClass(Viaje.class);
+		verify(viajeRepository).insert(guardado.capture());
+		assertThat(guardado.getValue().vehiculo().aptoMovilidadReducida()).isTrue();
+		assertThat(guardado.getValue().vehiculo().soatFechaFin()).isEqualTo(Soat.inicioDelDia(DIA_SALIDA));
+		assertThat(respuesta.vehicle().wheelchairAccessible()).isTrue();
+		assertThat(respuesta.vehicle().soatEndDate()).isEqualTo(DIA_SALIDA);
 	}
 
 	@Test
@@ -218,6 +251,45 @@ class ViajeServiceTest {
 				.getErrores())
 				.containsExactly(new ErrorCampo("seats", "Las plazas no pueden superar las de tu vehículo"));
 		verifyNoInteractions(viajeRepository);
+	}
+
+	@Test
+	void publicarExigeUnVehiculoActivo() {
+		existe(pasajero().vehiculo(vehiculo(EstadoVehiculo.INACTIVO, null, null)).build());
+
+		falla(() -> servicio.publicar(usuarioId, solicitud(1)), CodigoError.VEHICLE_REQUIRED);
+		verifyNoInteractions(viajeRepository);
+	}
+
+	@Test
+	void publicarRespetaElLimiteDeCancelaciones() {
+		existe(conductor());
+		Instant hasta = Instant.parse("2026-11-14T15:00:00Z");
+		when(cancelaciones.bloqueo(eq(usuarioId), any(Instant.class)))
+				.thenReturn(Optional.of(new CancelacionesConductorService.Bloqueo(10, 30, hasta)));
+
+		ApiException error = catchThrowableOfType(ApiException.class,
+				() -> servicio.publicar(usuarioId, solicitud(1)));
+
+		assertThat(error.getCodigo()).isEqualTo(CodigoError.DRIVER_CANCELLATION_LIMIT);
+		assertThat(error.getMessage())
+				.isEqualTo("Cancelaste 10 viajes en los últimos 30 días. Podrás publicar de nuevo desde el 14/11.");
+		assertThat(error.getDetalles()).containsEntry("count", 10).containsEntry("until", hasta);
+		verifyNoInteractions(viajeRepository);
+	}
+
+	@Test
+	void publicarExigeElSoatVigenteEnLaFechaDeSalida() {
+		// Vence el día anterior a la salida.
+		existe(pasajero().vehiculo(vehiculo(EstadoVehiculo.ACTIVO, null, soatHasta(DIA_SALIDA.minusDays(1))))
+				.build());
+		falla(() -> servicio.publicar(usuarioId, solicitud(1)), CodigoError.SOAT_EXPIRES_BEFORE_DEPARTURE);
+		verifyNoInteractions(viajeRepository);
+
+		// Vence el mismo día de la salida: sigue vigente.
+		existe(pasajero().vehiculo(vehiculo(EstadoVehiculo.ACTIVO, null, soatHasta(DIA_SALIDA))).build());
+		servicio.publicar(usuarioId, solicitud(1));
+		verify(viajeRepository).insert(any(Viaje.class));
 	}
 
 	@Test

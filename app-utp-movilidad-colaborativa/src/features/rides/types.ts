@@ -45,9 +45,14 @@ export type PublishedRide = {
 export type MyVehicle = {
   brand: string;
   model: string;
+  color: string;
   plate: string;
   // Plazas que el conductor comparte, sin contar la suya.
   seats: number;
+  // RN-18: apto para movilidad reducida si `wheelchair` es `true`.
+  accessibility: { wheelchair: boolean; boardingAssistance: boolean };
+  // RN-36: `null` si el conductor todavía no declaró su SOAT. Fechas `AAAA-MM-DD` de Perú.
+  soat: { startDate: string; endDate: string } | null;
 };
 
 // Lo que la pantalla usa de `UserProfile` (GET /users/me).
@@ -58,6 +63,8 @@ export type MyProfile = {
   district: { id: string; name: string } | null;
   campus: { id: string; name: string; address: string } | null;
   homeAddress: Place | null;
+  // Bloqueo por cancelaciones (RN-30): `null` si puede publicar.
+  cancellationBlock: { count: number; until: string } | null;
 };
 
 // `Campus` (GET /catalogs/campuses).

@@ -22,7 +22,19 @@
 #   "isOwner": true,
 #   "status": "ACTIVE",
 #   "photoUrl": null,
-#   "registeredAt": "2026-10-09T05:58:06.855Z"
+#   "registeredAt": "2026-10-09T05:58:06.855Z",
+#   "accessibility": {
+#     "wheelchair": true,
+#     "boardingAssistance": false
+#   },
+#   "soat": {
+#     "insurer": "Rímac Seguros",
+#     "policyNumber": "2401-123456",
+#     "startDate": "2026-03-15",
+#     "endDate": "2027-03-15",
+#     "photoUrl": null,
+#     "declaredAt": "2026-10-09T05:58:06.855Z"
+#   }
 # }
 POST {{baseUrl}}/vehicles
 Content-Type: application/json
@@ -39,7 +51,47 @@ Authorization: Bearer {{sessionToken}}
     "ownerDni": "72345678",
     "isOwner": true,
     "acceptedTerms": true,
-    "photoFileId": null
+    "photoFileId": null,
+    "accessibility": {
+        "wheelchair": true,
+        "boardingAssistance": false
+    },
+    "soat": {
+        "insurer": "Rímac Seguros",
+        "policyNumber": "2401-123456",
+        "startDate": "2026-03-15",
+        "endDate": "2027-03-15",
+        "photoFileId": null
+    }
+}
+
+### 400 · SOAT vencido (SOAT_NOT_VALID)
+# Respuesta 400 Bad Request
+# {
+#   "code": "SOAT_NOT_VALID",
+#   "message": "Tu SOAT no está vigente. No puedes registrar el vehículo sin un SOAT vigente."
+# }
+POST {{baseUrl}}/vehicles
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "plate": "ABC-123",
+    "type": "SEDAN",
+    "brand": "Chevrolet",
+    "model": "Onix Turbo",
+    "color": "blanco",
+    "year": 2021,
+    "seats": 4,
+    "ownerDni": "72345678",
+    "isOwner": true,
+    "acceptedTerms": true,
+    "soat": {
+        "insurer": "Pacífico Seguros",
+        "policyNumber": "PAC-998877",
+        "startDate": "2025-01-10",
+        "endDate": "2026-01-10"
+    }
 }
 
 ### 400 · Faltan brand, color, model y ownerDni

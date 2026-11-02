@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthStepLayout } from "@/features/auth/components/AuthStepLayout";
 import { VehicleFields } from "@/features/vehicles/components/VehicleFields";
@@ -32,6 +32,10 @@ const isNotFound = (error: unknown) =>
  */
 export function UpdateVehiclePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // «Publicar viaje» abre esta pantalla y espera volver a su formulario.
+  const returnTo =
+    (location.state as { returnTo?: string } | null)?.returnTo ?? "/perfil";
   const queryClient = useQueryClient();
   const photo = usePhotoSelection();
   const [form, setForm] = useState<VehicleFormValues>(EMPTY_VEHICLE_FORM);
@@ -104,7 +108,7 @@ export function UpdateVehiclePage() {
         queryClient.invalidateQueries({ queryKey: ["users", "me"] }),
         queryClient.invalidateQueries({ queryKey: ["rides"] }),
       ]);
-      navigate("/perfil", { replace: true, state: { saved: "vehicle" } });
+      navigate(returnTo, { replace: true, state: { saved: "vehicle" } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el vehículo");
     } finally {
@@ -113,7 +117,7 @@ export function UpdateVehiclePage() {
   };
 
   const layout = {
-    backTo: "/perfil",
+    backTo: returnTo,
     showBrandHeader: true,
     title: isNew ? "Registrar Vehículo" : "Actualizar Vehículo",
     subtitle: isNew

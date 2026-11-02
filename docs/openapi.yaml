@@ -505,8 +505,12 @@ paths:
         vehículo más adelante). El perfil debe estar completo. Un usuario solo puede tener
         un vehículo.
 
-        Todos los campos son obligatorios, excepto la casilla «Soy el propietario» y la
-        foto (RN-06).
+        Todos los campos son obligatorios, excepto la casilla «Soy el propietario», la
+        foto y la accesibilidad (RN-06, RN-18). Una moto no puede marcar ningún check de
+        accesibilidad.
+
+        `soat` es opcional mientras los formularios de P05 y P16 no lo pidan. Si llega, se
+        valida según RN-36: vigente hoy, con 366 días de vigencia como máximo.
       requestBody:
         required: true
         content:
@@ -522,9 +526,10 @@ paths:
                 $ref: "#/components/schemas/Vehicle"
         "400":
           description: |
-            Datos del vehículo inválidos (`VALIDATION_ERROR`; `errors` detalla cada campo)
-            o foto inexistente, de otro usuario o de otro propósito
-            (`INVALID_FILE_REFERENCE`).
+            Datos del vehículo inválidos (`VALIDATION_ERROR`; `errors` detalla cada campo),
+            foto inexistente, de otro usuario o de otro propósito
+            (`INVALID_FILE_REFERENCE`) o SOAT que no está vigente hoy (`SOAT_NOT_VALID`:
+            «Tu SOAT no está vigente. No puedes registrar el vehículo sin un SOAT vigente.»).
           content:
             application/json:
               schema:
@@ -560,7 +565,9 @@ paths:
       operationId: getMyVehicle
       summary: Consultar mi vehículo
       description: |
-        Lo usa «Publicar un viaje» para saber si el usuario puede publicar (RF-18).
+        Lo usa «Publicar un viaje» para saber si el usuario puede publicar (RN-24), mostrar
+        la accesibilidad del vehículo (RN-18) y validar el SOAT en la fecha de salida
+        (RN-37).
       responses:
         "200":
           description: Vehículo del usuario.
@@ -599,6 +606,10 @@ paths:
         Todos los datos son obligatorios, incluida la foto (RN-15): si el vehículo aún no
         tiene foto, `photoFileId` es obligatorio. De las casillas, solo es obligatoria la
         de términos y condiciones (RN-16).
+
+        Si `accessibility` o `soat` no llegan, se conservan los actuales. Si el vehículo
+        pasa a ser una moto sin enviar `accessibility`, se le quitan los checks (RN-18). La
+        copia en los viajes activos incluye la accesibilidad y el fin del SOAT.
       requestBody:
         required: true
         content:
@@ -614,9 +625,9 @@ paths:
                 $ref: "#/components/schemas/Vehicle"
         "400":
           description: |
-            Datos del vehículo inválidos (`VALIDATION_ERROR`; `errors` detalla cada campo)
-            o foto inexistente, de otro usuario o de otro propósito
-            (`INVALID_FILE_REFERENCE`).
+            Datos del vehículo inválidos (`VALIDATION_ERROR`; `errors` detalla cada campo),
+            foto inexistente, de otro usuario o de otro propósito
+            (`INVALID_FILE_REFERENCE`) o SOAT que no está vigente hoy (`SOAT_NOT_VALID`).
           content:
             application/json:
               schema:
@@ -733,7 +744,9 @@ paths:
       summary: Publicar un viaje
       description: |
         Crea el viaje en estado `PUBLISHED`; queda visible de inmediato en el listado.
-        Solo para usuarios con vehículo registrado (RF-18).
+        Exige un vehículo `ACTIVE` (RN-24), no haber superado el límite de cancelaciones
+        (RN-30) y, si el vehículo declaró SOAT, que siga vigente en la fecha de salida
+        (RN-37). El viaje copia la accesibilidad del vehículo y el fin de su SOAT.
 
         El backend toma del usuario autenticado el conductor, el vehículo y la sede, y
         calcula `distanceKm` (línea recta entre origen, paradas y destino) y
@@ -779,15 +792,35 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           description: |
-            El usuario no tiene vehículo registrado (`VEHICLE_REQUIRED`) o el token no
-            es de sesión (`FORBIDDEN_SCOPE`).
+            El usuario no tiene un vehículo activo (`VEHICLE_REQUIRED`), canceló
+            `max_cancelaciones_conductor` (10) viajes o más en los últimos
+            `ventana_cancelaciones_dias` (30) (`DRIVER_CANCELLATION_LIMIT`, con `details.count`
+            y `details.until`) o el token no es de sesión (`FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                sinVehiculo:
+                  value:
+                    code: VEHICLE_REQUIRED
+                    message: Registra un vehículo para publicar viajes
+                limiteDeCancelaciones:
+                  value:
+                    code: DRIVER_CANCELLATION_LIMIT
+                    message: Cancelaste 10 viajes en los últimos 30 días. Podrás publicar de nuevo desde el 14/11.
+                    details:
+                      count: 10
+                      until: "2026-11-14T15:00:00Z"
+        "409":
+          description: El SOAT del vehículo no está vigente en la fecha de salida (`SOAT_EXPIRES_BEFORE_DEPARTURE`).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
               example:
-                code: VEHICLE_REQUIRED
-                message: Registra un vehículo para publicar viajes
+                code: SOAT_EXPIRES_BEFORE_DEPARTURE
+                message: Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar.
 
   /rides/{rideId}:
     parameters:
@@ -1042,6 +1075,7 @@ components:
             `INVALID_FILE_REFERENCE`, `FILE_TOO_LARGE`, `UNSUPPORTED_FILE_TYPE`,
             `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS_EXCEEDED`, `OTP_RESEND_TOO_SOON`,
             `PLATE_ALREADY_REGISTERED`, `VEHICLE_ALREADY_REGISTERED`, `VEHICLE_NOT_FOUND`,
+            `SOAT_NOT_VALID`, `SOAT_EXPIRES_BEFORE_DEPARTURE`, `DRIVER_CANCELLATION_LIMIT`,
             `VEHICLE_REQUIRED`, `RIDE_NOT_FOUND`, `RIDE_NOT_AVAILABLE`,
             `NO_SEATS_AVAILABLE`, `ALREADY_BOOKED`, `OWN_RIDE`, `INTERNAL_ERROR`.
 
@@ -1139,8 +1173,8 @@ components:
     # --------------------------------------------------------------- Archivos
     FilePurpose:
       type: string
-      enum: [PROFILE_PHOTO, VEHICLE_PHOTO]
-      description: En MongoDB, `FOTO_PERFIL` y `FOTO_VEHICULO`.
+      enum: [PROFILE_PHOTO, VEHICLE_PHOTO, SOAT_PHOTO]
+      description: En MongoDB, `FOTO_PERFIL`, `FOTO_VEHICULO` y `FOTO_SOAT`.
 
     FileUploadRequest:
       type: object
@@ -1518,6 +1552,27 @@ components:
         createdAt:
           type: string
           format: date-time
+        cancellationBlock:
+          oneOf:
+            - $ref: "#/components/schemas/CancellationBlock"
+            - type: "null"
+          description: |
+            Solo en `GET /users/me`. `null` si el usuario no tiene vehículo o no superó el
+            límite de cancelaciones (RN-30). «Publicar viaje» lo usa para bloquearse desde la
+            entrada (P11, frame 11-C).
+
+    CancellationBlock:
+      type: object
+      required: [count, until]
+      properties:
+        count:
+          type: integer
+          description: Viajes cancelados por el conductor o por el sistema dentro de la ventana.
+          example: 10
+        until:
+          type: string
+          format: date-time
+          description: Desde cuándo podrá publicar de nuevo.
 
     UserCampus:
       type: object
@@ -1650,6 +1705,86 @@ components:
         registeredAt:
           type: string
           format: date-time
+        accessibility:
+          $ref: "#/components/schemas/VehicleAccessibility"
+        soat:
+          oneOf:
+            - $ref: "#/components/schemas/Soat"
+            - type: "null"
+          description: "`null` si el conductor todavía no declaró su SOAT."
+
+    VehicleAccessibility:
+      type: object
+      description: |
+        Checks de accesibilidad (RN-18). El vehículo es apto para movilidad reducida si
+        `wheelchair` es `true`. En la respuesta siempre llegan los dos; en la solicitud
+        los que no se envían valen `false`. Una moto no puede marcar ninguno.
+      properties:
+        wheelchair:
+          type: boolean
+          description: «Puedo llevar una silla de ruedas plegable» (`silla_ruedas` en MongoDB).
+          example: true
+        boardingAssistance:
+          type: boolean
+          description: Segundo check de RN-18 (`ayuda_abordaje` en MongoDB).
+          example: false
+
+    Soat:
+      type: object
+      description: SOAT declarado por el conductor (RN-36). Las fechas son días de Perú.
+      required: [insurer, policyNumber, startDate, endDate, photoUrl, declaredAt]
+      properties:
+        insurer:
+          type: string
+          example: Rímac Seguros
+        policyNumber:
+          type: string
+          example: 2401-123456
+        startDate:
+          type: string
+          format: date
+          example: "2026-03-15"
+        endDate:
+          type: string
+          format: date
+          example: "2027-03-15"
+        photoUrl:
+          type: [string, "null"]
+          description: "`null` mientras no exista la carga de imágenes."
+        declaredAt:
+          type: string
+          format: date-time
+
+    SoatRequest:
+      type: object
+      description: |
+        RN-36. Inicio ≤ hoy ≤ fin (si no: `SOAT_NOT_VALID`) y vigencia de 366 días como
+        máximo. La foto del certificado es opcional hasta que exista la carga de imágenes.
+      required: [insurer, policyNumber, startDate, endDate]
+      properties:
+        insurer:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: De la lista fija del frontend o el texto de «Otra».
+          example: Rímac Seguros
+        policyNumber:
+          type: string
+          pattern: "^[A-Za-z0-9-]{6,20}$"
+          description: Se guarda en mayúsculas.
+          example: 2401-123456
+        startDate:
+          type: string
+          format: date
+          example: "2026-03-15"
+        endDate:
+          type: string
+          format: date
+          example: "2027-03-15"
+        photoFileId:
+          allOf:
+            - $ref: "#/components/schemas/PhotoFileId"
+          description: Foto del certificado, subida con el propósito `SOAT_PHOTO`.
 
     VehicleCreateRequest:
       type: object
@@ -1695,6 +1830,12 @@ components:
           allOf:
             - $ref: "#/components/schemas/PhotoFileId"
           description: Foto del vehículo. Es opcional en el registro.
+        accessibility:
+          $ref: "#/components/schemas/VehicleAccessibility"
+        soat:
+          allOf:
+            - $ref: "#/components/schemas/SoatRequest"
+          description: Opcional mientras P05 no lo pida (RN-36).
 
     VehicleUpdateRequest:
       type: object
@@ -1744,6 +1885,14 @@ components:
         acceptedTerms:
           type: boolean
           const: true
+        accessibility:
+          allOf:
+            - $ref: "#/components/schemas/VehicleAccessibility"
+          description: Si no se envía, se conserva la actual.
+        soat:
+          allOf:
+            - $ref: "#/components/schemas/SoatRequest"
+          description: Si no se envía, se conserva el actual (RN-36; opcional mientras P16 no lo pida).
 
     Plate:
       type: string
@@ -1800,7 +1949,7 @@ components:
     RideVehicle:
       type: object
       description: Copia del vehículo dentro del viaje.
-      required: [brand, model, color, plate]
+      required: [brand, model, color, plate, wheelchairAccessible, soatEndDate]
       properties:
         brand:
           type: string
@@ -1814,6 +1963,13 @@ components:
         plate:
           type: string
           example: ABC-123
+        wheelchairAccessible:
+          type: boolean
+          description: Vehículo apto para movilidad reducida (RN-18).
+        soatEndDate:
+          type: [string, "null"]
+          format: date
+          description: Fin del SOAT declarado (RN-36); `null` si no hay SOAT.
 
     RideBase:
       type: object

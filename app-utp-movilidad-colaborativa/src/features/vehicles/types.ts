@@ -17,6 +17,31 @@ export type Vehicle = {
   status: "ACTIVE" | "INACTIVE";
   photoUrl: string | null;
   registeredAt: string;
+  // RN-18: apto para movilidad reducida si `wheelchair` es `true`.
+  accessibility: VehicleAccessibility;
+  // RN-36: `null` si el conductor todavía no declaró su SOAT.
+  soat: Soat | null;
+};
+
+export type VehicleAccessibility = { wheelchair: boolean; boardingAssistance: boolean };
+
+// `Soat`: fechas `AAAA-MM-DD` de Perú.
+export type Soat = {
+  insurer: string;
+  policyNumber: string;
+  startDate: string;
+  endDate: string;
+  photoUrl: string | null;
+  declaredAt: string;
+};
+
+// `SoatRequest`. Opcional mientras los formularios de P05 y P16 no lo pidan.
+export type SoatRequest = {
+  insurer: string;
+  policyNumber: string;
+  startDate: string;
+  endDate: string;
+  photoFileId?: string;
 };
 
 type VehicleData = {
@@ -30,6 +55,8 @@ type VehicleData = {
   isOwner: boolean;
   acceptedTerms: true;
   photoFileId?: string;
+  accessibility?: VehicleAccessibility;
+  soat?: SoatRequest;
 };
 
 // `VehicleCreateRequest` (POST /vehicles).

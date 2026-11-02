@@ -38,7 +38,9 @@
 #         "brand": "Chevrolet",
 #         "model": "Onix LT",
 #         "color": "blanco",
-#         "plate": "ABC-123"
+#         "plate": "ABC-123",
+#         "wheelchairAccessible": false,
+#         "soatEndDate": null
 #       },
 #       "conditions": [],
 #       "origin": {

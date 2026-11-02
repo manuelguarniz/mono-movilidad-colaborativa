@@ -7,7 +7,7 @@ export type DocumentType = "DNI" | "CE";
 export type VehicleType = "SEDAN" | "HATCHBACK" | "SUV" | "VAN" | "MOTORCYCLE";
 export type RideDirection = "TO_CAMPUS" | "TO_HOME";
 export type RideStatus = "PUBLISHED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-export type FilePurpose = "PROFILE_PHOTO" | "VEHICLE_PHOTO";
+export type FilePurpose = "PROFILE_PHOTO" | "VEHICLE_PHOTO" | "SOAT_PHOTO";
 
 export type NamedRef = { id: string; name: string };
 export type GeoPoint = { lat: number; lng: number };
@@ -27,6 +27,28 @@ export type Vehicle = {
   status: "ACTIVE" | "INACTIVE";
   photoUrl: string | null;
   registeredAt: string;
+  // RN-18: apto para movilidad reducida si `wheelchair` es `true`.
+  accessibility: { wheelchair: boolean; boardingAssistance: boolean };
+  // RN-36. Fechas `AAAA-MM-DD` de Perú; `null` si el conductor no lo declaró.
+  soat: Soat | null;
+};
+
+export type Soat = {
+  insurer: string;
+  policyNumber: string;
+  startDate: string;
+  endDate: string;
+  photoUrl: string | null;
+  declaredAt: string;
+};
+
+export type RideVehicle = {
+  brand: string;
+  model: string;
+  color: string;
+  plate: string;
+  wheelchairAccessible: boolean;
+  soatEndDate: string | null;
 };
 
 export type MockUser = {
@@ -64,7 +86,7 @@ export type MockRide = {
   distanceKm: number;
   durationMin: number;
   driver: { id: string; name: string; photoUrl: string | null; rating: Rating | null };
-  vehicle: { brand: string; model: string; color: string; plate: string };
+  vehicle: RideVehicle;
   conditions: string[];
   origin: Place;
   destination: Place;
@@ -291,6 +313,20 @@ export function measureRoute(points: GeoPoint[]) {
 }
 
 /** Primer nombre e inicial del apellido («Carlos M.»). */
+/** Copia del vehículo dentro del viaje, como en `viajes.vehiculo`. */
+export const toRideVehicle = (vehicle: Vehicle): RideVehicle => ({
+  brand: vehicle.brand,
+  model: vehicle.model,
+  color: vehicle.color,
+  plate: vehicle.plate,
+  wheelchairAccessible: vehicle.accessibility.wheelchair,
+  soatEndDate: vehicle.soat?.endDate ?? null,
+});
+
+/** `AAAA-MM-DD` de hoy en Perú, desplazado `days` días. */
+export const limaDate = (days = 0) =>
+  toLima(new Date(Date.now() + days * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+
 export const publicName = (firstName: string, lastName: string) =>
   `${firstName.trim().split(/\s+/)[0]} ${Array.from(lastName.trim())[0]}.`;
 
@@ -352,6 +388,15 @@ function seed(): Database {
       status: "ACTIVE",
       photoUrl: null,
       registeredAt: "2026-10-02T10:00:00Z",
+      accessibility: { wheelchair: true, boardingAssistance: false },
+      soat: {
+        insurer: "Rímac Seguros",
+        policyNumber: "2401-123456",
+        startDate: limaDate(-60),
+        endDate: limaDate(305),
+        photoUrl: null,
+        declaredAt: "2026-10-02T10:00:00Z",
+      },
     },
     stats: { trips: 342, compliance: 99, co2SavedKg: 128 },
     rating: { average: 4.9, count: 120 },
@@ -383,6 +428,8 @@ function seed(): Database {
       status: "ACTIVE",
       photoUrl: null,
       registeredAt: "2026-10-03T09:00:00Z",
+      accessibility: { wheelchair: false, boardingAssistance: false },
+      soat: null,
     },
     stats: { trips: 58, compliance: 96, co2SavedKg: 21 },
     rating: { average: 4.7, count: 45 },
@@ -426,12 +473,7 @@ function seed(): Database {
         photoUrl: driver.photoUrl,
         rating: driver.rating,
       },
-      vehicle: {
-        brand: vehicle.brand,
-        model: vehicle.model,
-        color: vehicle.color,
-        plate: vehicle.plate,
-      },
+      vehicle: toRideVehicle(vehicle),
       createdAt: new Date().toISOString(),
     };
   };
@@ -489,7 +531,8 @@ function seed(): Database {
 // El estado se guarda en sessionStorage para que sobreviva a las recargas de la página
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
-const STORAGE_KEY = "colaboracar_mock_db";
+// El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
+const STORAGE_KEY = "colaboracar_mock_db_v2";
 
 function load(): Database {
   try {
@@ -529,8 +572,7 @@ export function syncDriverRides(user: MockUser) {
     ride.driver.name = publicName(user.firstName!, user.lastName!);
     ride.driver.photoUrl = user.photoUrl;
     if (user.vehicle) {
-      const { brand, model, color, plate } = user.vehicle;
-      ride.vehicle = { brand, model, color, plate };
+      ride.vehicle = toRideVehicle(user.vehicle);
     }
   }
 }

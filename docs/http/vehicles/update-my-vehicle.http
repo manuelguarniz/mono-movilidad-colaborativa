@@ -21,7 +21,19 @@
 #   "isOwner": true,
 #   "status": "ACTIVE",
 #   "photoUrl": null,
-#   "registeredAt": "2026-10-09T05:58:06.855Z"
+#   "registeredAt": "2026-10-09T05:58:06.855Z",
+#   "accessibility": {
+#     "wheelchair": true,
+#     "boardingAssistance": false
+#   },
+#   "soat": {
+#     "insurer": "Rímac Seguros",
+#     "policyNumber": "2401-123456",
+#     "startDate": "2026-03-15",
+#     "endDate": "2027-03-15",
+#     "photoUrl": null,
+#     "declaredAt": "2026-10-09T05:58:06.855Z"
+#   }
 # }
 PUT {{baseUrl}}/vehicles/me
 Content-Type: application/json

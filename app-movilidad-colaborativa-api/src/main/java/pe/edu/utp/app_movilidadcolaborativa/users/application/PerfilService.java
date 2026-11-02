@@ -10,12 +10,14 @@ import org.springframework.stereotype.Service;
 import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.Archivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.PropositoArchivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.infrastructure.persistence.ArchivoRepository;
+import pe.edu.utp.app_movilidadcolaborativa.rides.application.CancelacionesConductorService;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.dto.ErrorDto.ErrorCampo;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.ActualizarPerfilRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.BloqueoCancelacionesDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Foto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Rol;
@@ -40,10 +42,19 @@ public class PerfilService {
 	private final UsuarioRepository usuarioRepository;
 	private final ArchivoRepository archivoRepository;
 	private final MongoTemplate mongoTemplate;
+	private final CancelacionesConductorService cancelacionesConductorService;
 
-	/** El perfil sale de un solo documento, que ya incluye la sede, las estadísticas y el vehículo. */
+	/**
+	 * El perfil sale de un solo documento, que ya incluye la sede, las estadísticas y el vehículo. A quien tiene
+	 * vehículo se le cuentan además sus cancelaciones recientes (RN-30).
+	 */
 	public PerfilUsuarioDto consultar(ObjectId usuarioId) {
-		return PerfilUsuarioDto.desde(buscarUsuario(usuarioId));
+		Usuario usuario = buscarUsuario(usuarioId);
+		BloqueoCancelacionesDto bloqueo = usuario.getVehiculo() == null ? null
+				: cancelacionesConductorService.bloqueo(usuarioId, Instant.now())
+						.map(encontrado -> new BloqueoCancelacionesDto(encontrado.cancelaciones(), encontrado.hasta()))
+						.orElse(null);
+		return PerfilUsuarioDto.desde(usuario, bloqueo);
 	}
 
 	/**

@@ -29,7 +29,7 @@ final class Viajes {
 				.id(viajeId)
 				.conductor(new ConductorViaje(conductorId, "Carlos M.", "/uploads/perfiles/c.jpg",
 						new Calificacion(4.9, 120)))
-				.vehiculo(new VehiculoViaje("Toyota", "Yaris", "Blanco", "ABC-123"))
+				.vehiculo(new VehiculoViaje("Toyota", "Yaris", "Blanco", "ABC-123", true, null))
 				.sede(new ReferenciaNombre(SEDE_ID, "UTP Sede Trujillo"))
 				.sentido(SentidoViaje.REGRESO_CASA)
 				.origen(new Lugar("UTP Sede Trujillo", "Av. Nicolás de Piérola", new GeoJsonPoint(-79.0353, -8.0975)))

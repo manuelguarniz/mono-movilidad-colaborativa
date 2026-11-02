@@ -36,11 +36,20 @@ export const addMarkerLabel = (marker: L.Marker, label: string, className = "") 
     className: `route-map-label ${className}`,
   });
 
-export function drawRouteLine(points: GeoPoint[], layer: L.LayerGroup) {
+/** `dashed`: línea punteada roja, como en «Publicar viaje» (frame 11). */
+export function drawRouteLine(
+  points: GeoPoint[],
+  layer: L.LayerGroup,
+  variant: "solid" | "dashed" = "solid",
+) {
   if (points.length < 2) {
     return;
   }
   const path = points.map(toLatLng);
+  if (variant === "dashed") {
+    L.polyline(path, { color: "#bd0016", weight: 4, dashArray: "8 8" }).addTo(layer);
+    return;
+  }
   L.polyline(path, { color: "#bd0016", weight: 6, opacity: 0.9 }).addTo(layer);
   L.polyline(path, { color: "#ffffff", weight: 2, dashArray: "6 10" }).addTo(layer);
 }

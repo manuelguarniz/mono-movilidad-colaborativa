@@ -413,8 +413,8 @@ El backend implementa 18 de los 19 endpoints del contrato actual. Lo nuevo de es
 | Registro (cuenta y completar perfil) | Implementado; falta la asistencia de movilidad. La foto de perfil es opcional hasta que exista la carga de imágenes |
 | Catálogos (departamentos, distritos, sedes) | Implementado; falta el campo `ciudad` de las sedes |
 | Perfil (consultar y actualizar datos) | Implementado; falta el modal de cambio de modo y el resumen de saldo y calificación |
-| Vehículos (registrar, consultar y actualizar) | Implementado; faltan la accesibilidad y el SOAT. La foto es opcional hasta que exista la carga de imágenes |
-| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado por sede; faltan el listado sin sede, una reserva activa por pasajero, la retención de créditos, Mis viajes, la cancelación, el inicio y el fin |
+| Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional hasta que P05 y P16 lo pidan, y las fotos hasta que exista la carga de imágenes |
+| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado por sede. La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37) y copia la accesibilidad del vehículo. Faltan el listado sin sede, una reserva activa por pasajero, la retención de créditos, Mis viajes, la cancelación, el inicio y el fin |
 | Archivos (carga de imágenes) | Pendiente |
 | Billetera, retiros, historial, calificaciones, notificaciones y job programado | Pendiente |
 
@@ -1391,7 +1391,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 03 | [03. registro.jpeg](<frames/03. registro.jpeg>) | Registro | Registro | Implementada |
 | 04 | [04. registro_datos_personales.jpeg](<frames/04. registro_datos_personales.jpeg>) | Completar perfil | Registro | Implementada |
 | 05 | [05. registro_vehiculo.jpeg](<frames/05. registro_vehiculo.jpeg>) | Datos del vehículo | Registro | Implementada (sin SOAT) |
-| 06 | [06. dashboard.jpeg](<frames/06. dashboard.jpeg>) | Dashboard / viajes | Viajes | Implementada |
+| 06 | [P06-Dashboard/v3.2.png](<docs/design/P06-Dashboard/v3.2.png>) | Dashboard / viajes | Viajes | Implementada · rediseño aprobado |
 | 07 | [07. dashboard_condiciones_viaje.jpeg](<frames/07. dashboard_condiciones_viaje.jpeg>) | Condiciones del viaje | Viajes | Implementada |
 | 08 | [08. dashboard_confirm_viaje.jpeg](<frames/08. dashboard_confirm_viaje.jpeg>) | Confirmar reserva (dashboard) | Viajes | Implementada |
 | 09 | [09. dashboard_detalle_viaje.jpeg](<frames/09. dashboard_detalle_viaje.jpeg>) | Detalle del viaje | Viajes | Implementada |

@@ -22,7 +22,11 @@ import {
 } from "@/mocks/http";
 
 /** Perfil del contrato: el usuario sin la contraseña. */
-const toUserProfile = ({ password, ...profile }: MockUser) => profile;
+// `cancellationBlock` (RN-30): el mock no registra cancelaciones, así que nunca hay bloqueo.
+const toUserProfile = ({ password, ...profile }: MockUser) => ({
+  ...profile,
+  cancellationBlock: null,
+});
 
 export const userHandlers = [
   http.get(api("/users/me"), ({ request }) => {

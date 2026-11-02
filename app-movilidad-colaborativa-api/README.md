@@ -49,8 +49,8 @@ El contrato define 19 endpoints y el backend implementa 18. Toda la API cuelga d
 | Registro | `POST /auth/register`, `/auth/complete-profile` | Implementado; la foto de perfil es opcional hasta que exista `POST /files` |
 | Catálogos | `GET /catalogs/departments`, `/catalogs/districts`, `/catalogs/campuses` | Implementado |
 | Archivos | `POST /files` | Pendiente; solo existen el modelo y el repositorio |
-| Vehículos | `POST /vehicles`, `GET` y `PUT /vehicles/me` | Implementado; la foto es opcional hasta que exista `POST /files` |
-| Viajes y reservas | `GET` y `POST /rides`, `GET /rides/{rideId}`, `POST /rides/{rideId}/reserve` | Implementado |
+| Vehículos | `POST /vehicles`, `GET` y `PUT /vehicles/me` | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional mientras P05 y P16 no lo pidan, y las fotos lo son hasta que exista `POST /files` |
+| Viajes y reservas | `GET` y `POST /rides`, `GET /rides/{rideId}`, `POST /rides/{rideId}/reserve` | Implementado. La publicación valida el vehículo activo (RN-24), el límite de cancelaciones (RN-30, con los parámetros de la colección `app`) y el SOAT en la salida (RN-37) |
 | Perfil | `GET` y `PUT /users/me` | Implementado; la foto es opcional hasta que exista `POST /files` |
 
 El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módulo. Cada módulo tiene tres capas: `application` (casos de uso), `domain` (model, dto, validation) e `infrastructure` (web, persistence, security, mail).
@@ -147,12 +147,15 @@ Están centralizados, con su estado HTTP, en el enum `CodigoError`. Los cuatro p
 | `ACCOUNT_BLOCKED` | 403 | Tu cuenta está bloqueada. Comunícate con soporte. |
 | `EMAIL_ALREADY_REGISTERED` | 409 | El correo ya está en uso |
 | `INVALID_CATALOG_REFERENCE` | 400 | Según el caso; ver `complete-profile` en 4.4 |
-| `INVALID_FILE_REFERENCE` | 400 | La foto de perfil (o del vehículo) no existe o no te pertenece |
+| `INVALID_FILE_REFERENCE` | 400 | La foto de perfil (o del vehículo, o del SOAT) no existe o no te pertenece |
 | `PROFILE_INCOMPLETE` | 409 | Completa tu perfil antes de actualizar tus datos (o de registrar tu vehículo) |
 | `VEHICLE_REQUIRED` | 403 | Registra un vehículo para usar la modalidad de conductor (o para publicar viajes) |
 | `PLATE_ALREADY_REGISTERED` | 409 | La placa ya está registrada |
 | `VEHICLE_ALREADY_REGISTERED` | 409 | Ya tienes un vehículo registrado |
 | `VEHICLE_NOT_FOUND` | 404 | No tienes un vehículo registrado |
+| `SOAT_NOT_VALID` | 400 | Tu SOAT no está vigente. No puedes registrar el vehículo sin un SOAT vigente. |
+| `SOAT_EXPIRES_BEFORE_DEPARTURE` | 409 | Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar. |
+| `DRIVER_CANCELLATION_LIMIT` | 403 | Cancelaste N viajes en los últimos 30 días. Podrás publicar de nuevo desde el DD/MM. (`details.count`, `details.until`) |
 | `RIDE_NOT_FOUND` | 404 | Viaje no encontrado |
 | `RIDE_NOT_AVAILABLE` | 409 | Este viaje ya no está disponible |
 | `NO_SEATS_AVAILABLE` | 409 | Este viaje ya no tiene asientos disponibles |
@@ -302,6 +305,16 @@ Si cambia el nombre o la foto de un conductor, el servicio actualiza su copia (`
 | `ownerDni` | Exactamente 8 dígitos | El DNI debe tener 8 dígitos |
 | `acceptedTerms` | Debe ser `true` | Debes aceptar los términos y condiciones |
 | `photoFileId` | Opcional; si llega, identificador válido | La foto del vehículo no es válida |
+| `accessibility` | Opcional: `{ wheelchair, boardingAssistance }`; lo que no llega vale `false` | — |
+| `soat` | Opcional mientras P05 y P16 no lo pidan (RN-36) | — |
+| `soat.insurer` | Obligatoria; máximo 60 caracteres | La aseguradora es obligatoria / La aseguradora debe tener como máximo 60 caracteres |
+| `soat.policyNumber` | Obligatorio; de 6 a 20 letras, números o guiones | El número de póliza es obligatorio / El número de póliza debe tener de 6 a 20 letras, números o guiones |
+| `soat.startDate` | Obligatoria (`AAAA-MM-DD`) | La fecha de inicio del SOAT es obligatoria |
+| `soat.endDate` | Obligatoria (`AAAA-MM-DD`) | La fecha de fin del SOAT es obligatoria |
+| `soat.endDate` | Posterior a la de inicio; lo valida el servicio | La fecha de fin debe ser posterior a la de inicio |
+| `soat.endDate` | Vigencia de 366 días como máximo; lo valida el servicio | La vigencia del SOAT no puede superar los 366 días |
+| `soat.photoFileId` | Opcional; si llega, identificador válido de propósito `FOTO_SOAT` | La foto del SOAT no es válida |
+| `accessibility` | Una moto no marca ningún check (RN-18); lo valida el servicio | Una moto no puede marcarse como accesible |
 
 `isOwner` es opcional: en el registro vale `false` si no llega y en la actualización conserva el valor guardado. `PUT /vehicles/me` no modifica el `ownerDni` de un vehículo ya registrado y, si no llega `photoFileId`, conserva la foto actual; mientras no exista `POST /files` no exige que el vehículo tenga foto (RN-15).
 
@@ -311,11 +324,14 @@ Negocio:
 | --- | --- | --- | --- |
 | `INVALID_FILE_REFERENCE` | 400 | La foto del vehículo no existe o no te pertenece | Ambos |
 | `PLATE_ALREADY_REGISTERED` | 409 | La placa ya está registrada | Ambos |
+| `SOAT_NOT_VALID` | 400 | Tu SOAT no está vigente. No puedes registrar el vehículo sin un SOAT vigente. (hoy no está entre `startDate` y `endDate`) | Ambos |
 | `PROFILE_INCOMPLETE` | 409 | Completa tu perfil antes de registrar tu vehículo | `POST`, y `PUT` si el usuario no tiene vehículo |
 | `VEHICLE_ALREADY_REGISTERED` | 409 | Ya tienes un vehículo registrado | `POST` |
 | `UNAUTHORIZED` | 401 | Tu sesión expiró. Vuelve a iniciar sesión. (la cuenta ya no existe o está bloqueada) | Ambos |
 
-`POST /vehicles` responde 201 con el vehículo y agrega el rol `CONDUCTOR` al usuario; no cambia su modalidad activa. `PUT /vehicles/me` actualiza la copia del vehículo (marca, modelo, color y placa) en los viajes `PUBLICADO` o `EN_CURSO` del conductor; las plazas de esos viajes no cambian.
+`POST /vehicles` responde 201 con el vehículo y agrega el rol `CONDUCTOR` al usuario; no cambia su modalidad activa. `PUT /vehicles/me` actualiza la copia del vehículo (marca, modelo, color, placa, `apto_movilidad_reducida` y `soat_fecha_fin`) en los viajes `PUBLICADO` o `EN_CURSO` del conductor; las plazas de esos viajes no cambian. Si no llegan `accessibility` o `soat`, conserva los guardados; si el vehículo pasa a ser una moto sin enviar `accessibility`, se le quitan los checks.
+
+En MongoDB, la accesibilidad va en `vehiculo.accesibilidad` (`silla_ruedas`, `ayuda_abordaje`) y el SOAT en `vehiculo.soat`, con las fechas al inicio del día en hora de Perú. La respuesta siempre trae `accessibility` (en `false` si el vehículo no la tiene guardada) y `soat` en `null` si no se declaró.
 
 Si el usuario todavía no tiene vehículo, `PUT /vehicles/me` no lo rechaza: lo registra igual que `POST /vehicles` (agrega el rol `CONDUCTOR`, responde 200) y no toca los viajes, porque no hay ninguno. Como «Actualizar vehículo» no pide el DNI del propietario, `ownerDni` es opcional: si no llega se guarda el DNI del usuario, si ya lo registró en «Actualizar datos», y si no queda vacío.
 
@@ -368,9 +384,18 @@ Lista los viajes `PUBLICADO` de la sede con salida futura y plazas suficientes, 
 
 Una `departureTime` que no es una fecha ISO 8601 responde como cuerpo ilegible: «El cuerpo de la solicitud no es un JSON válido».
 
-Negocio: 403 `VEHICLE_REQUIRED` (Registra un vehículo para publicar viajes) y 401 `UNAUTHORIZED`.
+Negocio, en este orden:
 
-Responde 201 con el detalle del viaje y la cabecera `Location` (`/api/rides/{rideId}`). Conductor, vehículo y sede se copian del usuario. `distanceKm` es la suma en línea recta entre origen, paradas y destino, con un decimal; `durationMin` la estima a 35 km/h, con un mínimo de 1 minuto.
+| Código | HTTP | Regla | Mensaje |
+| --- | --- | --- | --- |
+| `UNAUTHORIZED` | 401 | La cuenta ya no existe o está bloqueada | Tu sesión expiró. Vuelve a iniciar sesión. |
+| `VEHICLE_REQUIRED` | 403 | Sin vehículo o con vehículo `INACTIVO` (RN-24) | Registra un vehículo para publicar viajes |
+| `DRIVER_CANCELLATION_LIMIT` | 403 | `max_cancelaciones_conductor` (10) o más viajes cancelados por el conductor o el sistema en los últimos `ventana_cancelaciones_dias` (30) (RN-30) | Cancelaste N viajes en los últimos 30 días. Podrás publicar de nuevo desde el DD/MM. |
+| `SOAT_EXPIRES_BEFORE_DEPARTURE` | 409 | El SOAT declarado no está vigente en el día de salida (RN-37); sin SOAT no se valida | Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar. |
+
+`DRIVER_CANCELLATION_LIMIT` trae `details.count` (cancelaciones en la ventana) y `details.until` (desde cuándo podrá publicar: la fecha en que sale de la ventana la cancelación que lo deja por debajo del límite). Los parámetros se leen en cada solicitud del documento `{ _id: "config" }` de la colección `app` (RN-31); si falta un valor, se usa el de por defecto. `GET /users/me` informa el mismo bloqueo en `cancellationBlock`, para que «Publicar viaje» se bloquee desde la entrada.
+
+Responde 201 con el detalle del viaje y la cabecera `Location` (`/api/rides/{rideId}`). Conductor, vehículo (con `apto_movilidad_reducida` y `soat_fecha_fin`) y sede se copian del usuario; en la respuesta, `vehicle.wheelchairAccessible` y `vehicle.soatEndDate`. `distanceKm` es la suma en línea recta entre origen, paradas y destino, con un decimal; `durationMin` la estima a 35 km/h, con un mínimo de 1 minuto.
 
 **`GET /rides/{rideId}`**
 

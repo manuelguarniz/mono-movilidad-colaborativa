@@ -1,5 +1,6 @@
 package pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -8,11 +9,13 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.validation.IdObjeto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.AccesibilidadDto;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.AnioFabricacion;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.PlacaPeru;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.ReglasVehiculo;
 
-// RN-06: todo es obligatorio, excepto la casilla «Soy el propietario» y la foto.
+// RN-06: todo es obligatorio, excepto la casilla «Soy el propietario», la foto y la accesibilidad (RN-18).
+// El SOAT (RN-36) es opcional mientras los formularios de P05 y P16 no lo pidan; si llega, se valida.
 public record RegistrarVehiculoRequest(
 		@NotBlank(message = "La placa es obligatoria") @PlacaPeru String plate,
 		@NotNull(message = "El tipo de vehículo es obligatorio")
@@ -33,7 +36,9 @@ public record RegistrarVehiculoRequest(
 		Boolean isOwner,
 		@NotNull(message = "Debes aceptar los términos y condiciones")
 		@AssertTrue(message = "Debes aceptar los términos y condiciones") Boolean acceptedTerms,
-		@IdObjeto(message = "La foto del vehículo no es válida") String photoFileId) {
+		@IdObjeto(message = "La foto del vehículo no es válida") String photoFileId,
+		AccesibilidadDto accessibility,
+		@Valid SoatRequest soat) {
 
 	// La placa se normaliza y los textos se recortan al construir la solicitud, antes de validarla.
 	public RegistrarVehiculoRequest {

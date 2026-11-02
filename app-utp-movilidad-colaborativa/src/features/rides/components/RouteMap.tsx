@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import capIcon from "@/assets/images/icons/graduation-cap.svg?raw";
+import homeIcon from "@/assets/images/icons/home.svg?raw";
 import {
   addMarkerLabel,
   createBaseMap,
@@ -65,6 +66,7 @@ export function RouteMap({
     }
     layer.clearLayers();
 
+    const isToCampus = direction === "TO_CAMPUS";
     drawRouteLine(
       [
         ...(home ? [home.location] : []),
@@ -72,34 +74,48 @@ export function RouteMap({
         campus.location,
       ],
       layer,
+      "dashed",
     );
+
+    // Origen: anillo rojo; destino: círculo rojo sólido. La sede lleva el birrete.
+    const endClass = (isOrigin: boolean) =>
+      isOrigin ? "route-marker-start" : "route-marker-end";
 
     addMarkerLabel(
       L.marker(toLatLng(campus.location), {
-        icon: markerIcon("route-marker-campus", capIcon, 36),
+        icon: markerIcon(endClass(!isToCampus), capIcon, 36),
         interactive: false,
         keyboard: false,
       }),
       campus.label,
     ).addTo(layer);
 
-    const addDraggable = (point: RoutePoint, icon: L.DivIcon) => {
+    const addDraggable = (point: RoutePoint, icon: L.DivIcon, label: string) => {
       const marker = L.marker(toLatLng(point.location), { icon, draggable: true });
       marker.on("dragend", () => {
         const { lat, lng } = marker.getLatLng();
         handlersRef.current.onMovePoint(point.id, { lat, lng });
       });
-      addMarkerLabel(marker, point.label).addTo(layer);
+      addMarkerLabel(marker, label).addTo(layer);
     };
 
     if (home) {
       // La casa es el origen en la ida y el destino en el regreso.
-      const letter = direction === "TO_CAMPUS" ? "A" : "B";
-      addDraggable(home, markerIcon("route-marker-home", letter, 36));
+      addDraggable(
+        home,
+        markerIcon(endClass(isToCampus), isToCampus ? "" : homeIcon, 32),
+        home.label,
+      );
     }
-    stops.forEach((stop) =>
-      addDraggable(stop, markerIcon("route-marker-stop", "", 24)),
-    );
+    // Las paradas se numeran en el orden del viaje.
+    stops.forEach((stop, index) => {
+      const number = isToCampus ? index + 1 : stops.length - index;
+      addDraggable(
+        stop,
+        markerIcon("route-marker-stop-number", String(number), 26),
+        stop.label || `Parada ${number}`,
+      );
+    });
   }, [campus, home, stops, direction]);
 
   useEffect(() => {
