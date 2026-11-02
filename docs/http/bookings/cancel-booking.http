@@ -1,0 +1,24 @@
+# Cancelar mi reserva (pasajero, RN-25)
+# POST /bookings/{bookingId}/cancel
+#
+# Requiere token SESSION. Sin cuerpo.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+@bookingId = 6705a1f0c3d4e5f600000605
+
+### 200 · Reserva cancelada; las plazas vuelven al viaje
+# Respuesta 200 OK
+# { "message": "Reserva cancelada. Te devolvimos 12 créditos." }
+POST {{baseUrl}}/bookings/{{bookingId}}/cancel
+Authorization: Bearer {{sessionToken}}
+
+### 404 · No existe o es de otro usuario
+# { "code": "BOOKING_NOT_FOUND", "message": "Reserva no encontrada" }
+
+### 409 · Faltan menos de 30 minutos para la salida
+# { "code": "CANCELLATION_DEADLINE_PASSED", "message": "Ya no puedes cancelar: faltan menos de 30 minutos para la salida" }
+
+### 409 · La reserva ya no está confirmada
+# { "code": "INVALID_STATUS", "message": "Esta reserva ya no está confirmada" }

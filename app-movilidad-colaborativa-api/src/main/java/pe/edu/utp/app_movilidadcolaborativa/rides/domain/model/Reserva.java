@@ -11,7 +11,8 @@ import java.time.Instant;
 
 /**
  * Colección reservas. El índice único parcial impide dos reservas CONFIRMADA del mismo pasajero
- * en un viaje y permite volver a reservar después de cancelar.
+ * en un viaje y permite volver a reservar después de cancelar. canceladaPor y fechaCancelacion son null salvo en
+ * CANCELADA.
  */
 @Builder
 @Document("reservas")
@@ -25,6 +26,7 @@ public record Reserva(
 		Integer plazas,
 		Integer totalCreditos,
 		EstadoReserva estado,
+		Actor canceladaPor,
 		Instant fechaCancelacion,
 		Instant fechaCreacion,
 		Instant fechaActualizacion) {

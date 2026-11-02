@@ -3,7 +3,6 @@ import type {
   CurrentUser,
   RidePage,
   RideSearchFilters,
-  RideSummary,
 } from "@/features/dashboard/types";
 
 export const dashboardService = {
@@ -21,11 +20,6 @@ export const dashboardService = {
       },
     }),
 
-  /** Viajes publicados y en curso del conductor (modo conductor). */
-  getMyRides: async () => {
-    const response = await apiClient.get<unknown, { data: RideSummary[] }>("/rides/mine");
-    return response.data;
-  },
 
   reserveRide: (rideId: string) =>
     apiClient.post<unknown, { message: string }>(`/rides/${rideId}/reserve`),

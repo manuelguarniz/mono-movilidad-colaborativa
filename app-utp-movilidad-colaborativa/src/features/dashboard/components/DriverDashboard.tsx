@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { dashboardService } from "@/features/dashboard/services/dashboardService";
+import { myRidesService } from "@/features/my-rides/services/myRidesService";
 import type { CancellationBlock, RideSummary } from "@/features/dashboard/types";
 import { formatLimaDayMonth, formatLimaTime, getLimaDayLabel } from "@/shared/utils/limaTime";
 import ChevronRightIcon from "@/assets/images/icons/chevron-right.svg?react";
@@ -84,11 +84,12 @@ function DriverRideRow({ ride }: { ride: RideSummary }) {
 
 /** Modo conductor del dashboard (P06, frames 06-F y 06-G). */
 export function DriverDashboard({ cancellationBlock }: DriverDashboardProps) {
+  // Misma consulta que Mis viajes (P17): comparten la caché.
   const ridesQuery = useQuery({
     queryKey: ["rides", "mine"],
-    queryFn: dashboardService.getMyRides,
+    queryFn: myRidesService.getMyDriverRides,
   });
-  const rides = ridesQuery.data ?? [];
+  const rides = ridesQuery.data?.data.map((item) => item.ride) ?? [];
 
   return (
     <>

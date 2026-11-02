@@ -15,7 +15,7 @@ ColaboraCar es una aplicación de movilidad colaborativa para la comunidad de la
 | Base de datos | MongoDB Atlas (NoSQL orientada a documentos, clúster administrado en la nube). Los parámetros de negocio configurables están en la colección `app` (RN-31). |
 | Módulos | Autenticación, registro, viajes (búsqueda, reserva, publicación, ejecución y cancelación), historial y calificaciones, billetera, notificaciones y perfil. |
 
-Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación con OTP en cada login, el registro, los catálogos, los vehículos, la publicación, el listado por sede, la reserva y el perfil sobre MongoDB Atlas: 18 de los 19 endpoints del contrato (`docs/openapi.yaml`). Solo falta la carga de imágenes. El frontend implementa las 16 pantallas de `frames/`. En desarrollo puede usar el backend real o una API simulada con MSW (`VITE_USE_MOCKS`). Todo lo demás de este documento todavía no está implementado (sección 10). El detalle está en la sección 4.1.
+Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación con OTP en cada login, el registro, los catálogos, los vehículos, la publicación, el listado por sede, la reserva, Mis viajes y el perfil sobre MongoDB Atlas: 23 de los 24 endpoints del contrato (`docs/openapi.yaml`). Solo falta la carga de imágenes. El frontend implementa las 16 pantallas de `frames/`. En desarrollo puede usar el backend real o una API simulada con MSW (`VITE_USE_MOCKS`). Todo lo demás de este documento todavía no está implementado (sección 10). El detalle está en la sección 4.1.
 
 ### 1.1 Fuera del alcance
 
@@ -405,7 +405,7 @@ El detalle de las colecciones está en la sección 5.
 
 El detalle para ejecutar, probar y extender el backend está en su propio documento, [app-movilidad-colaborativa-api/README.md](app-movilidad-colaborativa-api/README.md): variables de entorno, tokens, formato de errores, mensajes de validación por endpoint y ejemplos con curl. El contrato de la API es [docs/openapi.yaml](docs/openapi.yaml), y [docs/http/](docs/http/) tiene una solicitud de ejemplo por endpoint, con la respuesta esperada. Aquí solo va el resumen.
 
-El backend implementa 18 de los 19 endpoints del contrato actual. Lo nuevo de este documento todavía no tiene endpoints:
+El backend implementa 23 de los 24 endpoints del contrato actual. Lo nuevo de este documento todavía no tiene endpoints:
 
 | Módulo | Estado |
 | --- | --- |
@@ -414,7 +414,8 @@ El backend implementa 18 de los 19 endpoints del contrato actual. Lo nuevo de es
 | Catálogos (departamentos, distritos, sedes) | Implementado. La ciudad de una sede (RN-49) es el nombre de su distrito (`sedes.distrito.nombre`) |
 | Perfil (consultar y actualizar datos) | Implementado; falta el modal de cambio de modo y el resumen de saldo y calificación |
 | Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional hasta que P05 y P16 lo pidan, y las fotos hasta que exista la carga de imágenes |
-| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/mine` da el resumen del conductor. Faltan la retención de créditos, Mis viajes, la cancelación, el inicio y el fin |
+| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/{rideId}` trae además la reserva del usuario en ese viaje (`myBooking`, con la hora límite para cancelar de RN-25), su reserva activa en otro viaje (RN-23) y su bloqueo (RN-38), para la barra inferior de P09. Faltan la retención de créditos y la liquidación |
+| Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Sin billetera ni notificaciones: los reembolsos y cobros solo se informan. Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
 | Archivos (carga de imágenes) | Pendiente |
 | Billetera, retiros, historial, calificaciones, notificaciones y job programado | Pendiente |
 
@@ -1399,7 +1400,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 13 | [13. perfil_pasajero.jpeg](<frames/13. perfil_pasajero.jpeg>) | Perfil — pasajero | Perfil | Implementada |
 | 14 | [14. perfil_conductor.jpeg](<frames/14. perfil_conductor.jpeg>) | Perfil — conductor | Perfil | Implementada |
 | 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada |
-| 16 | [16. perfil_actualizar_vehiculo.jpeg](<frames/16. perfil_actualizar_vehiculo.jpeg>) | Actualizar vehículo | Perfil | Implementada (sin SOAT) |
+| 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada (sin SOAT) · rediseño aprobado |
 | 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Diseño aprobado |
 | 18 | — | Notificaciones | Notificaciones | Pendiente de diseño |
 | 19 | — | Historial | Historial | Pendiente de diseño |

@@ -1,4 +1,8 @@
-import type { RideSummary } from "@/features/dashboard/types";
+import type {
+  ActiveBooking,
+  CancellationBlock,
+  RideSummary,
+} from "@/features/dashboard/types";
 
 // Tipos del contrato `docs/openapi.yaml` que usan la publicación y el detalle de viajes.
 
@@ -34,6 +38,26 @@ export type RideDetail = Omit<RideSummary, "origin" | "destination"> & {
   // Paradas intermedias, en el orden del recorrido.
   stops: Place[];
   createdAt: string;
+};
+
+// Reserva activa del usuario en el viaje que consulta (`MyBooking`, frame 09-B).
+export type MyBooking = {
+  id: string;
+  status: "CONFIRMED" | "IN_RIDE";
+  seats: number;
+  // Créditos retenidos: plazas × precio por plaza.
+  totalCredits: number;
+  // Salida menos `minutos_limite_cancelacion` (RN-25); ISO 8601 en UTC.
+  cancellableUntil: string;
+};
+
+// GET /rides/{rideId}: el detalle con lo que decide la barra inferior de P09.
+export type RideDetailView = RideDetail & {
+  myBooking: MyBooking | null;
+  // Reserva activa en otro viaje (RN-23).
+  activeBooking: ActiveBooking | null;
+  // Bloqueo por cancelaciones (RN-38).
+  bookingBlock: CancellationBlock | null;
 };
 
 export type PublishedRide = {

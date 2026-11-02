@@ -52,8 +52,23 @@
 #     }
 #   },
 #   "stops": [],
-#   "createdAt": "2026-10-09T06:30:20.954Z"
+#   "createdAt": "2026-10-09T06:30:20.954Z",
+#   "campus": { "id": "6705a1f0c3d4e5f600000301", "name": "UTP Sede Trujillo", "city": "Trujillo" },
+#   "myBooking": null,
+#   "activeBooking": null,
+#   "bookingBlock": null
 # }
+#
+# Si el usuario ya reservó este viaje (P09, 09-B):
+#   "myBooking": {
+#     "id": "6705a1f0c3d4e5f600000601",
+#     "status": "CONFIRMED",
+#     "seats": 2,
+#     "totalCredits": 10,
+#     "cancellableUntil": "2026-10-09T12:00:00Z"
+#   }
+# Si tiene una reserva activa en otro viaje (RN-23), `activeBooking` como en GET /rides.
+# Si está bloqueado por cancelaciones (RN-38): "bookingBlock": { "count": 5, "until": "2026-11-08T15:00:00Z" }
 GET {{baseUrl}}/rides/{{rideId}}
 Authorization: Bearer {{sessionToken}}
 

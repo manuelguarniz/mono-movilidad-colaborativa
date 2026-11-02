@@ -71,6 +71,7 @@ export function PassengerDashboard() {
       setRideToReserve(null);
       // Con éxito o con error cambian las plazas o el estado del viaje: se refresca el listado.
       queryClient.invalidateQueries({ queryKey: ["rides"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
     },
   });
 
@@ -116,9 +117,8 @@ export function PassengerDashboard() {
               {formatDepartureLabel(new Date(activeBooking.departureTime))} ·{" "}
               {activeBooking.origin} → {activeBooking.destination}
             </p>
-            {/* «Ver en Mis viajes» (P17) llegará con esa pantalla; mientras, abre el detalle. */}
             <Link
-              to={`/viajes/${activeBooking.rideId}`}
+              to="/mis-viajes"
               className="mt-1 inline-block text-sm font-semibold text-[var(--brand-red)]"
             >
               Ver viaje

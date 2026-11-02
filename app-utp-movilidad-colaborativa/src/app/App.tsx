@@ -3,6 +3,7 @@ import { AppLayout } from "@/app/layouts/AppLayout";
 import { CompleteProfilePage } from "@/features/auth/pages/CompleteProfilePage";
 import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
+import { MyRidesPage } from "@/features/my-rides/pages/MyRidesPage";
 import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 import { UpdateProfilePage } from "@/features/profile/pages/UpdateProfilePage";
 import { PublishRidePage } from "@/features/rides/pages/PublishRidePage";
@@ -42,6 +43,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/mis-viajes" element={<MyRidesPage />} />
             <Route path="/perfil" element={<ProfilePage />} />
           </Route>
           <Route path="/perfil/datos" element={<UpdateProfilePage />} />

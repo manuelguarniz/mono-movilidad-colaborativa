@@ -5,7 +5,7 @@ import type {
   MyVehicle,
   PublishedRide,
   RideCreateRequest,
-  RideDetail,
+  RideDetailView,
 } from "@/features/rides/types";
 
 export const rideService = {
@@ -24,7 +24,8 @@ export const rideService = {
   },
 
   /** Responde 404 `RIDE_NOT_FOUND` si el viaje no existe. */
-  getRide: (rideId: string) => apiClient.get<unknown, RideDetail>(`/rides/${rideId}`),
+  getRide: (rideId: string) =>
+    apiClient.get<unknown, RideDetailView>(`/rides/${rideId}`),
 
   publishRide: (payload: RideCreateRequest) =>
     apiClient.post<unknown, PublishedRide>("/rides", payload),

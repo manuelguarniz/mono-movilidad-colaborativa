@@ -638,18 +638,6 @@ body {
     @apply bg-[var(--accent-red)];
   }
 
-  .route-marker-origin {
-    @apply bg-[var(--brand-red)];
-  }
-
-  .route-marker-destination {
-    @apply bg-[#2f2f2f];
-  }
-
-  .route-marker-stop {
-    @apply border-[5px] border-[var(--brand-red)] bg-white;
-  }
-
   /* Marcadores de «Publicar viaje» (frame 11). */
   .route-marker-start {
     @apply border-[3px] border-[var(--brand-red)] bg-white text-[var(--brand-red)];
@@ -664,6 +652,12 @@ body {
     @apply bg-[var(--brand-red)];
   }
 
+  /* Destino sin icono (detalle del viaje): punto blanco al centro. */
+  .route-marker-end:empty::after {
+    content: "";
+    @apply h-2.5 w-2.5 rounded-full bg-white;
+  }
+
   .route-marker-stop-number {
     @apply bg-[var(--brand-red)] text-xs;
   }
@@ -673,46 +667,136 @@ body {
     font-family: inherit;
   }
 
-  .route-map-label-dark.leaflet-tooltip {
-    @apply bg-[#2f2f2f] text-white;
-  }
-
   .route-map-label.leaflet-tooltip::before {
     display: none;
   }
 
-  /* Detalle del viaje (frame 09): recorrido con una línea que une los puntos. */
-  .ride-timeline {
+  /* Detalle del viaje (frames 09-A a 09-D). */
+  .ride-detail-sheet {
+    @apply relative z-10 mx-auto -mt-4 flex w-full max-w-lg flex-1 flex-col gap-3 rounded-t-3xl bg-[var(--webview-bg)] px-4 pb-4 pt-3;
+  }
+
+  .ride-detail-card {
+    @apply rounded-2xl bg-[var(--surface-muted)] p-4;
+  }
+
+  .ride-detail-card-outlined {
+    @apply rounded-2xl border border-[var(--border-neutral)] bg-white p-4;
+  }
+
+  .ride-detail-avatar {
+    @apply flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--border-neutral)] text-lg font-semibold text-[var(--text-brown)];
+  }
+
+  .ride-detail-city {
+    @apply inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm text-[var(--text-brown)];
+  }
+
+  .ride-detail-route {
+    @apply mt-2 space-y-3;
+  }
+
+  .ride-detail-route-item {
+    @apply relative pl-7 text-[0.9375rem] leading-snug text-[var(--text-primary)];
+  }
+
+  /* Línea gris que une los puntos de la ruta. */
+  .ride-detail-route-item:not(:last-child)::before {
+    content: "";
+    @apply absolute bottom-[-0.75rem] left-2 top-4 w-0.5 -translate-x-1/2 bg-[#c9c9c9];
+  }
+
+  .ride-detail-route-dot {
+    @apply absolute left-0 top-[0.1875rem] h-4 w-4 rounded-full;
+  }
+
+  .ride-detail-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm;
+  }
+
+  .ride-detail-bar {
+    @apply sticky bottom-0 z-20 mx-auto flex w-full max-w-lg flex-col gap-2 border-t border-[var(--border-neutral)] bg-white px-4 pt-3;
+    padding-bottom: max(0.75rem, var(--safe-bottom));
+  }
+
+  .ride-detail-secondary-button {
+    @apply inline-flex h-[3.25rem] w-full items-center justify-center rounded-xl bg-[var(--brand-soft)] px-5 text-lg font-semibold text-[var(--brand-red)] disabled:cursor-not-allowed;
+  }
+
+  /* Aviso breve tras una acción (P09, P17). */
+  .app-toast {
+    @apply fixed left-1/2 z-[60] -translate-x-1/2 rounded-full bg-[#1b1b1b] px-4 py-2 text-sm font-medium text-white shadow-lg;
+    /* Debajo del encabezado, sobre el mapa. */
+    top: calc(max(0.75rem, var(--safe-top)) + 4.5rem);
+  }
+
+  /* Mis viajes (frames 17-A a 17-H). */
+  .my-rides-section-label {
+    @apply flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)];
+  }
+
+  .my-rides-departure {
+    @apply rounded-2xl bg-[var(--surface-muted)] p-4;
+  }
+
+  .my-rides-pill {
+    @apply inline-flex shrink-0 items-center rounded-full px-3 py-1 text-sm font-medium tabular-nums;
+  }
+
+  .my-rides-credits {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-[#f5d97a] bg-[#fff8e1] px-3 py-1 text-sm font-semibold text-[#8a5a00];
+  }
+
+  .my-rides-route {
     @apply space-y-3;
   }
 
-  .ride-timeline-item {
+  .my-rides-route-item {
     @apply relative pl-7;
   }
 
-  .ride-timeline-item:not(:last-child)::before {
+  /* Línea gris que une origen y destino. */
+  .my-rides-route-item:not(:last-child)::before {
     content: "";
-    @apply absolute bottom-[-0.75rem] left-[0.5rem] top-5 w-0.5 -translate-x-1/2 bg-[#d9d9d9];
+    @apply absolute bottom-[-0.75rem] left-2 top-4 w-0.5 -translate-x-1/2 bg-[#c9c9c9];
   }
 
-  .ride-timeline-dot {
-    @apply absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center rounded-full;
+  .my-rides-route-dot {
+    @apply absolute left-0 top-[0.1875rem] h-4 w-4 rounded-full;
   }
 
-  .ride-timeline-label {
-    @apply text-xs font-semibold uppercase tracking-wider;
+  .my-rides-text-button {
+    @apply px-1 py-2 text-[0.9375rem] font-semibold text-[var(--brand-red)];
   }
 
-  .ride-timeline-time {
-    @apply font-medium normal-case tracking-normal text-[var(--text-muted)];
+  .my-rides-text-button[aria-disabled="true"] {
+    @apply cursor-not-allowed text-[#a5a5a5];
   }
 
-  .ride-timeline-place {
-    @apply text-[0.9375rem] font-semibold leading-snug text-[var(--text-primary)];
+  .my-rides-soft-button {
+    @apply inline-flex h-11 items-center justify-center rounded-xl border border-[#f2b8b5] bg-[var(--brand-soft)] px-6 text-[0.9375rem] font-semibold text-[var(--brand-red)] transition active:scale-[0.99];
   }
 
-  .ride-timeline-address {
-    @apply text-sm text-[var(--text-muted)];
+  /* «Publicar un nuevo viaje», fijo sobre la barra inferior (17-B). */
+  .my-rides-publish-bar {
+    @apply fixed inset-x-0 z-10 mx-auto w-full max-w-lg px-[var(--webview-px)];
+    bottom: calc(max(0.5rem, var(--safe-bottom)) + 4.25rem);
+  }
+
+  .my-rides-sheet-icon {
+    @apply mx-auto flex h-14 w-14 items-center justify-center rounded-full;
+  }
+
+  .my-rides-sheet-summary {
+    @apply rounded-xl border border-[var(--border-neutral)] bg-[var(--surface-muted)] px-4 py-3 text-center text-sm font-medium text-[var(--text-primary)];
+  }
+
+  .my-rides-textarea {
+    @apply w-full resize-none rounded-xl border border-[var(--border-neutral)] bg-[#fafafa] px-4 py-3 text-[0.9375rem] text-[var(--text-primary)] outline-none placeholder:text-[#686c75] focus:ring-2 focus:ring-[var(--brand-red)];
+  }
+
+  .my-rides-boarding-row {
+    @apply flex cursor-pointer items-center gap-3 rounded-2xl border border-[var(--border-neutral)] px-4 py-3 transition;
   }
 
   .app-modal-backdrop {

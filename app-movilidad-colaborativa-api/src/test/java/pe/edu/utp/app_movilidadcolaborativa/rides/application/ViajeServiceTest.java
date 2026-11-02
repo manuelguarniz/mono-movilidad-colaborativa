@@ -15,6 +15,8 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.LugarDto.PuntoDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.PublicarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeResumenDto;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto.MiReservaDto;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoReserva;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SedeViaje;
@@ -22,6 +24,7 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SentidoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.validation.ReglasViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.persistence.ViajeRepository;
+import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.dto.ErrorDto.ErrorCampo;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
@@ -52,6 +55,7 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -65,8 +69,9 @@ class ViajeServiceTest {
 	private final CancelacionesConductorService cancelaciones = mock(CancelacionesConductorService.class);
 	private final RestriccionesPasajeroService restricciones = mock(RestriccionesPasajeroService.class);
 	private final SedeRepository sedeRepository = mock(SedeRepository.class);
+	private final ParametrosService parametros = mock(ParametrosService.class);
 	private final ViajeService servicio = new ViajeService(usuarioRepository, viajeRepository, mongoTemplate,
-			cancelaciones, restricciones, sedeRepository);
+			cancelaciones, restricciones, sedeRepository, parametros);
 
 	// La ciudad del viaje es el distrito de la sede en el catálogo (RN-49).
 	{
@@ -268,13 +273,78 @@ class ViajeServiceTest {
 		when(viajeRepository.findById(viajeId))
 				.thenReturn(Optional.of(Viajes.publicado(viajeId, usuarioId).estado(EstadoViaje.COMPLETADO).build()));
 
-		ViajeDetalleDto viaje = servicio.consultar(viajeId);
+		ViajeDetalleDto viaje = servicio.consultar(usuarioId, viajeId);
 
 		assertThat(viaje.status()).isEqualTo("COMPLETED");
 		assertThat(viaje.origin().location()).isEqualTo(new PuntoDto(-8.0975, -79.0353));
 		assertThat(viaje.stops()).containsExactly(new LugarDto("Óvalo Papal", null, new PuntoDto(-8.0851, -79.0389)));
 		assertThat(viaje.destination().label()).isEqualTo("Huaca del Dragón");
 		assertThat(viaje.createdAt()).isNotNull();
+		assertThat(viaje.myBooking()).isNull();
+		assertThat(viaje.activeBooking()).isNull();
+		assertThat(viaje.bookingBlock()).isNull();
+	}
+
+	private Reserva reservaActiva(ObjectId reservaId, ObjectId viajeId, Instant salida, EstadoReserva estado) {
+		return Reserva.builder().id(reservaId).viajeId(viajeId).plazas(2).totalCreditos(12).estado(estado)
+				.viaje(new Reserva.ResumenViaje("Campus UTP Trujillo", "Urb. El Golf", salida, "Carlos M.", null))
+				.build();
+	}
+
+	@Test
+	void consultarInformaLaReservaDelUsuarioEnEsteViajeConSuLimiteDeCancelacion() {
+		ObjectId viajeId = new ObjectId();
+		ObjectId reservaId = new ObjectId();
+		Instant salida = Instant.parse("2030-01-15T19:20:00Z");
+		when(viajeRepository.findById(viajeId))
+				.thenReturn(Optional.of(Viajes.publicado(viajeId, new ObjectId()).fechaSalida(salida).build()));
+		when(restricciones.reservaActiva(usuarioId))
+				.thenReturn(Optional.of(reservaActiva(reservaId, viajeId, salida, EstadoReserva.CONFIRMADA)));
+		when(parametros.leer()).thenReturn(ParametrosService.Parametros.POR_DEFECTO);
+
+		ViajeDetalleDto viaje = servicio.consultar(usuarioId, viajeId);
+
+		// RN-25: se cancela hasta minutos_limite_cancelacion antes de la salida (14:20 → 13:50 de Perú).
+		assertThat(viaje.myBooking()).isEqualTo(new MiReservaDto(reservaId.toHexString(), "CONFIRMED", 2, 12,
+				Instant.parse("2030-01-15T18:50:00Z")));
+		assertThat(viaje.activeBooking()).isNull();
+		assertThat(viaje.bookingBlock()).isNull();
+		verify(restricciones, never()).bloqueo(any(), any());
+	}
+
+	@Test
+	void consultarInformaLaReservaActivaEnOtroViaje() {
+		ObjectId viajeId = new ObjectId();
+		ObjectId otroViajeId = new ObjectId();
+		ObjectId reservaId = new ObjectId();
+		Instant salida = Instant.parse("2030-01-15T19:20:00Z");
+		when(viajeRepository.findById(viajeId))
+				.thenReturn(Optional.of(Viajes.publicado(viajeId, new ObjectId()).build()));
+		when(restricciones.reservaActiva(usuarioId))
+				.thenReturn(Optional.of(reservaActiva(reservaId, otroViajeId, salida, EstadoReserva.EN_VIAJE)));
+
+		ViajeDetalleDto viaje = servicio.consultar(usuarioId, viajeId);
+
+		assertThat(viaje.myBooking()).isNull();
+		assertThat(viaje.activeBooking()).isEqualTo(new ListadoViajesDto.ReservaActivaDto(reservaId.toHexString(),
+				otroViajeId.toHexString(), salida, "Campus UTP Trujillo", "Urb. El Golf"));
+		assertThat(viaje.bookingBlock()).isNull();
+	}
+
+	@Test
+	void consultarInformaElBloqueoPorCancelacionesDelPasajero() {
+		ObjectId viajeId = new ObjectId();
+		when(viajeRepository.findById(viajeId))
+				.thenReturn(Optional.of(Viajes.publicado(viajeId, new ObjectId()).build()));
+		Instant hasta = Instant.parse("2026-11-08T15:00:00Z");
+		when(restricciones.bloqueo(eq(usuarioId), any(Instant.class)))
+				.thenReturn(Optional.of(new CancelacionesConductorService.Bloqueo(5, 30, hasta)));
+
+		ViajeDetalleDto viaje = servicio.consultar(usuarioId, viajeId);
+
+		assertThat(viaje.myBooking()).isNull();
+		assertThat(viaje.activeBooking()).isNull();
+		assertThat(viaje.bookingBlock()).isEqualTo(new PerfilUsuarioDto.BloqueoCancelacionesDto(5, hasta));
 	}
 
 	// ------------------------------------------------------- Reglas de estado
@@ -370,25 +440,10 @@ class ViajeServiceTest {
 	}
 
 	@Test
-	void listarPropiosDevuelveLosViajesActivosDelConductor() {
-		existe(conductor());
-		when(mongoTemplate.find(any(Query.class), eq(Viaje.class)))
-				.thenReturn(List.of(Viajes.publicado(new ObjectId(), usuarioId).build()));
-
-		assertThat(servicio.listarPropios(usuarioId)).hasSize(1);
-
-		ArgumentCaptor<Query> consulta = ArgumentCaptor.forClass(Query.class);
-		verify(mongoTemplate).find(consulta.capture(), eq(Viaje.class));
-		assertThat(consulta.getValue().getQueryObject()).containsEntry("conductor.id", usuarioId)
-				.containsEntry("estado", new Document("$in", List.of(EstadoViaje.PUBLICADO, EstadoViaje.EN_CURSO)));
-		assertThat(consulta.getValue().getSortObject()).isEqualTo(new Document("fecha_salida", 1));
-	}
-
-	@Test
 	void unViajeInexistenteRespondeNotFound() {
 		ObjectId viajeId = new ObjectId();
 		when(viajeRepository.findById(viajeId)).thenReturn(Optional.empty());
-		falla(() -> servicio.consultar(viajeId), CodigoError.RIDE_NOT_FOUND);
+		falla(() -> servicio.consultar(usuarioId, viajeId), CodigoError.RIDE_NOT_FOUND);
 	}
 
 	@Test

@@ -10,7 +10,7 @@ type NavItem = {
   id: string;
   label: string;
   icon: ReactNode;
-  // Sin ruta: la sección todavía no está implementada (P17, P19 y P21).
+  // Sin ruta: la sección todavía no está implementada (P19 y P21).
   to?: string;
 };
 
@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
   {
     id: "my-rides",
     label: "Mis viajes",
+    to: "/mis-viajes",
     icon: <CalendarIcon className="h-6 w-6" />,
   },
   {

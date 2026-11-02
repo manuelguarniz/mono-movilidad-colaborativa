@@ -20,6 +20,7 @@ import pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto.LoginRequest;
 import pe.edu.utp.app_movilidadcolaborativa.auth.infrastructure.web.AuthController;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.application.CatalogoService;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.web.CatalogoController;
+import pe.edu.utp.app_movilidadcolaborativa.rides.application.MisViajesService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ReservaService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ViajeService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.FiltroViajesRequest;
@@ -28,6 +29,7 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.LugarDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.PublicarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.validation.ReglasViaje;
+import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.web.ReservaController;
 import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.web.ViajeController;
 import pe.edu.utp.app_movilidadcolaborativa.users.application.PerfilService;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.ActualizarPerfilRequest;
@@ -69,6 +71,7 @@ class ValidacionSolicitudesTest {
 	private final VehiculoService vehiculoService = mock(VehiculoService.class);
 	private final ViajeService viajeService = mock(ViajeService.class);
 	private final ReservaService reservaService = mock(ReservaService.class);
+	private final MisViajesService misViajesService = mock(MisViajesService.class);
 	private MockMvc mvc;
 
 	@BeforeEach
@@ -79,7 +82,8 @@ class ValidacionSolicitudesTest {
 				.standaloneSetup(new AuthController(authService, registroService),
 						new CatalogoController(catalogoService), new UsuarioController(perfilService),
 							new VehiculoController(vehiculoService),
-							new ViajeController(viajeService, reservaService))
+							new ViajeController(viajeService, reservaService, misViajesService),
+							new ReservaController(misViajesService))
 				.setControllerAdvice(new ManejadorErrores())
 				.setValidator(validador)
 				.setCustomArgumentResolvers(jwtDelUsuario())
@@ -330,7 +334,7 @@ class ValidacionSolicitudesTest {
 		LugarDto destino = new LugarDto("Huaca del Dragón", "La Esperanza", new LugarDto.PuntoDto(-8.0716, -79.0412));
 		when(viajeService.publicar(any(ObjectId.class), any(PublicarViajeRequest.class)))
 				.thenReturn(new ViajeDetalleDto("6705a1f0c3d4e5f600000501", "PUBLISHED", "TO_HOME", salida, 5, 3, 3, 2.9,
-						5, null, null, List.of(), origen, destino, List.of(), salida, null));
+						5, null, null, List.of(), origen, destino, List.of(), salida, null, null, null, null));
 
 		mvc.perform(post("/rides").contentType(MediaType.APPLICATION_JSON)
 						.content("{\"direction\":\"TO_HOME\",\"departureTime\":\"" + salida + "\","
@@ -429,5 +433,33 @@ class ValidacionSolicitudesTest {
 				.andExpect(jsonPath("$.errors[0].field").value("rideId"))
 				.andExpect(jsonPath("$.errors[0].message").value("El parámetro rideId no es válido"));
 		verifyNoInteractions(viajeService, reservaService);
+	}
+
+	@Test
+	void misViajesAceptaUnaCancelacionSinMotivoYRechazaLosDatosInvalidos() throws Exception {
+		when(misViajesService.cancelarReserva(any(ObjectId.class), any(ObjectId.class))).thenReturn(12);
+		mvc.perform(post("/bookings/6705a1f0c3d4e5f600000601/cancel"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("Reserva cancelada. Te devolvimos 12 créditos."));
+		mvc.perform(post("/rides/6705a1f0c3d4e5f600000501/cancel"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("Viaje cancelado"));
+		verify(misViajesService).cancelarViaje(any(ObjectId.class), any(ObjectId.class), eq(null));
+
+		mvc.perform(post("/rides/6705a1f0c3d4e5f600000501/cancel").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"reason\":\"" + "a".repeat(201) + "\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("reason"))
+				.andExpect(jsonPath("$.errors[0].message").value("El motivo debe tener como máximo 200 caracteres"));
+		mvc.perform(post("/rides/6705a1f0c3d4e5f600000501/start").contentType(MediaType.APPLICATION_JSON)
+						.content("{}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("boardedBookingIds"))
+				.andExpect(jsonPath("$.errors[0].message").value("Indica qué pasajeros subieron"));
+		mvc.perform(post("/rides/6705a1f0c3d4e5f600000501/start").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"boardedBookingIds\":[\"abc\"]}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].message").value("El identificador no es válido"));
+		verify(misViajesService, org.mockito.Mockito.never()).iniciar(any(), any(), any());
 	}
 }

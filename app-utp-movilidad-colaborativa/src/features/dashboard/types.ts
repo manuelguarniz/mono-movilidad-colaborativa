@@ -31,6 +31,8 @@ export type RideSummary = {
   destination: RidePlaceSummary;
   // Sede del conductor; `city` es la etiqueta del dashboard (RN-49), `null` en viajes antiguos.
   campus: { id: string; name: string; city: string | null } | null;
+  // Hora de inicio (RN-43); `null` mientras el viaje no se inicia.
+  startedAt?: string | null;
 };
 
 // Lo que impide reservar: el motivo se muestra una sola vez, arriba del listado.
@@ -71,6 +73,7 @@ export type RideSearchFilters = {
 
 // Lo que el encabezado usa de `UserProfile` (GET /users/me).
 export type CurrentUser = {
+  id: string;
   firstName: string;
   lastName: string;
   photoUrl: string | null;

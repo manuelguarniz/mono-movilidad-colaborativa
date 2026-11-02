@@ -9,13 +9,6 @@ const time24Formatter = new Intl.DateTimeFormat("es-PE", {
   hour12: false,
 });
 
-const time12Formatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: LIMA,
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: true,
-});
-
 const weekdayFormatter = new Intl.DateTimeFormat("es-PE", {
   timeZone: LIMA,
   weekday: "long",
@@ -26,9 +19,6 @@ const dayFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: LIMA });
 
 /** `14:15`. */
 export const formatLimaTime = (date: Date) => time24Formatter.format(date);
-
-/** `02:15 PM`. */
-export const formatLimaTime12h = (date: Date) => time12Formatter.format(date);
 
 /** Día en la hora de Perú: «hoy», «mañana» o el día de la semana. */
 export function getLimaDayLabel(date: Date) {

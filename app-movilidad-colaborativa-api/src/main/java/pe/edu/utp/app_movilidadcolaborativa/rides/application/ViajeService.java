@@ -16,16 +16,19 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ListadoViajesDto.Re
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.LugarDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.PublicarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto.MiReservaDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeResumenDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.ConductorViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Lugar;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SedeViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SentidoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.VehiculoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.validation.ReglasViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.persistence.ViajeRepository;
+import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
@@ -46,6 +49,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /** Listado, detalle y publicación de viajes (RF-03, RF-05). */
 @Service
@@ -62,6 +66,7 @@ public class ViajeService {
 	private final CancelacionesConductorService cancelacionesConductorService;
 	private final RestriccionesPasajeroService restriccionesPasajeroService;
 	private final SedeRepository sedeRepository;
+	private final ParametrosService parametrosService;
 
 	/**
 	 * Página del listado del dashboard (RF-03): viajes PUBLICADO de todas las sedes (RN-49), con salida futura y
@@ -120,19 +125,24 @@ public class ViajeService {
 						.orElse(null));
 	}
 
-	/** Viajes PUBLICADO y EN_CURSO del conductor, por hora de salida: el resumen del dashboard en modo conductor. */
-	public List<ViajeResumenDto> listarPropios(ObjectId usuarioId) {
-		buscarUsuario(usuarioId);
-		Query consulta = Query.query(Criteria.where("conductor.id").is(usuarioId)
-						.and("estado").in(EstadoViaje.PUBLICADO, EstadoViaje.EN_CURSO))
-				.with(Sort.by(Sort.Direction.ASC, "fecha_salida"));
-		return mongoTemplate.find(consulta, Viaje.class).stream().map(ViajeResumenDto::desde).toList();
-	}
-
-	/** Responde para cualquier estado del viaje. */
-	public ViajeDetalleDto consultar(ObjectId viajeId) {
-		return viajeRepository.findById(viajeId).map(ViajeDetalleDto::desde)
+	/**
+	 * Responde para cualquier estado del viaje. Si la reserva activa del usuario es de este viaje, va en myBooking
+	 * (09-B); si es de otro, en activeBooking (RN-23). Sin reserva activa se informa el bloqueo (RN-38).
+	 */
+	public ViajeDetalleDto consultar(ObjectId usuarioId, ObjectId viajeId) {
+		Viaje viaje = viajeRepository.findById(viajeId)
 				.orElseThrow(() -> new ApiException(CodigoError.RIDE_NOT_FOUND, "Viaje no encontrado"));
+		Optional<Reserva> reservaActiva = restriccionesPasajeroService.reservaActiva(usuarioId);
+		if (reservaActiva.isPresent()) {
+			Reserva reserva = reservaActiva.get();
+			return viajeId.equals(reserva.viajeId())
+					? ViajeDetalleDto.desde(viaje,
+							MiReservaDto.desde(reserva, parametrosService.leer().minutosLimiteCancelacion()), null, null)
+					: ViajeDetalleDto.desde(viaje, null, ReservaActivaDto.desde(reserva), null);
+		}
+		return ViajeDetalleDto.desde(viaje, null, null, restriccionesPasajeroService.bloqueo(usuarioId, Instant.now())
+				.map(bloqueo -> new BloqueoCancelacionesDto(bloqueo.cancelaciones(), bloqueo.hasta()))
+				.orElse(null));
 	}
 
 	/**

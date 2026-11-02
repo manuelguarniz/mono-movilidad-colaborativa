@@ -1,0 +1,33 @@
+# Iniciar mi viaje (conductor, RN-43, RN-46)
+# POST /rides/{rideId}/start
+#
+# Requiere token SESSION. Las reservas CONFIRMADA que no van en la lista pasan a NO_SE_PRESENTO.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+@rideId = 6705a1f0c3d4e5f600000504
+
+### 200 · Viaje iniciado
+# Respuesta 200 OK
+# { "message": "Viaje iniciado" }
+POST {{baseUrl}}/rides/{{rideId}}/start
+Authorization: Bearer {{sessionToken}}
+Content-Type: application/json
+
+{ "boardedBookingIds": ["6705a1f0c3d4e5f600000601"] }
+
+### 400 · Sin la lista
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [{ "field": "boardedBookingIds", "message": "Indica qué pasajeros subieron" }] }
+
+### 400 · Una reserva que no es de este viaje
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [{ "field": "boardedBookingIds", "message": "Hay reservas que no pertenecen a este viaje" }] }
+
+### 409 · Fuera de la ventana de inicio
+# { "code": "START_WINDOW_CLOSED", "message": "Podrás iniciar el viaje desde las 14:05" }
+# { "code": "START_WINDOW_CLOSED", "message": "Ya pasó el plazo para iniciar este viaje" }
+
+### 409 · Ya tiene un viaje en curso
+# { "code": "RIDE_IN_PROGRESS_EXISTS", "message": "Finaliza tu viaje en curso para iniciar este." }

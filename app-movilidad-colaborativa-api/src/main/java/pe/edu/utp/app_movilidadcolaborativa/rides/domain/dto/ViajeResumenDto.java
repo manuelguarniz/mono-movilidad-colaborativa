@@ -12,7 +12,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Viaje en el listado del dashboard, sin coordenadas. Trae las condiciones para no pedirlas aparte. */
+/**
+ * Viaje en el listado del dashboard y en Mis viajes, sin coordenadas. Trae las condiciones para no pedirlas aparte.
+ * startedAt es null mientras el viaje no se inicia.
+ */
 public record ViajeResumenDto(
 		String id,
 		String status,
@@ -28,7 +31,8 @@ public record ViajeResumenDto(
 		List<String> conditions,
 		LugarResumen origin,
 		LugarResumen destination,
-		Sede campus) {
+		Sede campus,
+		Instant startedAt) {
 
 	/** city es la etiqueta del dashboard (RN-49); null en los viajes publicados antes de copiarla. */
 	public record Sede(String id, String name, String city) {
@@ -80,6 +84,7 @@ public record ViajeResumenDto(
 				viaje.condiciones() == null ? List.of() : viaje.condiciones(),
 				LugarResumen.desde(viaje.origen()),
 				LugarResumen.desde(viaje.destino()),
-				Sede.desde(viaje.sede()));
+				Sede.desde(viaje.sede()),
+				viaje.fechaInicio());
 	}
 }

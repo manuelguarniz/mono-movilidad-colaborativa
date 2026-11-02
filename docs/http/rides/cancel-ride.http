@@ -1,0 +1,32 @@
+# Cancelar mi viaje (conductor, RN-26)
+# POST /rides/{rideId}/cancel
+#
+# Requiere token SESSION. El cuerpo es opcional.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+@rideId = 6705a1f0c3d4e5f600000503
+
+### 200 · Viaje cancelado; sus reservas CONFIRMADA pasan a CANCELADA
+# Respuesta 200 OK
+# { "message": "Viaje cancelado" }
+POST {{baseUrl}}/rides/{{rideId}}/cancel
+Authorization: Bearer {{sessionToken}}
+Content-Type: application/json
+
+{ "reason": "Emergencia mecánica" }
+
+### 400 · Motivo de más de 200 caracteres
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [{ "field": "reason", "message": "El motivo debe tener como máximo 200 caracteres" }] }
+
+### 409 · Faltan menos de 30 minutos para la salida
+# Respuesta 409 Conflict
+# {
+#   "code": "CANCELLATION_DEADLINE_PASSED",
+#   "message": "Ya no puedes cancelar: faltan menos de 30 minutos para la salida. Si no puedes hacer el viaje, no lo inicies y se cancelará solo."
+# }
+
+### 409 · El viaje ya no está publicado
+# { "code": "INVALID_STATUS", "message": "Este viaje ya no está publicado" }

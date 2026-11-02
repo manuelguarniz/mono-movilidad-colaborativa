@@ -38,3 +38,9 @@ Manda el README raíz (sección 11). El detalle y el motivo de cada cambio está
 - «créditos por plaza» pegado al número, como en P06-B.
 - Relleno inferior de la página igual a la altura de la barra fija, fuera de la tarjeta de condiciones.
 - Título «Detalle del viaje» con mayúscula solo al inicio (09-D salió «Detalle Del Viaje»).
+- Marcadores del mapa iguales a los de P11: la sede lleva el birrete, sea origen o destino.
+- 09-D también se muestra si el viaje no existe (404) o si no le quedan asientos. Si el usuario tiene una reserva en el viaje, se ve 09-B aunque el viaje ya esté en curso; su chip dice «En viaje».
+- «Ir a Mis viajes» (09-B y viaje propio) y «Ver en Mis viajes» (franja de RN-23) abren P17.
+- Si ya pasó la hora límite, la tarjeta «TU RESERVA» muestra el mensaje de RN-25: «Ya no puedes cancelar: faltan menos de 30 minutos para la salida».
+- Sin condiciones, la tarjeta muestra «Sin condiciones adicionales» (texto nuevo).
+- La confirmación sigue siendo el modal de P06 mientras P10 no esté diseñada.

@@ -93,16 +93,29 @@ export type MockRide = {
   origin: Place;
   destination: Place;
   stops: Place[];
+  // Inicio, cancelación y fin (RF-06, RF-07); `null` mientras no ocurren.
+  startedAt: string | null;
+  cancelledBy: Actor | null;
+  cancelReason: string | null;
+  cancelledAt: string | null;
+  finishedAt: string | null;
   createdAt: string;
 };
+
+export type Actor = "PASSENGER" | "DRIVER" | "SYSTEM";
 
 export type MockReservation = {
   id: string;
   rideId: string;
   passengerId: string;
+  // Copia del pasajero al reservar; la calificación es la de su perfil.
+  passenger: { name: string; photoUrl: string | null; rating: Rating | null };
   seats: number;
   totalCredits: number;
   status: "CONFIRMED" | "IN_RIDE" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
+  cancelledBy: Actor | null;
+  cancelledAt: string | null;
+  updatedAt: string;
   createdAt: string;
 };
 
@@ -484,6 +497,11 @@ function seed(): Database {
         rating: driver.rating,
       },
       vehicle: toRideVehicle(vehicle),
+      startedAt: null,
+      cancelledBy: null,
+      cancelReason: null,
+      cancelledAt: null,
+      finishedAt: null,
       createdAt: new Date().toISOString(),
     };
   };
@@ -535,14 +553,97 @@ function seed(): Database {
     }),
   ];
 
-  return { users: [valeria, carlos, andrea], rides, reservations: [], otps: {}, files: [] };
+  const golf: Place = {
+    label: "Urb. El Golf",
+    address: "Víctor Larco",
+    location: { lat: -8.1257, lng: -79.0402 },
+  };
+  const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+
+  // Datos de los frames de P17: un viaje de Carlos que sale en 10 min (se puede iniciar) y un
+  // viaje cancelado por Andrea en las últimas 24 h, que Valeria ve en «Cancelados recientemente».
+  rides.push(
+    buildRide(504, carlos, {
+      direction: "TO_HOME",
+      departureTime: minutesFromNow(10),
+      pricePerSeat: 6,
+      availableSeats: 0,
+      conditions: ["Máximo de espera 5 minutos"],
+      origin: campusPlace,
+      destination: golf,
+      stops: [],
+    }),
+    {
+      ...buildRide(505, andrea, {
+        direction: "TO_HOME",
+        departureTime: minutesFromNow(-20 * 60),
+        pricePerSeat: 4,
+        availableSeats: 3,
+        conditions: [],
+        origin: campusPlace,
+        destination: {
+          label: "Huanchaco",
+          address: "Huanchaco, Trujillo",
+          location: { lat: -8.0783, lng: -79.1213 },
+        },
+        stops: [],
+      }),
+      status: "CANCELLED",
+      cancelledBy: "DRIVER",
+      cancelledAt: minutesFromNow(-22 * 60),
+    },
+  );
+  // Diego C. reservó 1 de las 3 plazas del viaje de mañana de Carlos (503).
+  const passenger = (name: string, average: number) => ({
+    name,
+    photoUrl: null,
+    rating: { average, count: 12 },
+  });
+  const now = new Date().toISOString();
+  const reservation = (
+    n: number,
+    rideId: string,
+    who: ReturnType<typeof passenger>,
+    seats: number,
+    price: number,
+    extra: Partial<MockReservation> = {},
+  ): MockReservation => ({
+    id: oid(n),
+    rideId,
+    passengerId: oid(n + 100),
+    passenger: who,
+    seats,
+    totalCredits: seats * price,
+    status: "CONFIRMED",
+    cancelledBy: null,
+    cancelledAt: null,
+    updatedAt: now,
+    createdAt: now,
+    ...extra,
+  });
+  const reservations: MockReservation[] = [
+    reservation(601, oid(504), passenger("Lucía R.", 4.8), 2, 6),
+    reservation(602, oid(504), passenger("Jorge P.", 4.6), 1, 6),
+    reservation(603, oid(503), passenger("Diego C.", 4.7), 1, 6),
+    {
+      ...reservation(604, oid(505), passenger("Valeria R.", 4.8), 2, 4, {
+        status: "CANCELLED",
+        cancelledBy: "DRIVER",
+        cancelledAt: minutesFromNow(-22 * 60),
+      }),
+      passengerId: valeria.id,
+    },
+  ];
+  rides.find((ride) => ride.id === oid(503))!.availableSeats = 2;
+
+  return { users: [valeria, carlos, andrea], rides, reservations, otps: {}, files: [] };
 }
 
 // El estado se guarda en sessionStorage para que sobreviva a las recargas de la página
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
 // El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
-const STORAGE_KEY = "colaboracar_mock_db_v3";
+const STORAGE_KEY = "colaboracar_mock_db_v4";
 
 function load(): Database {
   try {

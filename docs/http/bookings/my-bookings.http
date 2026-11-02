@@ -1,0 +1,28 @@
+# Mis viajes del pasajero (P17, 17-A y 17-H)
+# GET /bookings/mine
+#
+# Requiere token SESSION.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Reserva activa, canceladas por el conductor o el sistema (24 h) y contador (RN-38)
+# Respuesta 200 OK
+# {
+#   "active": {
+#     "id": "6705a1f0c3d4e5f600000605",
+#     "status": "CONFIRMED",
+#     "cancelledBy": null,
+#     "seats": 2,
+#     "totalCredits": 12,
+#     "cancellableUntil": "2026-10-29T18:50:00Z",
+#     "ride": { "id": "6705a1f0c3d4e5f600000501", "status": "PUBLISHED", "...": "resumen del viaje como en GET /rides" }
+#   },
+#   "cancelled": [
+#     { "id": "6705a1f0c3d4e5f600000604", "status": "CANCELLED", "cancelledBy": "DRIVER", "seats": 2, "totalCredits": 8, "...": "" }
+#   ],
+#   "cancellations": { "count": 2, "limit": 5, "windowDays": 30, "blockedUntil": null, "blockedUntilIfCancelled": null }
+# }
+GET {{baseUrl}}/bookings/mine
+Authorization: Bearer {{sessionToken}}

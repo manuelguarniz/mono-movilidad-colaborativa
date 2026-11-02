@@ -71,6 +71,8 @@ tags:
     description: Vehículo del conductor, embebido en su usuario (RF-07, RF-08, RF-22).
   - name: Rides
     description: Listado, detalle, publicación y reserva de viajes (RF-09 a RF-18).
+  - name: Bookings
+    description: Reservas del pasajero en Mis viajes (RF-06).
   - name: Users
     description: Perfil del usuario autenticado (RF-19 a RF-21, RN-14).
 
@@ -833,11 +835,12 @@ paths:
     get:
       tags: [Rides]
       operationId: listMyRides
-      summary: Listar mis viajes publicados
+      summary: Listar mis viajes publicados y en curso
       description: |
-        Viajes del conductor autenticado en estado `PUBLISHED` o `IN_PROGRESS`, ordenados
-        por `departureTime` ascendente. Es el resumen del dashboard en modo conductor
-        (P06, frame 06-F).
+        Viajes del conductor autenticado en estado `PUBLISHED` o `IN_PROGRESS`: el que está
+        en curso primero y luego por `departureTime` ascendente. Cada uno trae sus reservas
+        activas y sus plazos. Lo usan el dashboard en modo conductor (P06, frame 06-F) y Mis
+        viajes (P17, frame 17-B), con el contador de cancelaciones (RN-30).
       responses:
         "200":
           description: Viajes activos del conductor.
@@ -845,12 +848,14 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [data]
+                required: [data, cancellations]
                 properties:
                   data:
                     type: array
                     items:
-                      $ref: "#/components/schemas/RideSummary"
+                      $ref: "#/components/schemas/DriverRide"
+                  cancellations:
+                    $ref: "#/components/schemas/CancellationCounter"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -866,13 +871,35 @@ paths:
       description: |
         Devuelve el viaje con la ruta completa (origen, paradas y destino con
         coordenadas) para dibujar el mapa. Responde para cualquier estado del viaje.
+        Trae también lo que decide la barra inferior del detalle (P09): la reserva
+        activa del usuario en este viaje (`myBooking`), su reserva activa en otro viaje
+        (`activeBooking`, RN-23) y, si no tiene ninguna, su bloqueo por cancelaciones
+        (`bookingBlock`, RN-38).
       responses:
         "200":
           description: Detalle del viaje.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RideDetail"
+                allOf:
+                  - $ref: "#/components/schemas/RideDetail"
+                  - type: object
+                    required: [myBooking, activeBooking, bookingBlock]
+                    properties:
+                      myBooking:
+                        oneOf:
+                          - $ref: "#/components/schemas/MyBooking"
+                          - type: "null"
+                      activeBooking:
+                        oneOf:
+                          - $ref: "#/components/schemas/ActiveBooking"
+                          - type: "null"
+                        description: Reserva activa en otro viaje (RN-23).
+                      bookingBlock:
+                        oneOf:
+                          - $ref: "#/components/schemas/CancellationBlock"
+                          - type: "null"
+                        description: Bloqueo del pasajero por cancelaciones (RN-38).
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -949,6 +976,224 @@ paths:
               example:
                 code: NO_SEATS_AVAILABLE
                 message: Este viaje ya no tiene asientos disponibles
+
+  /rides/{rideId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/RideId"
+    post:
+      tags: [Rides]
+      operationId: cancelRide
+      summary: Cancelar mi viaje (conductor)
+      description: |
+        RN-26. El viaje debe estar `PUBLISHED` y faltar `minutos_limite_cancelacion` (30)
+        o más para la salida. En una transacción, el viaje pasa a `CANCELLED` y cada reserva
+        `CONFIRMED` a `CANCELLED`. El cuerpo es opcional. La devolución de créditos y las
+        notificaciones llegan con la billetera (RN-40) y las notificaciones (RF-13).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RideCancelRequest"
+      responses:
+        "200":
+          description: Viaje cancelado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Viaje cancelado
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El viaje no existe o es de otro conductor (`RIDE_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            El viaje ya no está publicado (`INVALID_STATUS`: «Este viaje ya no está
+            publicado») o ya pasó el plazo (`CANCELLATION_DEADLINE_PASSED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: CANCELLATION_DEADLINE_PASSED
+                message: "Ya no puedes cancelar: faltan menos de 30 minutos para la salida. Si no puedes hacer el viaje, no lo inicies y se cancelará solo."
+
+  /rides/{rideId}/start:
+    parameters:
+      - $ref: "#/components/parameters/RideId"
+    post:
+      tags: [Rides]
+      operationId: startRide
+      summary: Iniciar mi viaje (conductor)
+      description: |
+        RN-43 y RN-46. Solo desde `minutos_inicio_anticipado` (15) antes hasta
+        `minutos_tolerancia_inicio` (30) después de la salida, y sin otro viaje en curso.
+        En una transacción, el viaje pasa a `IN_PROGRESS`, las reservas de
+        `boardedBookingIds` a `IN_RIDE` y el resto de las `CONFIRMED` a `NO_SHOW`. Sin
+        reservas se envía la lista vacía.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RideStartRequest"
+      responses:
+        "200":
+          description: Viaje iniciado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Viaje iniciado
+        "400":
+          description: |
+            Falta la lista, tiene un identificador inválido o una reserva que no es
+            `CONFIRMED` en este viaje (`VALIDATION_ERROR`: «Hay reservas que no pertenecen a
+            este viaje»).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El viaje no existe o es de otro conductor (`RIDE_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            El viaje ya no está publicado (`INVALID_STATUS`), está fuera de la ventana de
+            inicio (`START_WINDOW_CLOSED`: «Podrás iniciar el viaje desde las HH:mm» o «Ya
+            pasó el plazo para iniciar este viaje») o el conductor tiene otro viaje en curso
+            (`RIDE_IN_PROGRESS_EXISTS`: «Finaliza tu viaje en curso para iniciar este.»).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /rides/{rideId}/finish:
+    parameters:
+      - $ref: "#/components/parameters/RideId"
+    post:
+      tags: [Rides]
+      operationId: finishRide
+      summary: Finalizar mi viaje (conductor)
+      description: |
+        RN-45. El viaje debe estar `IN_PROGRESS`. En una transacción pasa a `COMPLETED`, y
+        sus reservas `IN_RIDE` a `COMPLETED`. La liquidación de créditos (RN-40) llega con
+        la billetera.
+      responses:
+        "200":
+          description: Viaje completado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Viaje completado
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El viaje no existe o es de otro conductor (`RIDE_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "El viaje no está en curso (`INVALID_STATUS`: «Este viaje no está en curso»)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bookings/mine:
+    get:
+      tags: [Bookings]
+      operationId: listMyBookings
+      summary: Mis viajes como pasajero
+      description: |
+        RF-06 (P17, frames 17-A y 17-H). La reserva activa del pasajero (`CONFIRMED` o
+        `IN_RIDE`), las reservas que le cancelaron el conductor o el sistema en las últimas
+        24 h, de la más reciente a la más antigua, y sus cancelaciones en la ventana
+        (RN-38).
+      responses:
+        "200":
+          description: Reservas del pasajero.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyBookings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /bookings/{bookingId}/cancel:
+    parameters:
+      - name: bookingId
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/ObjectId"
+    post:
+      tags: [Bookings]
+      operationId: cancelBooking
+      summary: Cancelar mi reserva (pasajero)
+      description: |
+        RN-25. La reserva debe estar `CONFIRMED` y faltar `minutos_limite_cancelacion` (30)
+        o más para la salida. En una transacción, la reserva pasa a `CANCELLED` y sus plazas
+        vuelven al viaje. El reembolso (movimiento `REEMBOLSO`) y la notificación al
+        conductor llegan con la billetera y las notificaciones.
+      responses:
+        "200":
+          description: Reserva cancelada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Reserva cancelada. Te devolvimos 12 créditos.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: La reserva no existe o es de otro usuario (`BOOKING_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: BOOKING_NOT_FOUND
+                message: Reserva no encontrada
+        "409":
+          description: |
+            La reserva ya no está confirmada (`INVALID_STATUS`: «Esta reserva ya no está
+            confirmada») o ya pasó el plazo (`CANCELLATION_DEADLINE_PASSED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: CANCELLATION_DEADLINE_PASSED
+                message: "Ya no puedes cancelar: faltan menos de 30 minutos para la salida"
 
   /users/me:
     get:
@@ -1074,6 +1319,12 @@ components:
           example:
             code: FORBIDDEN_SCOPE
             message: No tienes permiso para realizar esta acción
+    ValidationError:
+      description: Datos inválidos (`VALIDATION_ERROR`), con el detalle por campo en `errors`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     RideNotFound:
       description: El viaje no existe (`RIDE_NOT_FOUND`).
       content:
@@ -1115,7 +1366,9 @@ components:
             `SOAT_NOT_VALID`, `SOAT_EXPIRES_BEFORE_DEPARTURE`, `DRIVER_CANCELLATION_LIMIT`,
             `VEHICLE_REQUIRED`, `RIDE_NOT_FOUND`, `RIDE_NOT_AVAILABLE`,
             `NO_SEATS_AVAILABLE`, `ALREADY_BOOKED`, `ACTIVE_BOOKING_EXISTS`,
-            `PASSENGER_CANCELLATION_LIMIT`, `OWN_RIDE`, `INTERNAL_ERROR`.
+            `PASSENGER_CANCELLATION_LIMIT`, `OWN_RIDE`, `BOOKING_NOT_FOUND`,
+            `INVALID_STATUS`, `CANCELLATION_DEADLINE_PASSED`, `START_WINDOW_CLOSED`,
+            `RIDE_IN_PROGRESS_EXISTS`, `INTERNAL_ERROR`.
 
             Una ruta o un método que no existe responde con el nombre del estado HTTP
             (`NOT_FOUND`, `METHOD_NOT_ALLOWED`) y el mensaje `La solicitud no es válida`.
@@ -2071,6 +2324,10 @@ components:
           example: [No se admite desvíos, Máximo de espera 5 minutos]
         campus:
           $ref: "#/components/schemas/RideCampus"
+        startedAt:
+          type: [string, "null"]
+          format: date-time
+          description: Hora de inicio (RN-43); `null` mientras el viaje no se inicia.
 
     RideSummary:
       description: Viaje en el listado del dashboard (colección `viajes`), sin coordenadas.
@@ -2144,6 +2401,166 @@ components:
         destination:
           type: string
           example: Urb. El Golf
+
+    CancellationCounter:
+      type: object
+      description: |
+        Cancelaciones en los últimos `ventana_cancelaciones_dias` (30): del conductor (RN-30)
+        o del pasajero (RN-38). `blockedUntil` es el bloqueo actual y
+        `blockedUntilIfCancelled` el que tendría con una cancelación más ahora (17-D); ambos
+        son `null` si no aplican.
+      required: [count, limit, windowDays, blockedUntil, blockedUntilIfCancelled]
+      properties:
+        count:
+          type: integer
+          example: 3
+        limit:
+          type: integer
+          description: "`max_cancelaciones_conductor` (10) o `max_cancelaciones_pasajero` (5)."
+          example: 10
+        windowDays:
+          type: integer
+          example: 30
+        blockedUntil:
+          type: [string, "null"]
+          format: date-time
+        blockedUntilIfCancelled:
+          type: [string, "null"]
+          format: date-time
+
+    DriverRide:
+      type: object
+      description: |
+        Viaje del conductor con sus reservas activas (RN-22: la asistencia de movilidad se
+        agregará cuando el perfil la guarde). Se cancela hasta `cancellableUntil` (RN-26) y se
+        inicia entre `startableFrom` y `startableUntil` (RN-43).
+      required: [ride, passengers, cancellableUntil, startableFrom, startableUntil]
+      properties:
+        ride:
+          $ref: "#/components/schemas/RideSummary"
+        passengers:
+          type: array
+          items:
+            $ref: "#/components/schemas/RidePassenger"
+        cancellableUntil:
+          type: string
+          format: date-time
+        startableFrom:
+          type: string
+          format: date-time
+        startableUntil:
+          type: string
+          format: date-time
+
+    RidePassenger:
+      type: object
+      required: [bookingId, id, name, photoUrl, rating, seats, totalCredits, status]
+      properties:
+        bookingId:
+          $ref: "#/components/schemas/ObjectId"
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        name:
+          type: string
+          example: Lucía R.
+        photoUrl:
+          type: [string, "null"]
+        rating:
+          oneOf:
+            - $ref: "#/components/schemas/Rating"
+            - type: "null"
+        seats:
+          type: integer
+          example: 2
+        totalCredits:
+          type: integer
+          example: 12
+        status:
+          type: string
+          enum: [CONFIRMED, IN_RIDE, NO_SHOW]
+
+    MyBookings:
+      type: object
+      required: [active, cancelled, cancellations]
+      properties:
+        active:
+          oneOf:
+            - $ref: "#/components/schemas/OwnBooking"
+            - type: "null"
+        cancelled:
+          type: array
+          description: Reservas que le cancelaron el conductor o el sistema en las últimas 24 h.
+          items:
+            $ref: "#/components/schemas/OwnBooking"
+        cancellations:
+          $ref: "#/components/schemas/CancellationCounter"
+
+    OwnBooking:
+      type: object
+      required: [id, status, cancelledBy, seats, totalCredits, cancellableUntil, ride]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        status:
+          type: string
+          enum: [CONFIRMED, IN_RIDE, CANCELLED]
+        cancelledBy:
+          type: [string, "null"]
+          enum: [DRIVER, SYSTEM, null]
+          description: "Solo en las canceladas: «Cancelado por el conductor» o «Cancelado: el viaje no se inició»."
+        seats:
+          type: integer
+        totalCredits:
+          type: integer
+          description: Créditos retenidos (plazas × precio por plaza).
+        cancellableUntil:
+          type: string
+          format: date-time
+          description: Salida menos `minutos_limite_cancelacion` (30) (RN-25).
+        ride:
+          $ref: "#/components/schemas/RideSummary"
+
+    RideCancelRequest:
+      type: object
+      properties:
+        reason:
+          type: [string, "null"]
+          maxLength: 200
+          description: "Motivo opcional. Mensaje: «El motivo debe tener como máximo 200 caracteres»."
+
+    RideStartRequest:
+      type: object
+      required: [boardedBookingIds]
+      properties:
+        boardedBookingIds:
+          type: array
+          description: "Reservas cuyos pasajeros subieron (17-E). Sin la lista: «Indica qué pasajeros subieron»."
+          items:
+            $ref: "#/components/schemas/ObjectId"
+
+    MyBooking:
+      type: object
+      description: Reserva `CONFIRMADA` o `EN_VIAJE` del usuario en el viaje consultado (P09, 09-B).
+      required: [id, status, seats, totalCredits, cancellableUntil]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        status:
+          type: string
+          enum: [CONFIRMED, IN_RIDE]
+          description: "`CONFIRMADA` y `EN_VIAJE` en la base de datos («Confirmada», «En viaje»)."
+        seats:
+          type: integer
+          example: 2
+        totalCredits:
+          type: integer
+          description: Créditos retenidos (plazas × precio por plaza).
+          example: 12
+        cancellableUntil:
+          type: string
+          format: date-time
+          description: Salida menos `minutos_limite_cancelacion` (30) (RN-25).
+          example: "2026-10-29T18:50:00Z"
 
     PlaceSummary:
       type: object

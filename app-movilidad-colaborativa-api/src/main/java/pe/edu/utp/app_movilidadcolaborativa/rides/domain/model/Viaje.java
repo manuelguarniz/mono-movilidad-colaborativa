@@ -11,7 +11,8 @@ import java.util.List;
 
 /**
  * Colección viajes. Conductor, vehículo y sede van copiados: el listado y el detalle salen de un solo documento.
- * El primer índice sirve al listado del dashboard; el segundo, a la actualización de las copias del conductor.
+ * El primer índice sirve al listado del dashboard; el segundo, a la actualización de las copias del conductor y a
+ * Mis viajes. Los datos de cancelación, inicio y fin son null mientras el viaje no llega a ese estado.
  */
 @Builder
 @Document("viajes")
@@ -34,6 +35,12 @@ public record Viaje(
 		Integer plazasDisponibles,
 		List<String> condiciones,
 		EstadoViaje estado,
+		Actor canceladoPor,
+		String motivoCancelacion,
+		Instant fechaCancelacion,
+		Instant fechaInicio,
+		Instant fechaFin,
+		Actor finalizadoPor,
 		Instant fechaCreacion,
 		Instant fechaActualizacion) {
 }

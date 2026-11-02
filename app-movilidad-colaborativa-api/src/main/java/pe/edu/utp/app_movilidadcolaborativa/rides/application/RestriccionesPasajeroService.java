@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.CancelacionesConductorService.Bloqueo;
+import pe.edu.utp.app_movilidadcolaborativa.rides.application.CancelacionesConductorService.Contador;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva;
 import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService;
 import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService.Parametros;
@@ -42,6 +43,18 @@ public class RestriccionesPasajeroService {
 
 	public Optional<Bloqueo> bloqueo(ObjectId pasajeroId, Instant ahora) {
 		Parametros parametros = parametrosService.leer();
+		return CancelacionesConductorService.evaluar(fechas(pasajeroId, ahora, parametros),
+				parametros.maxCancelacionesPasajero(), parametros.ventanaCancelacionesDias());
+	}
+
+	/** «Llevas K de 5 cancelaciones este mes.» (17-C). */
+	public Contador contador(ObjectId pasajeroId, Instant ahora) {
+		Parametros parametros = parametrosService.leer();
+		return CancelacionesConductorService.contador(fechas(pasajeroId, ahora, parametros), ahora,
+				parametros.maxCancelacionesPasajero(), parametros.ventanaCancelacionesDias());
+	}
+
+	private List<Instant> fechas(ObjectId pasajeroId, Instant ahora, Parametros parametros) {
 		Date desde = Date.from(ahora.minus(Duration.ofDays(parametros.ventanaCancelacionesDias())));
 		// La fecha de una reserva NO_SE_PRESENTO es la de su último cambio de estado.
 		Query consulta = Query.query(Criteria.where("pasajero.id").is(pasajeroId).orOperator(
@@ -49,14 +62,12 @@ public class RestriccionesPasajeroService {
 						.and("fecha_cancelacion").gte(desde),
 				Criteria.where("estado").is("NO_SE_PRESENTO").and("fecha_actualizacion").gte(desde)));
 		consulta.fields().include("estado", "fecha_cancelacion", "fecha_actualizacion");
-		List<Instant> fechas = mongoTemplate.find(consulta, Document.class, COLECCION_RESERVAS).stream()
+		return mongoTemplate.find(consulta, Document.class, COLECCION_RESERVAS).stream()
 				.map(reserva -> reserva.getDate("CANCELADA".equals(reserva.getString("estado"))
 						? "fecha_cancelacion" : "fecha_actualizacion"))
 				.filter(Objects::nonNull)
 				.map(Date::toInstant)
 				.sorted()
 				.toList();
-		return CancelacionesConductorService.evaluar(fechas, parametros.maxCancelacionesPasajero(),
-				parametros.ventanaCancelacionesDias());
 	}
 }

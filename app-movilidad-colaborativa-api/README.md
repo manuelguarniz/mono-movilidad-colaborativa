@@ -41,7 +41,7 @@ El resto de pruebas no usa la base de datos: `ValidacionSolicitudesTest` comprue
 
 ## 2. Estado y estructura
 
-El contrato define 19 endpoints y el backend implementa 18. Toda la API cuelga de `/api`.
+El contrato define 24 endpoints y el backend implementa 23. Toda la API cuelga de `/api`.
 
 | Módulo | Endpoints | Estado |
 | --- | --- | --- |
@@ -51,6 +51,7 @@ El contrato define 19 endpoints y el backend implementa 18. Toda la API cuelga d
 | Archivos | `POST /files` | Pendiente; solo existen el modelo y el repositorio |
 | Vehículos | `POST /vehicles`, `GET` y `PUT /vehicles/me` | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional mientras P05 y P16 no lo pidan, y las fotos lo son hasta que exista `POST /files` |
 | Viajes y reservas | `GET` y `POST /rides`, `GET /rides/{rideId}`, `POST /rides/{rideId}/reserve` | Implementado. La publicación valida el vehículo activo (RN-24), el límite de cancelaciones (RN-30, con los parámetros de la colección `app`) y el SOAT en la salida (RN-37) |
+| Mis viajes | `GET /rides/mine`, `POST /rides/{rideId}/cancel`, `/start`, `/finish`, `GET /bookings/mine`, `POST /bookings/{bookingId}/cancel` | Implementado sin billetera ni notificaciones: los reembolsos y cobros solo se informan, y no hay avisos al otro participante. El job que cancela o cierra los viajes vencidos (RF-08) está pendiente |
 | Perfil | `GET` y `PUT /users/me` | Implementado; la foto es opcional hasta que exista `POST /files` |
 
 El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módulo. Cada módulo tiene tres capas: `application` (casos de uso), `domain` (model, dto, validation) e `infrastructure` (web, persistence, security, mail).
@@ -163,6 +164,11 @@ Están centralizados, con su estado HTTP, en el enum `CodigoError`. Los cuatro p
 | `OWN_RIDE` | 403 | No puedes reservar tu propio viaje |
 | `ACTIVE_BOOKING_EXISTS` | 409 | Ya tienes una reserva activa. Cancélala para reservar otro viaje. |
 | `PASSENGER_CANCELLATION_LIMIT` | 403 | Cancelaste o no te presentaste a N viajes en los últimos 30 días. Podrás reservar de nuevo desde el DD/MM. (`details.count`, `details.until`) |
+| `BOOKING_NOT_FOUND` | 404 | Reserva no encontrada (no existe o es de otro usuario) |
+| `INVALID_STATUS` | 409 | Esta reserva ya no está confirmada / Este viaje ya no está publicado / Este viaje no está en curso |
+| `CANCELLATION_DEADLINE_PASSED` | 409 | Ya no puedes cancelar: faltan menos de 30 minutos para la salida (RN-25, RN-26) |
+| `START_WINDOW_CLOSED` | 409 | Podrás iniciar el viaje desde las HH:mm / Ya pasó el plazo para iniciar este viaje (RN-43) |
+| `RIDE_IN_PROGRESS_EXISTS` | 409 | Finaliza tu viaje en curso para iniciar este. (RN-46) |
 | `OTP_INVALID` | 400 | Código inválido. Te quedan N intentos. (`details.attemptsLeft`) |
 | `OTP_EXPIRED` | 400 | El código expiró. Solicita uno nuevo. |
 | `OTP_ATTEMPTS_EXCEEDED` | 429 | Agotaste los intentos. Solicita un nuevo código. |
@@ -403,7 +409,36 @@ Responde 201 con el detalle del viaje y la cabecera `Location` (`/api/rides/{rid
 
 **`GET /rides/mine`**
 
-No recibe parámetros. Devuelve `{ data }` con los viajes `PUBLICADO` y `EN_CURSO` del conductor, ordenados por hora de salida: el resumen del dashboard en modo conductor.
+No recibe parámetros. Devuelve `{ data, cancellations }`: los viajes `PUBLICADO` y `EN_CURSO` del conductor, el que está en curso primero y luego por hora de salida. Cada elemento trae `ride` (el resumen del listado, con `startedAt`), `passengers` (reservas `CONFIRMADA`, `EN_VIAJE` y `NO_SE_PRESENTO`, con la calificación y la foto actuales de cada pasajero) y los plazos `cancellableUntil` (salida − `minutos_limite_cancelacion`), `startableFrom` (salida − `minutos_inicio_anticipado`) y `startableUntil` (salida + `minutos_tolerancia_inicio`). `cancellations` es el contador de RN-30: `count`, `limit`, `windowDays`, `blockedUntil` y `blockedUntilIfCancelled` (el bloqueo que tendría con una cancelación más ahora, para la advertencia de 17-D). Lo usan el dashboard en modo conductor y Mis viajes.
+
+**`POST /rides/{rideId}/cancel`** (conductor, RN-26)
+
+| Campo | Regla | Mensaje |
+| --- | --- | --- |
+| `reason` | Opcional; hasta 200 caracteres | El motivo debe tener como máximo 200 caracteres |
+
+El cuerpo es opcional. Negocio: 404 `RIDE_NOT_FOUND` (no existe o es de otro conductor), 409 `INVALID_STATUS` («Este viaje ya no está publicado») y 409 `CANCELLATION_DEADLINE_PASSED` («Ya no puedes cancelar: faltan menos de 30 minutos para la salida. Si no puedes hacer el viaje, no lo inicies y se cancelará solo.»). En una transacción, el viaje pasa a `CANCELADO` con `cancelado_por = CONDUCTOR`, `motivo_cancelacion` y `fecha_cancelacion`, y sus reservas `CONFIRMADA` a `CANCELADA` con `cancelada_por = CONDUCTOR`. Responde 200 con `{ "message": "Viaje cancelado" }`.
+
+**`POST /rides/{rideId}/start`** (conductor, RN-43, RN-46)
+
+| Campo | Regla | Mensaje |
+| --- | --- | --- |
+| `boardedBookingIds` | Obligatorio (puede ir vacío) | Indica qué pasajeros subieron |
+| `boardedBookingIds[]` | Identificadores válidos | El identificador no es válido |
+
+Negocio, en orden: 404 `RIDE_NOT_FOUND`, 409 `INVALID_STATUS` («Este viaje ya no está publicado»), 409 `START_WINDOW_CLOSED` (antes de salida − 15 min: «Podrás iniciar el viaje desde las HH:mm»; después de salida + 30 min: «Ya pasó el plazo para iniciar este viaje»), 409 `RIDE_IN_PROGRESS_EXISTS` («Finaliza tu viaje en curso para iniciar este.») y 400 `VALIDATION_ERROR` si una reserva no es `CONFIRMADA` de este viaje («Hay reservas que no pertenecen a este viaje»). En una transacción, el viaje pasa a `EN_CURSO` con `fecha_inicio`, las reservas de la lista a `EN_VIAJE` y el resto de las `CONFIRMADA` a `NO_SE_PRESENTO`. Responde 200 con `{ "message": "Viaje iniciado" }`.
+
+**`POST /rides/{rideId}/finish`** (conductor, RN-45)
+
+Sin cuerpo. Negocio: 404 `RIDE_NOT_FOUND` y 409 `INVALID_STATUS` («Este viaje no está en curso»). En una transacción, el viaje pasa a `COMPLETADO` con `fecha_fin` y `finalizado_por = CONDUCTOR`, y sus reservas `EN_VIAJE` a `COMPLETADA`. La liquidación (RN-40) llega con la billetera. Responde 200 con `{ "message": "Viaje completado" }`.
+
+**`GET /bookings/mine`** (pasajero, RF-06)
+
+Devuelve `{ active, cancelled, cancellations }`: la reserva activa (`CONFIRMADA` o `EN_VIAJE`), las que le cancelaron el conductor o el sistema en las últimas 24 h y el contador de RN-38 (con la misma forma que el del conductor). Cada reserva trae `id`, `status` (`CONFIRMED`, `IN_RIDE` o `CANCELLED`), `cancelledBy` (`DRIVER` o `SYSTEM` en las canceladas), `seats`, `totalCredits`, `cancellableUntil` y `ride` (el resumen del viaje).
+
+**`POST /bookings/{bookingId}/cancel`** (pasajero, RN-25)
+
+Sin cuerpo. Negocio: 404 `BOOKING_NOT_FOUND` (no existe o es de otro usuario), 409 `INVALID_STATUS` («Esta reserva ya no está confirmada») y 409 `CANCELLATION_DEADLINE_PASSED` («Ya no puedes cancelar: faltan menos de 30 minutos para la salida»). En una transacción, la reserva pasa a `CANCELADA` con `cancelada_por = PASAJERO` y `fecha_cancelacion`, y sus plazas vuelven al viaje si sigue `PUBLICADO`. Responde 200 con `{ "message": "Reserva cancelada. Te devolvimos N créditos." }`.
 
 **`GET /rides/{rideId}`**
 
@@ -412,6 +447,8 @@ No recibe parámetros. Devuelve `{ data }` con los viajes `PUBLICADO` y `EN_CURS
 | `rideId` | Identificador válido | El parámetro rideId no es válido |
 
 Responde para cualquier estado del viaje. Negocio: 404 `RIDE_NOT_FOUND`.
+
+Además del viaje, trae lo que decide la barra inferior del detalle (P09). Si la reserva activa del usuario (`CONFIRMADA` o `EN_VIAJE`) es de este viaje, va en `myBooking`, con `status` (`CONFIRMED` o `IN_RIDE`), `seats`, `totalCredits` y `cancellableUntil`: la salida menos `minutos_limite_cancelacion` (30) de la colección `app` (RN-25). Si es de otro viaje, va en `activeBooking`, con la misma forma que en `GET /rides` (RN-23). Sin reserva activa, `bookingBlock` informa el bloqueo por cancelaciones (RN-38). Los tres son `null` si no aplican.
 
 **`POST /rides/{rideId}/reserve`**
 

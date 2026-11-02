@@ -14,6 +14,7 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,8 +36,36 @@ public class CancelacionesConductorService {
 	public record Bloqueo(int cancelaciones, int ventanaDias, Instant hasta) {
 	}
 
+	/**
+	 * Contador de Mis viajes (17-B): cancelaciones en la ventana, el límite, el bloqueo actual y el que tendría si
+	 * cancelara un viaje ahora (la advertencia de 17-D).
+	 */
+	public record Contador(int cancelaciones, int limite, int ventanaDias, Instant bloqueadoHasta,
+			Instant bloqueadoHastaSiCancela) {
+	}
+
 	public Optional<Bloqueo> bloqueo(ObjectId conductorId, Instant ahora) {
 		Parametros parametros = parametrosService.leer();
+		return evaluar(fechas(conductorId, ahora, parametros), parametros.maxCancelacionesConductor(),
+				parametros.ventanaCancelacionesDias());
+	}
+
+	public Contador contador(ObjectId conductorId, Instant ahora) {
+		Parametros parametros = parametrosService.leer();
+		return contador(fechas(conductorId, ahora, parametros), ahora, parametros.maxCancelacionesConductor(),
+				parametros.ventanaCancelacionesDias());
+	}
+
+	/** También lo usa el pasajero (RN-38). */
+	static Contador contador(List<Instant> fechas, Instant ahora, int limite, int ventanaDias) {
+		List<Instant> conLaSiguiente = new ArrayList<>(fechas);
+		conLaSiguiente.add(ahora);
+		return new Contador(fechas.size(), limite, ventanaDias,
+				evaluar(fechas, limite, ventanaDias).map(Bloqueo::hasta).orElse(null),
+				evaluar(conLaSiguiente, limite, ventanaDias).map(Bloqueo::hasta).orElse(null));
+	}
+
+	private List<Instant> fechas(ObjectId conductorId, Instant ahora, Parametros parametros) {
 		Duration ventana = Duration.ofDays(parametros.ventanaCancelacionesDias());
 		Query consulta = Query.query(Criteria.where("conductor.id").is(conductorId)
 						.and("estado").is(EstadoViaje.CANCELADO.name())
@@ -44,10 +73,9 @@ public class CancelacionesConductorService {
 						.and("fecha_cancelacion").gte(ahora.minus(ventana)))
 				.with(Sort.by(Sort.Direction.ASC, "fecha_cancelacion"));
 		consulta.fields().include("fecha_cancelacion");
-		List<Instant> fechas = mongoTemplate.find(consulta, Document.class, COLECCION_VIAJES).stream()
+		return mongoTemplate.find(consulta, Document.class, COLECCION_VIAJES).stream()
 				.map(viaje -> viaje.getDate("fecha_cancelacion").toInstant())
 				.toList();
-		return evaluar(fechas, parametros.maxCancelacionesConductor(), parametros.ventanaCancelacionesDias());
 	}
 
 	/**
