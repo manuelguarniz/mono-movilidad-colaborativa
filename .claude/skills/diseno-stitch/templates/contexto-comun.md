@@ -49,6 +49,7 @@ Reglas que el diseño debe reflejar:
 - <reglas propias de la pantalla, con su RN>
 - Nada de "ShareCar", "A/C activo", "Conductor frecuente", "Puntualidad", chat,
   botón de emergencia, seguimiento en vivo, edición del viaje publicado ni correos que no sean @utp.edu.pe.
+- Textos en UTF-8: tildes, ñ, "·", "•" y "−" deben verse correctos (ej. "Óvalo", "España").
 - Contenido realista, nada de lorem ipsum.
 ```
 

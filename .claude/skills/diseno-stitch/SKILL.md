@@ -43,6 +43,8 @@ docs/design/Pnn-Nombre/
 - **Frames** se identifican como `Pnn-Letra`: `17-A` (vista principal), `17-B` (otra variante o modo), `17-C`… (modales, bottom sheets, estado vacío). Cada uno tiene su bloque en `prompt.md`.
 - **Capturas:** `vN.M.png`, sin espacios. `N` es la ronda (v1 = primera pasada de todos los frames; v2 = ronda de correcciones tras la revisión) y `M` es el número correlativo de la captura dentro de la ronda. Una captura por frame o por corrección; la bitácora de `prompt.md` anota qué frame y qué prompt produjo cada una.
 - Si el usuario guarda una captura con otro nombre (`Screenshot….png`, `17a.png`), se mueve a `vN.M.png` y se le avisa. Si numera distinto de lo planeado, se respeta y se anota.
+- **Una corrección nunca sobrescribe la captura anterior:** va a un archivo nuevo, para que la bitácora conserve el historial. Si el usuario sobrescribe una (en P11 guardó la corrección de v1.1 encima de v1.1), se renombra al siguiente número de la ronda en curso y se anota que la original se perdió.
+- **Renumeración del usuario:** si el usuario prefiere abrir una ronda nueva (`v2.x`) para las correcciones aunque se planearan como `v1.x`, se adopta su numeración en la bitácora y en los prompts siguientes.
 - Las imágenes que el usuario pega en el chat como referencia se copian como `referencia-*.png`.
 
 ## Modos
@@ -57,7 +59,7 @@ Identificar en qué modo está el pedido.
    - **Contexto común** copiado de [templates/contexto-comun.md](templates/contexto-comun.md), con la pestaña activa y el eyebrow/título de esta pantalla. No resumirlo ni decir «igual que P06»: Stitch empieza sin memoria en cada sesión.
    - Un bloque `## Frame nn-X — …` por vista, variante o modal. Los modales se describen «sobre el frame nn-A atenuado, bottom sheet…».
    - Al final, `## Supuestos a validar` con lo que el README no define.
-3. **Datos de ejemplo coherentes:** reutilizar los de las pantallas ya diseñadas para que el flujo cuente una sola historia. Revisar antes los `prompt.md` previos. Datos ya usados en P17: usuario «LR» (Lucía R.), conductor «Carlos M.» ★ 4.9 (120), «Toyota Yaris blanco • ABC-123», «Campus UTP Trujillo — Av. Nicolás de Piérola 1221» → «Urb. El Golf, Víctor Larco», salida «Hoy, 14:20», 2 plazas, 12 créditos, pasajero «Jorge P.» con «Usa silla de ruedas».
+3. **Datos de ejemplo coherentes:** reutilizar los de las pantallas ya diseñadas para que el flujo cuente una sola historia. Revisar antes los `prompt.md` previos. Datos ya usados en P17: usuario «LR» (Lucía R.), conductor «Carlos M.» ★ 4.9 (120), «Toyota Yaris blanco • ABC-123», «Campus UTP Trujillo — Av. Nicolás de Piérola 1221» → «Urb. El Golf, Víctor Larco», salida «Hoy, 14:20», 2 plazas, 12 créditos, pasajero «Jorge P.» con «Usa silla de ruedas». En P21: Carlos con 96 créditos disponibles y 78 retirables; Lucía con 38 disponibles y 12 retenidos. En P11: Carlos publica «Mañana, vie 30 oct, 07:00», Urb. El Golf → Óvalo Larco → Av. España → Campus UTP Trujillo, 5,2 km · ~9 min, 6 créditos, 3 de 4 plazas; su Yaris es apto para silla de ruedas.
 4. **Valores que respetan las reglas:** precio por plaza de 1 a 10 créditos (RN-13), una sola hora de salida (no rango), etiqueta de ciudad/sede en cada tarjeta de viaje (RN-49), cancelación hasta 30 min antes (RN-25, RN-26), etiquetas de estado de la sección 2.3.
 5. Si el usuario pega una referencia visual, copiarla como `referencia-*.png` y anotar en la cabecera de `prompt.md` qué se toma y qué no (con la regla del README que lo impide).
 6. Actualizar la ficha `README.md` de la pantalla: «Frame de referencia» pasa a «En diseño (prompt.md)».
@@ -73,7 +75,7 @@ Igual que el modo A, pero:
 
 ### C. Revisar un resultado (vN.M.png)
 
-0. **Verificar los archivos.** Listar la carpeta con fecha (`ls -lT`). Si el usuario dice que regeneró una captura, volver a leerla. Si dos capturas parecen la misma, comparar `md5 -q`.
+0. **Verificar los archivos.** Listar la carpeta con fecha (`ls -lT`) y comparar con la revisión anterior: una captura ya revisada cuya fecha o `md5 -q` cambió fue regenerada aunque el usuario no lo diga, y se vuelve a leer. Si dos capturas parecen la misma, comparar `md5 -q`. Confirmar qué frame es cada captura mirándola: el usuario puede generar frames en otro orden que el planeado (en P11 hizo 11-B y 11-C antes de corregir 11-A).
 1. **Inspeccionar a fondo.** Las capturas son altas (≈ 830 × 1800–3700 px). Leer la imagen completa y, si hay textos pequeños o se ven varias pantallas a la vez, recortar por zonas en el scratchpad:
    ```bash
    # sips -c <alto> <ancho> --cropOffset <y> <x>
@@ -83,12 +85,14 @@ Igual que el modo A, pero:
    - **Coherencia entre pantallas:** encabezado, barra inferior, chips, tarjetas y botones iguales a los de las capturas ya aprobadas (y a P06 y P13/P14).
    - **Huecos de flujo:** qué pasa antes y después (éxito, error del servidor, a dónde lleva cada botón). Si el README no lo define, preguntarlo y registrar la respuesta en `### Decisiones de flujo`. Si afecta a otra pantalla, anotarlo también en su `prompt.md` o ficha.
    - **Pedidos que chocan con el README:** si el usuario pide algo que contradice una regla, no aplicarlo ni rechazarlo en silencio: preguntar con opciones (AskUserQuestion), explicando qué regla se toca.
+   - **Datos de otra entidad:** si el usuario echa en falta un control que en el README pertenece a otra entidad (en P11, la accesibilidad es del vehículo, RN-18, no del viaje), proponer mostrarlo en modo lectura con un enlace a la pantalla donde se configura (P16), en lugar de agregar un interruptor que duplique el dato.
    - **Propuestas sin respuesta:** si el usuario sigue adelante sin comentar una decisión propuesta, avisar una vez de que se adopta; en la siguiente revisión registrarla como «adoptada sin objeción».
    - **Mensajes completos:** si el frame es un formulario (recarga, retiro, calificación…), documentar en `prompt.md` la tabla completa de mensajes de validación de sus RF, aunque el diseño muestre solo algunos.
 3. **Registrar en la bitácora de `prompt.md`:** fila en la tabla de capturas, y por cada captura revisada: lo que funciona, lo corregido respecto a la anterior (con #n) y la tabla **Pendiente** (#, Problema, Frame, Severidad Alta/Media/Baja, Veces).
 4. **Decidir:**
    - Con pendientes de severidad Alta o Media que Stitch puede resolver, redactar el prompt de corrección (ver reglas) y anotarlo en la bitácora con el nombre de la captura que producirá.
    - Si Stitch deja algo igual tras dos intentos, no volver a describirlo: pedir que **duplique un frame ya correcto** y cambie solo lo propio.
+   - Si una variante salió mejor que el frame principal (en P11, 11-B arregló la codificación que 11-A tenía rota), corregir la variante y **duplicarla para rehacer el principal**, en vez de seguir corrigiendo el original.
    - Lo que el usuario declare tolerable se anota una vez y pasa a «Ajustes en la implementación».
    - Si un problema lleva 3 iteraciones o solo quedan ajustes mecánicos (un texto, un color), **aprobar** (modo D).
 5. Si el problema es general (tokens, encabezado, barra inferior, formato móvil), corregir también [templates/contexto-comun.md](templates/contexto-comun.md) para que no se repita en las demás pantallas.
@@ -111,6 +115,12 @@ Igual que el modo A, pero:
 - **Modo pasajero/conductor:** se toma del perfil (RF-14, RN-48); una pantalla que no sea el perfil no debe ofrecer un selector para cambiarlo, salvo que el usuario lo decida y se registre.
 - **Fuera del alcance (no debe aparecer):** chat, paradas acordadas por el pasajero, botón de emergencia, compartir viaje, seguimiento en vivo o rutas por calles, recuperación o cambio de contraseña, edición de un viaje publicado, «Cambiar sede», «Modificar casa», «A/C activo», «Conductor frecuente», «Puntualidad» (es «Cumplimiento»), pagos con tarjeta, recomendaciones con IA, panel de administrador, correos fuera de `@utp.edu.pe`.
 - **Contenido realista:** sin lorem ipsum, con los datos de ejemplo compartidos.
+- **Fallas típicas de Stitch** (revisarlas siempre):
+  - Codificación rota en tildes y símbolos («Ã“valo», «crÃ©ditos», «Â·»). Se corrige pidiendo los textos literales en UTF-8.
+  - Bloques repetidos al pedir «duplica y cambia» (en P11-B salió dos veces el bloque de salida, precio y SOAT).
+  - Elementos que desaparecen al duplicar (en P11-B, la línea del vehículo). Comparar sección por sección con el frame de origen.
+  - Textos de botones o segmentos partidos en dos líneas, y números en fuente monoespaciada.
+  - Modales con el fondo del último frame generado, no del indicado: si importa, adjuntar la captura correcta.
 
 ## Reglas para redactar prompts
 
@@ -120,6 +130,9 @@ Igual que el modo A, pero:
 - **Variantes y modales aparte:** un frame nuevo se pide en un prompt propio; dentro de un prompt de corrección Stitch lo ignora.
 - **Exclusiones explícitas:** terminar con lo que NO debe aparecer cuando hay riesgo (ver checklist).
 - **Estados por pantalla:** prever siempre los relevantes (normal, vacío, deshabilitado con motivo, error de validación, éxito, bloqueo por RN-30/RN-38) y darles un frame propio.
+- **Datos fijados en el prompt:** usuario, avatar, montos, fechas y textos literales. Lo que se deja abierto, Stitch lo inventa distinto en cada frame (en P21, fijar todo hizo que los 6 frames salieran bien a la primera).
+- **Variantes de error a partir del principal:** «Duplica el frame nn-A y cambia solo lo siguiente», con los mensajes exactos de la tabla de validación. Revisar luego que no haya bloques repetidos.
+- **Fechas de ejemplo:** comprobar el día de la semana de cada fecha (`date -j -f %Y-%m-%d 2026-10-29 +%a`) antes de escribir «Hoy, jue 29 oct».
 
 ## Al responder al usuario
 
