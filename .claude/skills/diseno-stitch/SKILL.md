@@ -127,6 +127,7 @@ Igual que el modo A, pero:
   - Avatares de personas como imágenes rotas (círculos lila vacíos). Pedirlos desde el principio como círculos grises #EEEEEE con iniciales, como en P17.
   - Textos largos truncados con puntos suspensivos hasta perder el dato (rutas sin destino en P06-F). Pedir el texto completo en hasta dos líneas y liberar espacio moviendo chips a otra línea.
   - Etiquetas de estado de otra entidad: en la tarjeta del conductor puso «En viaje», que es de la reserva (sección 2.3). Para el viaje en curso del conductor se usa «Salió HH:MM», como en P17-B.
+  - Encabezado duplicado al adjuntar `screen.jpeg` (P09 v1.1): copia el del frame original además del nuevo, y en los frames que no se duplican vuelve a poner sus mayúsculas («Detalle Del Viaje»). Pedir «reemplaza el encabezado del frame» y el título literal con «solo la primera letra en mayúscula».
   - Elementos agregados que no se pidieron (placeholder «Plazas requeridas» en P06-D): aceptarlos si no chocan con el README y anotarlos.
 
 ## Reglas para redactar prompts

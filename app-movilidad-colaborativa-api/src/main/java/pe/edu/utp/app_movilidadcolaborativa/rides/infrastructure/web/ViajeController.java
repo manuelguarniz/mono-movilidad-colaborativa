@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ReservaService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ViajeService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.FiltroViajesRequest;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ListadoViajesDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.PublicarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ReservarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
@@ -38,9 +39,14 @@ public class ViajeController {
 	private final ReservaService reservaService;
 
 	@GetMapping
-	public ListaDto<ViajeResumenDto> listar(@AuthenticationPrincipal Jwt jwt,
+	public ListadoViajesDto listar(@AuthenticationPrincipal Jwt jwt,
 			@Valid @ModelAttribute FiltroViajesRequest filtro) {
-		return new ListaDto<>(viajeService.listar(usuarioId(jwt), filtro));
+		return viajeService.listar(usuarioId(jwt), filtro);
+	}
+
+	@GetMapping("/mine")
+	public ListaDto<ViajeResumenDto> listarPropios(@AuthenticationPrincipal Jwt jwt) {
+		return new ListaDto<>(viajeService.listarPropios(usuarioId(jwt)));
 	}
 
 	@PostMapping

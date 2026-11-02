@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import { dashboardService } from "@/features/dashboard/services/dashboardService";
 import { authService } from "@/features/auth/services/authService";
+import BellIcon from "@/assets/images/icons/bell.svg?react";
 import MenuIcon from "@/assets/images/icons/menu.svg?react";
 
 export function DashboardHeader() {
@@ -72,7 +73,18 @@ export function DashboardHeader() {
 
       <h1 className="dashboard-header-title">ColaboraCar</h1>
 
-      <div className="relative justify-self-end" ref={menuRef}>
+      <div className="flex items-center justify-self-end gap-1">
+      {/* Notificaciones (P18, RF-13): aún no hay bandeja ni contador de no leídas. */}
+      <button
+        type="button"
+        className="dashboard-bell-button"
+        aria-label="Notificaciones (próximamente)"
+        disabled
+      >
+        <BellIcon className="h-6 w-6" />
+      </button>
+
+      <div className="relative" ref={menuRef}>
         <button
           type="button"
           className="dashboard-profile-button"
@@ -109,6 +121,7 @@ export function DashboardHeader() {
             </button>
           </div>
         ) : null}
+      </div>
       </div>
     </header>
   );

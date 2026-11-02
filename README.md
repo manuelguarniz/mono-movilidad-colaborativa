@@ -411,10 +411,10 @@ El backend implementa 18 de los 19 endpoints del contrato actual. Lo nuevo de es
 | --- | --- |
 | Autenticación (login, OTP, cierre de sesión) | Implementado con OTP en cada login; falta el dispositivo confiable (RF-01) |
 | Registro (cuenta y completar perfil) | Implementado; falta la asistencia de movilidad. La foto de perfil es opcional hasta que exista la carga de imágenes |
-| Catálogos (departamentos, distritos, sedes) | Implementado; falta el campo `ciudad` de las sedes |
+| Catálogos (departamentos, distritos, sedes) | Implementado. La ciudad de una sede (RN-49) es el nombre de su distrito (`sedes.distrito.nombre`) |
 | Perfil (consultar y actualizar datos) | Implementado; falta el modal de cambio de modo y el resumen de saldo y calificación |
 | Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional hasta que P05 y P16 lo pidan, y las fotos hasta que exista la carga de imágenes |
-| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado por sede. La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37) y copia la accesibilidad del vehículo. Faltan el listado sin sede, una reserva activa por pasajero, la retención de créditos, Mis viajes, la cancelación, el inicio y el fin |
+| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/mine` da el resumen del conductor. Faltan la retención de créditos, Mis viajes, la cancelación, el inicio y el fin |
 | Archivos (carga de imágenes) | Pendiente |
 | Billetera, retiros, historial, calificaciones, notificaciones y job programado | Pendiente |
 
@@ -433,7 +433,7 @@ flowchart TB
   subgraph CAT["Catálogos"]
     departamentos["<b>departamentos</b><br/>codigo (único)<br/>nombre"]
     distritos["<b>distritos</b><br/>departamento (id, nombre)<br/>codigo (único), nombre"]
-    sedes["<b>sedes</b><br/>distrito (id, nombre), nombre<br/>ciudad, direccion, ubicacion, activa"]
+    sedes["<b>sedes</b><br/>distrito (id, nombre), nombre<br/>direccion, ubicacion, activa"]
     sedes --> distritos --> departamentos
   end
 
@@ -483,7 +483,7 @@ flowchart TB
   style NEXT stroke-dasharray: 5 4
 ```
 
-*Modelo de datos · 16 colecciones y sus referencias: 15 del alcance actual y 1 reservada para el próximo alcance. Flecha = referencia por id. Los catálogos no se consultan: `usuarios` y `viajes` copian su id, nombre y ciudad. `app` no tiene referencias.*
+*Modelo de datos · 16 colecciones y sus referencias: 15 del alcance actual y 1 reservada para el próximo alcance. Flecha = referencia por id. Los catálogos no se consultan: `usuarios` y `viajes` copian su id y nombre, y `viajes` también la ciudad de la sede. `app` no tiene referencias.*
 
 El modelo prioriza la lectura: cada pantalla se resuelve con un solo documento, que embebe lo que es suyo y copia el `id` y el `nombre` de lo que muestra de otras colecciones. Por eso `usuarios` no depende de los catálogos y lleva embebido su vehículo, y `viajes` lleva copiados al conductor, el vehículo y la sede. El dinero es la excepción: cada operación de créditos queda en su propio libro de movimientos (`movimientos_creditos`), y `usuarios` guarda solo el saldo resultante.
 
@@ -508,7 +508,6 @@ Son 15 colecciones: 11 de negocio, 1 de configuración (`app`) y 3 catálogos. C
   "sede": {
     "id": "6705a1f0c3d4e5f600000301",
     "nombre": "UTP Sede Trujillo",
-    "ciudad": "Trujillo",
     "direccion": "Av. Nicolás de Piérola 1221, Trujillo"
   },
   "direccion_residencia": {
@@ -834,7 +833,7 @@ Insertar el movimiento y actualizar los saldos de `usuarios` se ejecutan en una 
 
 El backend lee este documento en cada operación que usa un parámetro, sin caché, así que un cambio rige desde la siguiente operación. Si falta un campo, usa el valor por defecto del ejemplo.
 
-**Catálogos** — `departamentos`, `distritos` y `sedes` alimentan los formularios. Los demás documentos copian su `id` y `nombre`, y de la sede también su `ciudad`.
+**Catálogos** — `departamentos`, `distritos` y `sedes` alimentan los formularios. Los demás documentos copian su `id` y `nombre`; `viajes` copia además la ciudad de la sede.
 
 ```json
 { "_id": "6705a1f0c3d4e5f600000101", "codigo": "13", "nombre": "La Libertad" }
@@ -853,7 +852,6 @@ El backend lee este documento en cada operación que usa un parámetro, sin cach
 {
   "_id": "6705a1f0c3d4e5f600000301",
   "nombre": "UTP Sede Trujillo",
-  "ciudad": "Trujillo",
   "institucion": "Universidad Tecnológica del Perú",
   "direccion": "Av. Nicolás de Piérola 1221, Trujillo",
   "distrito": { "id": "6705a1f0c3d4e5f600000201", "nombre": "Trujillo" },
@@ -862,7 +860,7 @@ El backend lee este documento en cada operación que usa un parámetro, sin cach
 }
 ```
 
-`codigo` es el ubigeo y es único en `departamentos` y `distritos`. `ciudad` es la etiqueta corta que ve el pasajero (RN-49). En Lima agrupa varias sedes por zona: «Lima Centro», «Lima Norte», «Lima Sur» y «Lima Este»; en provincias es el nombre de la ciudad, por ejemplo «Trujillo», «Arequipa», «Chiclayo» o «Piura».
+`codigo` es el ubigeo y es único en `departamentos` y `distritos`. La ciudad que ve el pasajero (RN-49) es el nombre del distrito de la sede (`distrito.nombre`); `viajes.sede.ciudad` lo copia al publicar (decisión del 2026-11-01).
 
 ### 5.2 Colecciones del próximo alcance
 
@@ -888,7 +886,7 @@ La regla es modelar según cómo se lee: se embebe o se copia lo que una pantall
 | Decisión | Motivo |
 | --- | --- |
 | El vehículo, su accesibilidad y su SOAT van embebidos en `usuarios`; no hay colección de vehículos. | Es una relación 1 a 1 que siempre se lee con el perfil. Embebido no hay datos duplicados ni escrituras en dos colecciones. |
-| `usuarios` copia `id` y `nombre` de departamento, distrito y sede, y de la sede también `ciudad`. | El perfil es la lectura prioritaria y se resuelve sin consultar los catálogos. Los nombres de catálogo casi nunca cambian; si cambian, se actualizan las copias. |
+| `usuarios` copia `id` y `nombre` de departamento, distrito y sede. | El perfil es la lectura prioritaria y se resuelve sin consultar los catálogos. Los nombres de catálogo casi nunca cambian; si cambian, se actualizan las copias. |
 | `viajes` copia los datos del conductor, el vehículo y la sede con su ciudad. | El listado del dashboard (de todas las sedes) y el detalle del viaje salen de un solo documento. Solo se actualizan las copias de los viajes activos, que son pocos por conductor. |
 | `reservas` copia un resumen del viaje y del pasajero. | Mis viajes y el historial del pasajero se listan sin consultar `viajes`. Es una foto histórica: no se actualiza. |
 | El saldo se guarda en `usuarios` y cada cambio, en `movimientos_creditos`. | Leer el saldo es una sola consulta, y el libro de solo inserción permite auditarlo y reconstruirlo (RNF-17). |
@@ -1394,7 +1392,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 06 | [P06-Dashboard/v3.2.png](<docs/design/P06-Dashboard/v3.2.png>) | Dashboard / viajes | Viajes | Implementada · rediseño aprobado |
 | 07 | [07. dashboard_condiciones_viaje.jpeg](<frames/07. dashboard_condiciones_viaje.jpeg>) | Condiciones del viaje | Viajes | Implementada |
 | 08 | [08. dashboard_confirm_viaje.jpeg](<frames/08. dashboard_confirm_viaje.jpeg>) | Confirmar reserva (dashboard) | Viajes | Implementada |
-| 09 | [09. dashboard_detalle_viaje.jpeg](<frames/09. dashboard_detalle_viaje.jpeg>) | Detalle del viaje | Viajes | Implementada |
+| 09 | [P09-DetalleViaje/v2.1.png](<docs/design/P09-DetalleViaje/v2.1.png>) | Detalle del viaje | Viajes | Implementada · rediseño aprobado |
 | 10 | [10. confirm_detalle_viaje.jpeg](<frames/10. confirm_detalle_viaje.jpeg>) | Confirmar reserva (detalle) | Viajes | Implementada |
 | 11 | [P11-PublicarViaje/v2.3.png](<docs/design/P11-PublicarViaje/v2.3.png>) | Publicar viaje | Viajes | Implementada · rediseño aprobado |
 | 12 | [12. confirm_publicar_viaje.jpeg](<frames/12. confirm_publicar_viaje.jpeg>) | Confirmar publicación | Viajes | Implementada |

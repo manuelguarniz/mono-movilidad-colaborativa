@@ -161,6 +161,8 @@ Están centralizados, con su estado HTTP, en el enum `CodigoError`. Los cuatro p
 | `NO_SEATS_AVAILABLE` | 409 | Este viaje ya no tiene asientos disponibles |
 | `ALREADY_BOOKED` | 409 | Ya tienes una reserva confirmada en este viaje |
 | `OWN_RIDE` | 403 | No puedes reservar tu propio viaje |
+| `ACTIVE_BOOKING_EXISTS` | 409 | Ya tienes una reserva activa. Cancélala para reservar otro viaje. |
+| `PASSENGER_CANCELLATION_LIMIT` | 403 | Cancelaste o no te presentaste a N viajes en los últimos 30 días. Podrás reservar de nuevo desde el DD/MM. (`details.count`, `details.until`) |
 | `OTP_INVALID` | 400 | Código inválido. Te quedan N intentos. (`details.attemptsLeft`) |
 | `OTP_EXPIRED` | 400 | El código expiró. Solicita uno nuevo. |
 | `OTP_ATTEMPTS_EXCEEDED` | 429 | Agotaste los intentos. Solicita un nuevo código. |
@@ -349,8 +351,10 @@ Todos los filtros son opcionales.
 | `destination` | Máximo 100 caracteres | El destino debe tener como máximo 100 caracteres |
 | `time` | `HH:mm` de 24 horas | La hora debe tener el formato HH:mm |
 | `passengers` | Entero de 1 a 99 | El número de pasajeros debe ser al menos 1 |
+| `accessible` | `true` o `false` | El parámetro accessible debe ser true o false |
+| `page` | Entero de 1 a 9999 | La página debe ser un número mayor o igual a 1 |
 
-Lista los viajes `PUBLICADO` de la sede con salida futura y plazas suficientes, sin los del propio usuario, ordenados por hora de salida. Sin `campusId` usa la sede del usuario; si no tiene sede, o la sede no existe, la lista llega vacía. Con `time` solo devuelve los viajes de hoy (hora de Perú) desde esa hora. `destination` busca en la etiqueta y la dirección del destino sin distinguir mayúsculas ni tildes.
+Lista 20 viajes `PUBLICADO` de todas las sedes (RN-49) con salida futura y plazas suficientes, sin los del propio usuario, ordenados por hora de salida. `campusId` restringe a una sede y `accessible=true` deja solo los vehículos aptos (RN-19). La respuesta es `{ data, page, hasMore, activeBooking, bookingBlock }`: `activeBooking` es la reserva `CONFIRMADA` o `EN_VIAJE` del usuario (RN-23) y `bookingBlock` su bloqueo por cancelaciones (RN-38, `max_cancelaciones_pasajero` de la colección `app`); cada uno es `null` si no aplica. Cada viaje trae `campus: { id, name, city }`: `city` es el distrito de la sede (`sedes.distrito.nombre`), copiado en `viajes.sede.ciudad` al publicar. Con `time` solo devuelve los viajes de hoy (hora de Perú) desde esa hora. `destination` busca en la etiqueta y la dirección del destino sin distinguir mayúsculas ni tildes.
 
 **`POST /rides`**
 
@@ -397,6 +401,10 @@ Negocio, en este orden:
 
 Responde 201 con el detalle del viaje y la cabecera `Location` (`/api/rides/{rideId}`). Conductor, vehículo (con `apto_movilidad_reducida` y `soat_fecha_fin`) y sede se copian del usuario; en la respuesta, `vehicle.wheelchairAccessible` y `vehicle.soatEndDate`. `distanceKm` es la suma en línea recta entre origen, paradas y destino, con un decimal; `durationMin` la estima a 35 km/h, con un mínimo de 1 minuto.
 
+**`GET /rides/mine`**
+
+No recibe parámetros. Devuelve `{ data }` con los viajes `PUBLICADO` y `EN_CURSO` del conductor, ordenados por hora de salida: el resumen del dashboard en modo conductor.
+
 **`GET /rides/{rideId}`**
 
 | Parámetro | Regla | Mensaje |
@@ -423,6 +431,8 @@ Negocio, en el orden en que se comprueba:
 | `OWN_RIDE` | 403 | No puedes reservar tu propio viaje |
 | `RIDE_NOT_AVAILABLE` | 409 | Este viaje ya no está disponible (no está `PUBLICADO` o ya salió) |
 | `ALREADY_BOOKED` | 409 | Ya tienes una reserva confirmada en este viaje |
+| `ACTIVE_BOOKING_EXISTS` | 409 | Ya tienes una reserva activa. Cancélala para reservar otro viaje. (RN-23: otra reserva `CONFIRMADA` o `EN_VIAJE`) |
+| `PASSENGER_CANCELLATION_LIMIT` | 403 | Cancelaste o no te presentaste a N viajes en los últimos 30 días. Podrás reservar de nuevo desde el DD/MM. (RN-38) |
 | `NO_SEATS_AVAILABLE` | 409 | Este viaje ya no tiene asientos disponibles |
 
 El descuento de plazas y la creación de la reserva van en una misma transacción de MongoDB (`MongoTransactionManager`, en `MongoConfig`). El descuento filtra por `plazas_disponibles >= seats`, así que dos pasajeros no pueden llevarse la última plaza; si dos reservas chocan dentro de la transacción, se reintenta hasta 3 veces. El índice único parcial de `reservas` cubre la doble reserva simultánea del mismo pasajero.

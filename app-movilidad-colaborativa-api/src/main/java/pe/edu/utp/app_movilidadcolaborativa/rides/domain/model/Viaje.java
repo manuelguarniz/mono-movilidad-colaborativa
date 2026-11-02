@@ -5,7 +5,6 @@ import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
-import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
 
 import java.time.Instant;
 import java.util.List;
@@ -22,7 +21,7 @@ public record Viaje(
 		@Id ObjectId id,
 		ConductorViaje conductor,
 		VehiculoViaje vehiculo,
-		ReferenciaNombre sede,
+		SedeViaje sede,
 		SentidoViaje sentido,
 		Lugar origen,
 		Lugar destino,

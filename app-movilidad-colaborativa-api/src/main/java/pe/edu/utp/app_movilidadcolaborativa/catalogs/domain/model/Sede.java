@@ -15,4 +15,9 @@ public record Sede(
 		ReferenciaNombre distrito,
 		GeoJsonPoint ubicacion,
 		boolean activa) {
+
+	/** Ciudad de la sede para el dashboard (RN-49): el nombre de su distrito. */
+	public String ciudad() {
+		return distrito == null ? null : distrito.nombre();
+	}
 }

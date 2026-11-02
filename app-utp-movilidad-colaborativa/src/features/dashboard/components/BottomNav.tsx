@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
+import CalendarIcon from "@/assets/images/icons/calendar.svg?react";
 import RideIcon from "@/assets/images/icons/ride.svg?react";
 import HistoryIcon from "@/assets/images/icons/history.svg?react";
 import WalletIcon from "@/assets/images/icons/wallet.svg?react";
@@ -9,16 +10,21 @@ type NavItem = {
   id: string;
   label: string;
   icon: ReactNode;
-  // Sin ruta: la sección queda para un próximo alcance (historial y billetera).
+  // Sin ruta: la sección todavía no está implementada (P17, P19 y P21).
   to?: string;
 };
 
 const navItems: NavItem[] = [
   {
-    id: "ride",
-    label: "Viaje",
+    id: "rides",
+    label: "Viajes",
     to: "/dashboard",
     icon: <RideIcon className="h-6 w-6" />,
+  },
+  {
+    id: "my-rides",
+    label: "Mis viajes",
+    icon: <CalendarIcon className="h-6 w-6" />,
   },
   {
     id: "history",

@@ -659,23 +659,20 @@ paths:
       operationId: listRides
       summary: Listar los viajes disponibles
       description: |
-        Devuelve los viajes en estado `PUBLISHED` de una sede, con salida futura y con
-        plazas disponibles, ordenados por `departureTime` ascendente. No incluye los
-        viajes publicados por el propio usuario.
-
-        La búsqueda siempre es por sede: solo se listan los viajes publicados por
-        alumnos de esa sede. Sin `campusId` se usa la sede del usuario autenticado.
+        Devuelve una página de 20 viajes en estado `PUBLISHED` de todas las sedes (RN-49),
+        con salida futura y con plazas disponibles, ordenados por `departureTime`
+        ascendente. No incluye los viajes publicados por el propio usuario. Cada viaje
+        lleva la ciudad de su sede (`campus.city`).
 
         Cada elemento trae `conditions`, de modo que el modal «Condiciones del viaje» no
-        necesita otra petición.
+        necesita otra petición. La respuesta trae además la reserva activa del usuario
+        (`activeBooking`, RN-23) y su bloqueo por cancelaciones (`bookingBlock`, RN-38):
+        si alguno no es `null`, el dashboard deshabilita «Reservar».
       parameters:
         - name: campusId
           in: query
           required: false
-          description: |
-            Sede cuyos viajes se listan. Si no se envía, se usa la sede del usuario
-            autenticado. Si la sede no existe, o el usuario aún no tiene sede, la lista
-            llega vacía.
+          description: Restringe el listado a una sede. Sin él se listan todas (RN-49).
           schema:
             $ref: "#/components/schemas/ObjectId"
         - name: destination
@@ -707,19 +704,29 @@ paths:
             minimum: 1
             maximum: 99
             default: 1
+        - name: accessible
+          in: query
+          required: false
+          description: Con `true`, solo los viajes cuyo vehículo es apto para silla de ruedas plegable (RN-19).
+          schema:
+            type: boolean
+            default: false
+        - name: page
+          in: query
+          required: false
+          description: Página de 20 viajes, desde 1 (RF-03).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9999
+            default: 1
       responses:
         "200":
-          description: Viajes disponibles.
+          description: Página de viajes disponibles.
           content:
             application/json:
               schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/RideSummary"
+                $ref: "#/components/schemas/RidePage"
         "400":
           description: Algún filtro tiene un formato inválido (`VALIDATION_ERROR`).
           content:
@@ -822,6 +829,33 @@ paths:
                 code: SOAT_EXPIRES_BEFORE_DEPARTURE
                 message: Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar.
 
+  /rides/mine:
+    get:
+      tags: [Rides]
+      operationId: listMyRides
+      summary: Listar mis viajes publicados
+      description: |
+        Viajes del conductor autenticado en estado `PUBLISHED` o `IN_PROGRESS`, ordenados
+        por `departureTime` ascendente. Es el resumen del dashboard en modo conductor
+        (P06, frame 06-F).
+      responses:
+        "200":
+          description: Viajes activos del conductor.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RideSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /rides/{rideId}:
     parameters:
       - $ref: "#/components/parameters/RideId"
@@ -890,8 +924,9 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           description: |
-            El conductor no puede reservar su propio viaje (`OWN_RIDE`) o el token no es
-            de sesión (`FORBIDDEN_SCOPE`).
+            El conductor no puede reservar su propio viaje (`OWN_RIDE`), el pasajero superó
+            el límite de cancelaciones (`PASSENGER_CANCELLATION_LIMIT`, RN-38, con
+            `details.count` y `details.until`) o el token no es de sesión (`FORBIDDEN_SCOPE`).
           content:
             application/json:
               schema:
@@ -901,7 +936,9 @@ paths:
         "409":
           description: |
             No quedan plazas suficientes (`NO_SEATS_AVAILABLE`), el usuario ya tiene una
-            reserva confirmada en este viaje (`ALREADY_BOOKED`) o el viaje ya no está
+            reserva confirmada en este viaje (`ALREADY_BOOKED`) o en otro
+            (`ACTIVE_BOOKING_EXISTS`: «Ya tienes una reserva activa. Cancélala para reservar
+            otro viaje.», RN-23) o el viaje ya no está
             publicado o ya salió (`RIDE_NOT_AVAILABLE`). En los tres casos el frontend
             debe refrescar el listado. También si el usuario aún no completó su perfil
             (`PROFILE_INCOMPLETE`).
@@ -1077,7 +1114,8 @@ components:
             `PLATE_ALREADY_REGISTERED`, `VEHICLE_ALREADY_REGISTERED`, `VEHICLE_NOT_FOUND`,
             `SOAT_NOT_VALID`, `SOAT_EXPIRES_BEFORE_DEPARTURE`, `DRIVER_CANCELLATION_LIMIT`,
             `VEHICLE_REQUIRED`, `RIDE_NOT_FOUND`, `RIDE_NOT_AVAILABLE`,
-            `NO_SEATS_AVAILABLE`, `ALREADY_BOOKED`, `OWN_RIDE`, `INTERNAL_ERROR`.
+            `NO_SEATS_AVAILABLE`, `ALREADY_BOOKED`, `ACTIVE_BOOKING_EXISTS`,
+            `PASSENGER_CANCELLATION_LIMIT`, `OWN_RIDE`, `INTERNAL_ERROR`.
 
             Una ruta o un método que no existe responde con el nombre del estado HTTP
             (`NOT_FOUND`, `METHOD_NOT_ALLOWED`) y el mensaje `La solicitud no es válida`.
@@ -1432,13 +1470,17 @@ components:
       description: |
         Colección `sedes`. `address` y `location` los usa «Publicar viaje»: la sede es el
         destino en `TO_CAMPUS` y el origen en `TO_HOME`.
-      required: [id, name, address, location]
+      required: [id, name, city, address, location]
       properties:
         id:
           $ref: "#/components/schemas/ObjectId"
         name:
           type: string
           example: UTP Sede Trujillo
+        city:
+          type: [string, "null"]
+          description: Etiqueta del dashboard (RN-49), el nombre del distrito de la sede (`sedes.distrito.nombre`).
+          example: Trujillo
         address:
           type: [string, "null"]
           example: Av. Nicolás de Piérola 1221, Trujillo
@@ -2027,6 +2069,8 @@ components:
           items:
             type: string
           example: [No se admite desvíos, Máximo de espera 5 minutos]
+        campus:
+          $ref: "#/components/schemas/RideCampus"
 
     RideSummary:
       description: Viaje en el listado del dashboard (colección `viajes`), sin coordenadas.
@@ -2039,6 +2083,67 @@ components:
               $ref: "#/components/schemas/PlaceSummary"
             destination:
               $ref: "#/components/schemas/PlaceSummary"
+
+    RideCampus:
+      type: [object, "null"]
+      description: |
+        Copia de la sede dentro del viaje. `city` es la etiqueta del dashboard (RN-49): el
+        nombre del distrito de la sede (`sedes.distrito.nombre`), copiado al publicar.
+      required: [id, name, city]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        name:
+          type: string
+          example: UTP Sede Trujillo
+        city:
+          type: [string, "null"]
+          description: "`null` en los viajes publicados antes de copiar la ciudad."
+          example: Trujillo
+
+    RidePage:
+      type: object
+      required: [data, page, hasMore, activeBooking, bookingBlock]
+      properties:
+        data:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/RideSummary"
+        page:
+          type: integer
+          example: 1
+        hasMore:
+          type: boolean
+          description: Hay otra página.
+        activeBooking:
+          oneOf:
+            - $ref: "#/components/schemas/ActiveBooking"
+            - type: "null"
+        bookingBlock:
+          oneOf:
+            - $ref: "#/components/schemas/CancellationBlock"
+            - type: "null"
+          description: Bloqueo del pasajero por cancelaciones (RN-38).
+
+    ActiveBooking:
+      type: object
+      description: Reserva `CONFIRMADA` o `EN_VIAJE` del usuario (RN-23).
+      required: [id, rideId, departureTime, origin, destination]
+      properties:
+        id:
+          $ref: "#/components/schemas/ObjectId"
+        rideId:
+          $ref: "#/components/schemas/ObjectId"
+        departureTime:
+          type: string
+          format: date-time
+        origin:
+          type: string
+          example: UTP Sede Trujillo
+        destination:
+          type: string
+          example: Urb. El Golf
 
     PlaceSummary:
       type: object

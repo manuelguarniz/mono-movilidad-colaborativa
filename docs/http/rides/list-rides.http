@@ -50,19 +50,50 @@
 #       "destination": {
 #         "label": "Huaca del Dragón (Arco Iris)",
 #         "address": "La Esperanza, Trujillo"
+#       },
+#       "campus": {
+#         "id": "6705a1f0c3d4e5f600000301",
+#         "name": "UTP Sede Trujillo",
+#         "city": "Trujillo"
 #       }
 #     }
-#   ]
+#   ],
+#   "page": 1,
+#   "hasMore": false,
+#   "activeBooking": null,
+#   "bookingBlock": null
 # }
 GET {{baseUrl}}/rides
 Authorization: Bearer {{sessionToken}}
 
-### 200 · Sin viajes (lista vacía)
+### 200 · Solo vehículos accesibles, segunda página
+GET {{baseUrl}}/rides?accessible=true&page=2
+Authorization: Bearer {{sessionToken}}
+
+### 200 · Sin viajes, con una reserva activa (RN-23)
 # Respuesta 200 OK
 # {
-#   "data": []
+#   "data": [],
+#   "page": 1,
+#   "hasMore": false,
+#   "activeBooking": {
+#     "id": "6705a1f0c3d4e5f600000601",
+#     "rideId": "6705a1f0c3d4e5f600000501",
+#     "departureTime": "2026-11-02T19:20:00Z",
+#     "origin": "UTP Sede Trujillo",
+#     "destination": "Urb. El Golf"
+#   },
+#   "bookingBlock": null
 # }
-GET {{baseUrl}}/rides
+GET {{baseUrl}}/rides?destination=huanchaco
+Authorization: Bearer {{sessionToken}}
+
+### 200 · Mis viajes publicados (modo conductor)
+# Respuesta 200 OK
+# {
+#   "data": [ ...RideSummary, como en el listado... ]
+# }
+GET {{baseUrl}}/rides/mine
 Authorization: Bearer {{sessionToken}}
 
 ### 403 · Token de otro scope (PRE_AUTH)

@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** Camino feliz y reglas de estado de la reserva (RF-13, RF-14), sin base de datos. */
+/** Camino feliz y reglas de estado de la reserva (RF-04, RN-23, RN-38), sin base de datos. */
 class ReservaServiceTest {
 
 	private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
@@ -48,8 +48,9 @@ class ReservaServiceTest {
 	private final ReservaRepository reservaRepository = mock(ReservaRepository.class);
 	private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
 	private final PlatformTransactionManager transacciones = mock(PlatformTransactionManager.class);
+	private final RestriccionesPasajeroService restricciones = mock(RestriccionesPasajeroService.class);
 	private final ReservaService servicio = new ReservaService(usuarioRepository, viajeRepository, reservaRepository,
-			mongoTemplate, transacciones);
+			mongoTemplate, transacciones, restricciones);
 	private final ObjectId pasajeroId = new ObjectId();
 	private final ObjectId conductorId = new ObjectId();
 	private final ObjectId viajeId = new ObjectId();
@@ -180,6 +181,24 @@ class ReservaServiceTest {
 		falla(1, CodigoError.ALREADY_BOOKED);
 		verify(transacciones).rollback(any());
 		verify(transacciones, never()).commit(any());
+	}
+
+	@Test
+	void unPasajeroConUnaReservaActivaOBloqueadoNoPuedeReservar() {
+		existePasajero(EstadoUsuario.ACTIVO);
+		existe(viaje().build());
+		when(restricciones.reservaActiva(pasajeroId)).thenReturn(Optional.of(Reserva.builder().build()));
+		falla(1, CodigoError.ACTIVE_BOOKING_EXISTS);
+
+		when(restricciones.reservaActiva(pasajeroId)).thenReturn(Optional.empty());
+		when(restricciones.bloqueo(eq(pasajeroId), any(Instant.class))).thenReturn(Optional.of(
+				new CancelacionesConductorService.Bloqueo(5, 30, Instant.parse("2026-11-08T15:00:00Z"))));
+		ApiException error = org.assertj.core.api.Assertions.catchThrowableOfType(ApiException.class,
+				() -> servicio.reservar(pasajeroId, viajeId, 1));
+		assertThat(error.getCodigo()).isEqualTo(CodigoError.PASSENGER_CANCELLATION_LIMIT);
+		assertThat(error.getMessage()).isEqualTo(
+				"Cancelaste o no te presentaste a 5 viajes en los últimos 30 días. Podrás reservar de nuevo desde el 08/11.");
+		verifyNoInteractions(mongoTemplate);
 	}
 
 	@Test

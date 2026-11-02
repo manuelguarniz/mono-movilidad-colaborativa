@@ -23,6 +23,7 @@ import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.web.Catalogo
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ReservaService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ViajeService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.FiltroViajesRequest;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ListadoViajesDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.LugarDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.PublicarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
@@ -329,7 +330,7 @@ class ValidacionSolicitudesTest {
 		LugarDto destino = new LugarDto("Huaca del Dragón", "La Esperanza", new LugarDto.PuntoDto(-8.0716, -79.0412));
 		when(viajeService.publicar(any(ObjectId.class), any(PublicarViajeRequest.class)))
 				.thenReturn(new ViajeDetalleDto("6705a1f0c3d4e5f600000501", "PUBLISHED", "TO_HOME", salida, 5, 3, 3, 2.9,
-						5, null, null, List.of(), origen, destino, List.of(), salida));
+						5, null, null, List.of(), origen, destino, List.of(), salida, null));
 
 		mvc.perform(post("/rides").contentType(MediaType.APPLICATION_JSON)
 						.content("{\"direction\":\"TO_HOME\",\"departureTime\":\"" + salida + "\","
@@ -376,25 +377,31 @@ class ValidacionSolicitudesTest {
 
 	@Test
 	void listarViajesRecibeLosFiltrosYRechazaLosInvalidos() throws Exception {
+		when(viajeService.listar(any(ObjectId.class), any(FiltroViajesRequest.class)))
+				.thenReturn(new ListadoViajesDto(List.of(), 1, false, null, null));
 		mvc.perform(get("/rides").param("campusId", "64b7f0c2a1b2c3d4e5f60718").param("destination", " Huaca ")
 						.param("time", "14:15").param("passengers", "2"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data", hasSize(0)));
 		verify(viajeService).listar(any(ObjectId.class),
-				eq(new FiltroViajesRequest("64b7f0c2a1b2c3d4e5f60718", "Huaca", "14:15", "2")));
-		mvc.perform(get("/rides")).andExpect(status().isOk());
-		verify(viajeService).listar(any(ObjectId.class), eq(new FiltroViajesRequest(null, null, null, null)));
+				eq(new FiltroViajesRequest("64b7f0c2a1b2c3d4e5f60718", "Huaca", "14:15", "2", null, null)));
+		mvc.perform(get("/rides").param("accessible", "true").param("page", "2")).andExpect(status().isOk());
+		verify(viajeService).listar(any(ObjectId.class),
+				eq(new FiltroViajesRequest(null, null, null, null, "true", "2")));
 
-		mvc.perform(get("/rides").param("campusId", "abc").param("time", "25:00").param("passengers", "0"))
+		mvc.perform(get("/rides").param("campusId", "abc").param("time", "25:00").param("passengers", "0")
+						.param("accessible", "si").param("page", "0"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-				.andExpect(jsonPath("$.errors", hasSize(3)))
-				.andExpect(jsonPath("$.errors[0].field").value("campusId"))
-				.andExpect(jsonPath("$.errors[0].message").value("El parámetro campusId no es válido"))
-				.andExpect(jsonPath("$.errors[1].field").value("passengers"))
-				.andExpect(jsonPath("$.errors[1].message").value("El número de pasajeros debe ser al menos 1"))
-				.andExpect(jsonPath("$.errors[2].field").value("time"))
-				.andExpect(jsonPath("$.errors[2].message").value("La hora debe tener el formato HH:mm"));
+				.andExpect(jsonPath("$.errors", hasSize(5)))
+				.andExpect(jsonPath("$.errors[?(@.field=='campusId')].message").value("El parámetro campusId no es válido"))
+				.andExpect(jsonPath("$.errors[?(@.field=='passengers')].message")
+						.value("El número de pasajeros debe ser al menos 1"))
+				.andExpect(jsonPath("$.errors[?(@.field=='time')].message").value("La hora debe tener el formato HH:mm"))
+				.andExpect(jsonPath("$.errors[?(@.field=='accessible')].message")
+						.value("El parámetro accessible debe ser true o false"))
+				.andExpect(jsonPath("$.errors[?(@.field=='page')].message")
+						.value("La página debe ser un número mayor o igual a 1"));
 	}
 
 	@Test

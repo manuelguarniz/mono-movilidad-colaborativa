@@ -14,7 +14,6 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,16 +44,22 @@ public class CancelacionesConductorService {
 						.and("fecha_cancelacion").gte(ahora.minus(ventana)))
 				.with(Sort.by(Sort.Direction.ASC, "fecha_cancelacion"));
 		consulta.fields().include("fecha_cancelacion");
-		List<Date> fechas = mongoTemplate.find(consulta, Document.class, COLECCION_VIAJES).stream()
-				.map(viaje -> viaje.getDate("fecha_cancelacion"))
+		List<Instant> fechas = mongoTemplate.find(consulta, Document.class, COLECCION_VIAJES).stream()
+				.map(viaje -> viaje.getDate("fecha_cancelacion").toInstant())
 				.toList();
+		return evaluar(fechas, parametros.maxCancelacionesConductor(), parametros.ventanaCancelacionesDias());
+	}
 
-		int limite = parametros.maxCancelacionesConductor();
+	/**
+	 * Bloqueo a partir de las fechas de las cancelaciones dentro de la ventana, de la más antigua a la más
+	 * reciente. Lo usan el conductor (RN-30) y el pasajero (RN-38).
+	 */
+	static Optional<Bloqueo> evaluar(List<Instant> fechas, int limite, int ventanaDias) {
 		if (fechas.size() < limite) {
 			return Optional.empty();
 		}
 		// Para bajar del límite tienen que salir de la ventana las (N − límite + 1) cancelaciones más antiguas.
-		Instant hasta = fechas.get(fechas.size() - limite).toInstant().plus(ventana);
-		return Optional.of(new Bloqueo(fechas.size(), parametros.ventanaCancelacionesDias(), hasta));
+		Instant hasta = fechas.get(fechas.size() - limite).plus(Duration.ofDays(ventanaDias));
+		return Optional.of(new Bloqueo(fechas.size(), ventanaDias, hasta));
 	}
 }

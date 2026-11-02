@@ -24,7 +24,8 @@ public record ViajeDetalleDto(
 		LugarDto origin,
 		LugarDto destination,
 		List<LugarDto> stops,
-		Instant createdAt) {
+		Instant createdAt,
+		ViajeResumenDto.Sede campus) {
 
 	public static ViajeDetalleDto desde(Viaje viaje) {
 		return new ViajeDetalleDto(
@@ -43,6 +44,7 @@ public record ViajeDetalleDto(
 				LugarDto.desde(viaje.origen()),
 				LugarDto.desde(viaje.destino()),
 				viaje.paradas() == null ? List.of() : viaje.paradas().stream().map(LugarDto::desde).toList(),
-				viaje.fechaCreacion());
+				viaje.fechaCreacion(),
+				ViajeResumenDto.Sede.desde(viaje.sede()));
 	}
 }

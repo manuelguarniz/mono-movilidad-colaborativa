@@ -19,9 +19,10 @@ public class ParametrosService {
 
 	private final MongoTemplate mongoTemplate;
 
-	public record Parametros(int maxCancelacionesConductor, int ventanaCancelacionesDias) {
+	public record Parametros(int maxCancelacionesConductor, int maxCancelacionesPasajero,
+			int ventanaCancelacionesDias) {
 
-		public static final Parametros POR_DEFECTO = new Parametros(10, 30);
+		public static final Parametros POR_DEFECTO = new Parametros(10, 5, 30);
 	}
 
 	public Parametros leer() {
@@ -31,6 +32,7 @@ public class ParametrosService {
 		}
 		return new Parametros(
 				entero(config, "max_cancelaciones_conductor", Parametros.POR_DEFECTO.maxCancelacionesConductor()),
+				entero(config, "max_cancelaciones_pasajero", Parametros.POR_DEFECTO.maxCancelacionesPasajero()),
 				entero(config, "ventana_cancelaciones_dias", Parametros.POR_DEFECTO.ventanaCancelacionesDias()));
 	}
 

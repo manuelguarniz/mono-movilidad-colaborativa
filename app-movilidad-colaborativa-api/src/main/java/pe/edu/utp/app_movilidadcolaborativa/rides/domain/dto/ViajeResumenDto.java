@@ -2,6 +2,7 @@ package pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto;
 
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.ConductorViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Lugar;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SedeViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.VehiculoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.CalificacionDto;
@@ -26,7 +27,16 @@ public record ViajeResumenDto(
 		Vehiculo vehicle,
 		List<String> conditions,
 		LugarResumen origin,
-		LugarResumen destination) {
+		LugarResumen destination,
+		Sede campus) {
+
+	/** city es la etiqueta del dashboard (RN-49); null en los viajes publicados antes de copiarla. */
+	public record Sede(String id, String name, String city) {
+
+		static Sede desde(SedeViaje sede) {
+			return sede == null ? null : new Sede(sede.id().toHexString(), sede.nombre(), sede.ciudad());
+		}
+	}
 
 	public record Conductor(String id, String name, String photoUrl, CalificacionDto rating) {
 
@@ -69,6 +79,7 @@ public record ViajeResumenDto(
 				Vehiculo.desde(viaje.vehiculo()),
 				viaje.condiciones() == null ? List.of() : viaje.condiciones(),
 				LugarResumen.desde(viaje.origen()),
-				LugarResumen.desde(viaje.destino()));
+				LugarResumen.desde(viaje.destino()),
+				Sede.desde(viaje.sede()));
 	}
 }

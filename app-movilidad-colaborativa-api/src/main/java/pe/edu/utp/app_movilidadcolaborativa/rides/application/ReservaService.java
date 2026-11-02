@@ -17,6 +17,7 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva.ResumenViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva.VehiculoResumen;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.validation.ReglasViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.persistence.ReservaRepository;
 import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.persistence.ViajeRepository;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
@@ -28,19 +29,31 @@ import pe.edu.utp.app_movilidadcolaborativa.users.domain.validation.ReglasUsuari
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
 
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
-/** Reserva de plazas en un viaje publicado (RF-13, RF-14). */
+/** Reserva de plazas en un viaje publicado (RF-04, RN-23, RN-38). */
 @Service
 @RequiredArgsConstructor
 public class ReservaService {
 
 	private static final int INTENTOS = 3;
+	public static final String MENSAJE_RESERVA_ACTIVA =
+			"Ya tienes una reserva activa. Cancélala para reservar otro viaje.";
+	private static final DateTimeFormatter DIA_MES = DateTimeFormatter.ofPattern("dd/MM").withZone(ReglasViaje.ZONA_PERU);
+
+	/** Mensaje de RN-38, con la fecha desde la que podrá reservar de nuevo. */
+	public static String mensajeBloqueo(CancelacionesConductorService.Bloqueo bloqueo) {
+		return "Cancelaste o no te presentaste a %d viajes en los últimos %d días. Podrás reservar de nuevo desde el %s."
+				.formatted(bloqueo.cancelaciones(), bloqueo.ventanaDias(), DIA_MES.format(bloqueo.hasta()));
+	}
 
 	private final UsuarioRepository usuarioRepository;
 	private final ViajeRepository viajeRepository;
 	private final ReservaRepository reservaRepository;
 	private final MongoTemplate mongoTemplate;
 	private final PlatformTransactionManager transactionManager;
+	private final RestriccionesPasajeroService restriccionesPasajeroService;
 
 	/** Descuenta las plazas y crea la reserva CONFIRMADA en una misma transacción. */
 	public void reservar(ObjectId usuarioId, ObjectId viajeId, int plazas) {
@@ -62,6 +75,15 @@ public class ReservaService {
 		if (reservaRepository.existsByViajeIdAndPasajeroIdAndEstado(viajeId, usuarioId, EstadoReserva.CONFIRMADA)) {
 			throw yaReservado();
 		}
+		// RN-23: una sola reserva activa en total.
+		if (restriccionesPasajeroService.reservaActiva(usuarioId).isPresent()) {
+			throw new ApiException(CodigoError.ACTIVE_BOOKING_EXISTS, MENSAJE_RESERVA_ACTIVA);
+		}
+		// RN-38: límite de cancelaciones del pasajero.
+		restriccionesPasajeroService.bloqueo(usuarioId, ahora).ifPresent(bloqueo -> {
+			throw new ApiException(CodigoError.PASSENGER_CANCELLATION_LIMIT, mensajeBloqueo(bloqueo),
+					Map.of("count", bloqueo.cancelaciones(), "until", bloqueo.hasta()));
+		});
 		if (viaje.plazasDisponibles() < plazas) {
 			throw sinPlazas();
 		}

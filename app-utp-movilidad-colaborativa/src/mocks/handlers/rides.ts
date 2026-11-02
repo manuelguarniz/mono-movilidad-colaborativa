@@ -6,6 +6,7 @@ import {
   publicName,
   saveDb,
   toLima,
+  toRideCampus,
   toRideVehicle,
   type MockRide,
   type Place,
@@ -34,6 +35,27 @@ const toRideSummary = ({ campusId, stops, createdAt, ...ride }: MockRide) => ({
 });
 
 const toRideDetail = ({ campusId, ...ride }: MockRide) => ride;
+
+const PAGE_SIZE = 20;
+const ACTIVE_BOOKING = ["CONFIRMED", "IN_RIDE"];
+
+/** Reserva activa del pasajero (RN-23), con lo que muestra la franja del dashboard. */
+function toActiveBooking(passengerId: string) {
+  const reservation = db.reservations.find(
+    (item) => item.passengerId === passengerId && ACTIVE_BOOKING.includes(item.status),
+  );
+  const ride = reservation && db.rides.find((item) => item.id === reservation.rideId);
+  if (!reservation || !ride) {
+    return null;
+  }
+  return {
+    id: reservation.id,
+    rideId: ride.id,
+    departureTime: ride.departureTime,
+    origin: ride.origin.label,
+    destination: ride.destination.label,
+  };
+}
 
 /** Minúsculas y sin tildes, para buscar el destino. */
 const normalize = (text: string) =>
@@ -143,6 +165,8 @@ export const rideHandlers = [
     const destination = params.get("destination");
     const time = params.get("time");
     const passengers = Number(params.get("passengers") ?? 1);
+    const accessible = params.get("accessible");
+    const page = Number(params.get("page") ?? 1);
 
     const errors: FieldError[] = [];
     if (campusId !== null && !isObjectId(campusId)) {
@@ -169,12 +193,23 @@ export const rideHandlers = [
         message: "El número de pasajeros debe ser al menos 1",
       });
     }
+    if (accessible !== null && accessible !== "true" && accessible !== "false") {
+      errors.push({
+        field: "accessible",
+        message: "El parámetro accessible debe ser true o false",
+      });
+    }
+    if (!Number.isInteger(page) || page < 1 || page > 9999) {
+      errors.push({
+        field: "page",
+        message: "La página debe ser un número mayor o igual a 1",
+      });
+    }
     if (errors.length) {
       return validationError(errors);
     }
 
-    // La búsqueda siempre es por sede: sin `campusId` se usa la del usuario.
-    const campus = campusId ?? user.campus?.id;
+    // Todas las sedes (RN-49); `campusId` restringe a una.
     const search = destination ? normalize(destination.trim()) : "";
     const now = new Date();
 
@@ -183,7 +218,8 @@ export const rideHandlers = [
         const departure = new Date(ride.departureTime);
         const place = ride.destination;
         return (
-          ride.campusId === campus &&
+          (!campusId || ride.campusId === campusId) &&
+          (accessible !== "true" || ride.vehicle.wheelchairAccessible) &&
           ride.status === "PUBLISHED" &&
           ride.driver.id !== user.id &&
           departure > now &&
@@ -198,6 +234,31 @@ export const rideHandlers = [
       .sort((a, b) => a.departureTime.localeCompare(b.departureTime))
       .map(toRideSummary);
 
+    // 20 viajes por página (RF-03), con la reserva activa del pasajero (RN-23). El mock no
+    // registra cancelaciones, así que no hay bloqueo (RN-38).
+    const start = (page - 1) * PAGE_SIZE;
+    return HttpResponse.json({
+      data: rides.slice(start, start + PAGE_SIZE),
+      page,
+      hasMore: rides.length > start + PAGE_SIZE,
+      activeBooking: toActiveBooking(user.id),
+      bookingBlock: null,
+    });
+  }),
+
+  http.get(api("/rides/mine"), ({ request }) => {
+    const user = authenticate(request);
+    if (user instanceof Response) {
+      return user;
+    }
+    const rides = db.rides
+      .filter(
+        (ride) =>
+          ride.driver.id === user.id &&
+          (ride.status === "PUBLISHED" || ride.status === "IN_PROGRESS"),
+      )
+      .sort((a, b) => a.departureTime.localeCompare(b.departureTime))
+      .map(toRideSummary);
     return HttpResponse.json({ data: rides });
   }),
 
@@ -341,6 +402,7 @@ export const rideHandlers = [
     const ride: MockRide = {
       id: faker.database.mongodbObjectId(),
       campusId: user.campus!.id,
+      campus: toRideCampus(user.campus!.id),
       status: "PUBLISHED",
       direction: body.direction as RideDirection,
       departureTime: departure.toISOString(),
@@ -431,6 +493,13 @@ export const rideHandlers = [
         409,
         "ALREADY_BOOKED",
         "Ya tienes una reserva confirmada en este viaje",
+      );
+    }
+    if (toActiveBooking(user.id)) {
+      return apiError(
+        409,
+        "ACTIVE_BOOKING_EXISTS",
+        "Ya tienes una reserva activa. Cancélala para reservar otro viaje.",
       );
     }
     if (ride.availableSeats < seats) {

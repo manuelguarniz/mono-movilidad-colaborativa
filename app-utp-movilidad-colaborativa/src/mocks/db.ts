@@ -77,6 +77,8 @@ export type MockUser = {
 export type MockRide = {
   id: string;
   campusId: string;
+  // Copia de la sede con su ciudad: la etiqueta del dashboard (RN-49).
+  campus: { id: string; name: string; city: string | null };
   status: RideStatus;
   direction: RideDirection;
   departureTime: string;
@@ -100,7 +102,7 @@ export type MockReservation = {
   passengerId: string;
   seats: number;
   totalCredits: number;
-  status: "CONFIRMED" | "CANCELLED" | "COMPLETED";
+  status: "CONFIRMED" | "IN_RIDE" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
   createdAt: string;
 };
 
@@ -313,6 +315,13 @@ export function measureRoute(points: GeoPoint[]) {
 }
 
 /** Primer nombre e inicial del apellido («Carlos M.»). */
+/** Copia de la sede en el viaje; la ciudad es el distrito de la sede (RN-49). */
+export function toRideCampus(campusId: string) {
+  const campus = CAMPUSES.find((item) => item.id === campusId)!;
+  const district = DISTRICTS.find((item) => item.id === campus.districtId);
+  return { id: campus.id, name: campus.name, city: district?.name ?? null };
+}
+
 /** Copia del vehículo dentro del viaje, como en `viajes.vehiculo`. */
 export const toRideVehicle = (vehicle: Vehicle): RideVehicle => ({
   brand: vehicle.brand,
@@ -462,6 +471,7 @@ function seed(): Database {
       ...data,
       id: oid(n),
       campusId: trujillo.id,
+      campus: toRideCampus(trujillo.id),
       status: "PUBLISHED",
       totalSeats: vehicle.seats,
       ...measureRoute(
@@ -532,7 +542,7 @@ function seed(): Database {
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
 // El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
-const STORAGE_KEY = "colaboracar_mock_db_v2";
+const STORAGE_KEY = "colaboracar_mock_db_v3";
 
 function load(): Database {
   try {

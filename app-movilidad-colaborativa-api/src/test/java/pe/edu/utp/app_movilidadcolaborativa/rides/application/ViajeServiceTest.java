@@ -6,13 +6,18 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
+import pe.edu.utp.app_movilidadcolaborativa.catalogs.domain.model.Sede;
+import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.persistence.SedeRepository;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.FiltroViajesRequest;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ListadoViajesDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.LugarDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.LugarDto.PuntoDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.PublicarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeResumenDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoViaje;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SedeViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SentidoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.validation.ReglasViaje;
@@ -21,6 +26,8 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.domain.dto.ErrorDto.ErrorCamp
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
+import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.CalificacionDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Accesibilidad;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Calificacion;
@@ -56,8 +63,17 @@ class ViajeServiceTest {
 	private final ViajeRepository viajeRepository = mock(ViajeRepository.class);
 	private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
 	private final CancelacionesConductorService cancelaciones = mock(CancelacionesConductorService.class);
-	private final ViajeService servicio =
-			new ViajeService(usuarioRepository, viajeRepository, mongoTemplate, cancelaciones);
+	private final RestriccionesPasajeroService restricciones = mock(RestriccionesPasajeroService.class);
+	private final SedeRepository sedeRepository = mock(SedeRepository.class);
+	private final ViajeService servicio = new ViajeService(usuarioRepository, viajeRepository, mongoTemplate,
+			cancelaciones, restricciones, sedeRepository);
+
+	// La ciudad del viaje es el distrito de la sede en el catálogo (RN-49).
+	{
+		when(sedeRepository.findById(Viajes.SEDE_ID)).thenReturn(Optional.of(new Sede(Viajes.SEDE_ID,
+				"UTP Sede Trujillo", "UTP", "Av. Nicolás de Piérola",
+				new ReferenciaNombre(new ObjectId(), "Trujillo"), null, true)));
+	}
 	private final ObjectId usuarioId = new ObjectId();
 
 	private Usuario.UsuarioBuilder pasajero() {
@@ -104,7 +120,7 @@ class ViajeServiceTest {
 	private Document consultaDelListado() {
 		ArgumentCaptor<Query> consulta = ArgumentCaptor.forClass(Query.class);
 		verify(mongoTemplate).find(consulta.capture(), eq(Viaje.class));
-		assertThat(consulta.getValue().getSortObject()).isEqualTo(new Document("fecha_salida", 1));
+		assertThat(consulta.getValue().getSortObject()).isEqualTo(new Document("fecha_salida", 1).append("_id", 1));
 		return consulta.getValue().getQueryObject();
 	}
 
@@ -128,7 +144,7 @@ class ViajeServiceTest {
 		assertThat(viaje.sentido()).isEqualTo(SentidoViaje.REGRESO_CASA);
 		assertThat(viaje.conductor().id()).isEqualTo(usuarioId);
 		assertThat(viaje.conductor().nombre()).isEqualTo("Carlos M.");
-		assertThat(viaje.sede().id()).isEqualTo(Viajes.SEDE_ID);
+		assertThat(viaje.sede()).isEqualTo(new SedeViaje(Viajes.SEDE_ID, "UTP Sede Trujillo", "Trujillo"));
 		assertThat(viaje.vehiculo().placa()).isEqualTo("ABC-123");
 		assertThat(viaje.plazasTotales()).isEqualTo(3);
 		assertThat(viaje.plazasDisponibles()).isEqualTo(3);
@@ -171,16 +187,36 @@ class ViajeServiceTest {
 	}
 
 	@Test
-	void listarBuscaLosViajesPublicadosDeLaSedeDelUsuario() {
+	void sinDistritoEnElCatalogoElViajeQuedaSinCiudad() {
+		existe(conductor());
+		when(sedeRepository.findById(Viajes.SEDE_ID)).thenReturn(Optional.of(new Sede(Viajes.SEDE_ID,
+				"UTP Sede Trujillo", "UTP", "Av. Nicolás de Piérola", null, null, true)));
+
+		assertThat(servicio.publicar(usuarioId, solicitud(1)).campus())
+				.isEqualTo(new ViajeResumenDto.Sede(Viajes.SEDE_ID.toHexString(), "UTP Sede Trujillo", null));
+	}
+
+	private static FiltroViajesRequest sinFiltros() {
+		return new FiltroViajesRequest(null, null, null, null, null, null);
+	}
+
+	@Test
+	void listarBuscaLosViajesPublicadosDeTodasLasSedes() {
 		existe(pasajero().build());
 		ObjectId viajeId = new ObjectId();
 		when(mongoTemplate.find(any(Query.class), eq(Viaje.class)))
 				.thenReturn(List.of(Viajes.publicado(viajeId, new ObjectId()).build()));
 		Instant antes = Instant.now();
 
-		List<ViajeResumenDto> viajes = servicio.listar(usuarioId, new FiltroViajesRequest(null, null, null, null));
+		ListadoViajesDto listado = servicio.listar(usuarioId, sinFiltros());
 
-		assertThat(viajes).singleElement().satisfies(viaje -> {
+		assertThat(listado.page()).isEqualTo(1);
+		assertThat(listado.hasMore()).isFalse();
+		assertThat(listado.activeBooking()).isNull();
+		assertThat(listado.bookingBlock()).isNull();
+		assertThat(listado.data()).singleElement().satisfies(viaje -> {
+			assertThat(viaje.campus().city()).isEqualTo("Trujillo");
+			assertThat(viaje.vehicle().wheelchairAccessible()).isTrue();
 			assertThat(viaje.id()).isEqualTo(viajeId.toHexString());
 			assertThat(viaje.status()).isEqualTo("PUBLISHED");
 			assertThat(viaje.direction()).isEqualTo("TO_HOME");
@@ -191,7 +227,8 @@ class ViajeServiceTest {
 		});
 		Document consulta = consultaDelListado();
 		assertThat(consulta).containsEntry("estado", EstadoViaje.PUBLICADO)
-				.containsEntry("sede.id", Viajes.SEDE_ID)
+				.doesNotContainKey("sede.id")
+				.doesNotContainKey("vehiculo.apto_movilidad_reducida")
 				.containsEntry("plazas_disponibles", new Document("$gte", 1))
 				.containsEntry("conductor.id", new Document("$ne", usuarioId))
 				.doesNotContainKey("$or");
@@ -201,17 +238,18 @@ class ViajeServiceTest {
 	}
 
 	@Test
-	void listarAplicaLosFiltrosDeSedeDestinoHoraYPasajeros() {
+	void listarAplicaLosFiltrosDeSedeDestinoHoraPasajerosYAccesibilidad() {
 		existe(pasajero().build());
 		when(mongoTemplate.find(any(Query.class), eq(Viaje.class))).thenReturn(List.of());
 		ObjectId otraSede = new ObjectId();
 		Instant ahora = Instant.now();
 
-		assertThat(servicio.listar(usuarioId, new FiltroViajesRequest(otraSede.toHexString(), "dragon", "00:00", "2")))
-				.isEmpty();
+		assertThat(servicio.listar(usuarioId, new FiltroViajesRequest(otraSede.toHexString(), "dragon", "00:00", "2",
+				"true", null)).data()).isEmpty();
 
 		Document consulta = consultaDelListado();
 		assertThat(consulta).containsEntry("sede.id", otraSede)
+				.containsEntry("vehiculo.apto_movilidad_reducida", true)
 				.containsEntry("plazas_disponibles", new Document("$gte", 2));
 		// La hora pedida ya pasó: la salida sigue siendo futura, pero solo de hoy en la hora de Perú.
 		Document salida = consulta.get("fecha_salida", Document.class);
@@ -293,11 +331,61 @@ class ViajeServiceTest {
 	}
 
 	@Test
-	void sinSedeLaListaLlegaVaciaYUnViajeInexistenteRespondeNotFound() {
-		existe(pasajero().sede(null).estado(EstadoUsuario.PERFIL_PENDIENTE).build());
-		assertThat(servicio.listar(usuarioId, new FiltroViajesRequest(null, null, null, null))).isEmpty();
-		verifyNoInteractions(mongoTemplate);
+	void listarPaginaDeAVeinteYAvisaSiHayMas() {
+		existe(pasajero().build());
+		List<Viaje> veintiuno = java.util.stream.IntStream.range(0, 21)
+				.mapToObj(i -> Viajes.publicado(new ObjectId(), new ObjectId()).build()).toList();
+		when(mongoTemplate.find(any(Query.class), eq(Viaje.class))).thenReturn(veintiuno);
 
+		ListadoViajesDto listado = servicio.listar(usuarioId, new FiltroViajesRequest(null, null, null, null, null, "3"));
+
+		assertThat(listado.data()).hasSize(20);
+		assertThat(listado.hasMore()).isTrue();
+		assertThat(listado.page()).isEqualTo(3);
+		ArgumentCaptor<Query> consulta = ArgumentCaptor.forClass(Query.class);
+		verify(mongoTemplate).find(consulta.capture(), eq(Viaje.class));
+		assertThat(consulta.getValue().getSkip()).isEqualTo(40);
+		assertThat(consulta.getValue().getLimit()).isEqualTo(21);
+	}
+
+	@Test
+	void listarInformaLaReservaActivaYElBloqueoDelPasajero() {
+		existe(pasajero().build());
+		when(mongoTemplate.find(any(Query.class), eq(Viaje.class))).thenReturn(List.of());
+		ObjectId reservaId = new ObjectId();
+		ObjectId viajeId = new ObjectId();
+		Instant salida = Instant.parse("2030-01-15T19:20:00Z");
+		when(restricciones.reservaActiva(usuarioId)).thenReturn(Optional.of(Reserva.builder().id(reservaId)
+				.viajeId(viajeId).viaje(new Reserva.ResumenViaje("UTP Sede Trujillo", "Urb. El Golf", salida,
+						"Carlos M.", null)).build()));
+		Instant hasta = Instant.parse("2026-11-08T15:00:00Z");
+		when(restricciones.bloqueo(eq(usuarioId), any(Instant.class)))
+				.thenReturn(Optional.of(new CancelacionesConductorService.Bloqueo(5, 30, hasta)));
+
+		ListadoViajesDto listado = servicio.listar(usuarioId, sinFiltros());
+
+		assertThat(listado.activeBooking()).isEqualTo(new ListadoViajesDto.ReservaActivaDto(reservaId.toHexString(),
+				viajeId.toHexString(), salida, "UTP Sede Trujillo", "Urb. El Golf"));
+		assertThat(listado.bookingBlock()).isEqualTo(new PerfilUsuarioDto.BloqueoCancelacionesDto(5, hasta));
+	}
+
+	@Test
+	void listarPropiosDevuelveLosViajesActivosDelConductor() {
+		existe(conductor());
+		when(mongoTemplate.find(any(Query.class), eq(Viaje.class)))
+				.thenReturn(List.of(Viajes.publicado(new ObjectId(), usuarioId).build()));
+
+		assertThat(servicio.listarPropios(usuarioId)).hasSize(1);
+
+		ArgumentCaptor<Query> consulta = ArgumentCaptor.forClass(Query.class);
+		verify(mongoTemplate).find(consulta.capture(), eq(Viaje.class));
+		assertThat(consulta.getValue().getQueryObject()).containsEntry("conductor.id", usuarioId)
+				.containsEntry("estado", new Document("$in", List.of(EstadoViaje.PUBLICADO, EstadoViaje.EN_CURSO)));
+		assertThat(consulta.getValue().getSortObject()).isEqualTo(new Document("fecha_salida", 1));
+	}
+
+	@Test
+	void unViajeInexistenteRespondeNotFound() {
 		ObjectId viajeId = new ObjectId();
 		when(viajeRepository.findById(viajeId)).thenReturn(Optional.empty());
 		falla(() -> servicio.consultar(viajeId), CodigoError.RIDE_NOT_FOUND);
@@ -307,7 +395,7 @@ class ViajeServiceTest {
 	void unaCuentaBloqueadaRespondeUnauthorized() {
 		existe(pasajero().estado(EstadoUsuario.BLOQUEADO).build());
 
-		falla(() -> servicio.listar(usuarioId, new FiltroViajesRequest(null, null, null, null)),
+		falla(() -> servicio.listar(usuarioId, sinFiltros()),
 				CodigoError.UNAUTHORIZED);
 		falla(() -> servicio.publicar(usuarioId, solicitud(1)), CodigoError.UNAUTHORIZED);
 	}

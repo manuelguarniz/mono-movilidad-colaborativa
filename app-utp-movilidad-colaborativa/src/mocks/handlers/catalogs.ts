@@ -46,7 +46,13 @@ export const catalogHandlers = [
     }
     return HttpResponse.json({
       data: CAMPUSES.filter((item) => item.districtId === districtId)
-        .map(({ id, name, address, location }) => ({ id, name, address, location }))
+        .map(({ id, name, address, location }) => ({
+          id,
+          name,
+          city: DISTRICTS.find((district) => district.id === districtId)?.name ?? null,
+          address,
+          location,
+        }))
         .sort(byName),
     });
   }),

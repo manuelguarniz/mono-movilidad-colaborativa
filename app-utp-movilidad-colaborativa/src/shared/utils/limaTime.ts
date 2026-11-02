@@ -42,3 +42,13 @@ export function getLimaDayLabel(date: Date) {
   }
   return weekdayFormatter.format(date);
 }
+
+/** «Hoy, 14:20», «Mañana, 07:00» o «Viernes, 07:00». */
+export function formatDepartureLabel(date: Date) {
+  const day = getLimaDayLabel(date);
+  return `${day.charAt(0).toUpperCase()}${day.slice(1)}, ${formatLimaTime(date)}`;
+}
+
+/** `DD/MM` en la hora de Perú. */
+export const formatLimaDayMonth = (date: Date) =>
+  new Intl.DateTimeFormat("es-PE", { timeZone: LIMA, day: "2-digit", month: "2-digit" }).format(date);

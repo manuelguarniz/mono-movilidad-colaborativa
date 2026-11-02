@@ -5,10 +5,10 @@ import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.ConductorViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Lugar;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SedeViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SentidoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.VehiculoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
-import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Calificacion;
 
 import java.time.Instant;
@@ -30,7 +30,7 @@ final class Viajes {
 				.conductor(new ConductorViaje(conductorId, "Carlos M.", "/uploads/perfiles/c.jpg",
 						new Calificacion(4.9, 120)))
 				.vehiculo(new VehiculoViaje("Toyota", "Yaris", "Blanco", "ABC-123", true, null))
-				.sede(new ReferenciaNombre(SEDE_ID, "UTP Sede Trujillo"))
+				.sede(new SedeViaje(SEDE_ID, "UTP Sede Trujillo", "Trujillo"))
 				.sentido(SentidoViaje.REGRESO_CASA)
 				.origen(new Lugar("UTP Sede Trujillo", "Av. Nicolás de Piérola", new GeoJsonPoint(-79.0353, -8.0975)))
 				.destino(new Lugar("Huaca del Dragón", "La Esperanza, Trujillo", new GeoJsonPoint(-79.0412, -8.0716)))

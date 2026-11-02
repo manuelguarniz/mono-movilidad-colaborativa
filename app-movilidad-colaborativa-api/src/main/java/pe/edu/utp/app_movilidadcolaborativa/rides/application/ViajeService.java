@@ -8,7 +8,11 @@ import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import pe.edu.utp.app_movilidadcolaborativa.catalogs.domain.model.Sede;
+import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.persistence.SedeRepository;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.FiltroViajesRequest;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ListadoViajesDto;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ListadoViajesDto.ReservaActivaDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.LugarDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.PublicarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
@@ -16,6 +20,7 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeResumenDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.ConductorViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Lugar;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SedeViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.SentidoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.VehiculoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
@@ -24,7 +29,7 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.persistence.Via
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
-import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.BloqueoCancelacionesDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoVehiculo;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Soat;
@@ -42,35 +47,40 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** Listado, detalle y publicación de viajes (RF-09 a RF-12 y RF-15 a RF-18). */
+/** Listado, detalle y publicación de viajes (RF-03, RF-05). */
 @Service
 @RequiredArgsConstructor
 public class ViajeService {
 
+	/** RF-03: 20 viajes por página. */
+	public static final int TAMANO_PAGINA = 20;
 	private static final DateTimeFormatter DIA_MES = DateTimeFormatter.ofPattern("dd/MM").withZone(ReglasViaje.ZONA_PERU);
 
 	private final UsuarioRepository usuarioRepository;
 	private final ViajeRepository viajeRepository;
 	private final MongoTemplate mongoTemplate;
 	private final CancelacionesConductorService cancelacionesConductorService;
+	private final RestriccionesPasajeroService restriccionesPasajeroService;
+	private final SedeRepository sedeRepository;
 
 	/**
-	 * Viajes PUBLICADO de una sede, con salida futura y plazas suficientes, sin los del propio usuario.
-	 * Sin campusId se usa la sede del usuario; con time, solo los viajes de hoy desde esa hora.
+	 * Página del listado del dashboard (RF-03): viajes PUBLICADO de todas las sedes (RN-49), con salida futura y
+	 * plazas suficientes, sin los del propio usuario, ordenados por hora de salida. Con campusId, solo esa sede;
+	 * con time, solo los viajes de hoy desde esa hora; con accessible, solo los vehículos aptos (RN-19). Trae
+	 * además la reserva activa (RN-23) y el bloqueo por cancelaciones (RN-38) del pasajero.
 	 */
-	public List<ViajeResumenDto> listar(ObjectId usuarioId, FiltroViajesRequest filtro) {
-		Usuario usuario = buscarUsuario(usuarioId);
-		ObjectId sedeId = filtro.campusId() != null ? new ObjectId(filtro.campusId())
-				: usuario.getSede() == null ? null : usuario.getSede().id();
-		if (sedeId == null) {
-			return List.of();
-		}
-
+	public ListadoViajesDto listar(ObjectId usuarioId, FiltroViajesRequest filtro) {
+		buscarUsuario(usuarioId);
 		Instant ahora = Instant.now();
 		Criteria criterios = Criteria.where("estado").is(EstadoViaje.PUBLICADO)
-				.and("sede.id").is(sedeId)
 				.and("plazas_disponibles").gte(filtro.passengers() == null ? 1 : Integer.parseInt(filtro.passengers()))
 				.and("conductor.id").ne(usuarioId);
+		if (filtro.campusId() != null) {
+			criterios.and("sede.id").is(new ObjectId(filtro.campusId()));
+		}
+		if (filtro.soloAccesibles()) {
+			criterios.and("vehiculo.apto_movilidad_reducida").is(true);
+		}
 		if (filtro.time() == null) {
 			criterios.and("fecha_salida").gt(ahora);
 		} else {
@@ -90,7 +100,32 @@ public class ViajeService {
 					Criteria.where("destino.direccion").regex(patron, "i"));
 		}
 
-		Query consulta = Query.query(criterios).with(Sort.by(Sort.Direction.ASC, "fecha_salida"));
+		// Se pide uno más que el tamaño de la página para saber si hay otra.
+		int pagina = filtro.pagina();
+		Query consulta = Query.query(criterios)
+				.with(Sort.by(Sort.Direction.ASC, "fecha_salida").and(Sort.by("_id")))
+				.skip((long) (pagina - 1) * TAMANO_PAGINA)
+				.limit(TAMANO_PAGINA + 1);
+		List<ViajeResumenDto> viajes = mongoTemplate.find(consulta, Viaje.class).stream()
+				.map(ViajeResumenDto::desde).toList();
+		boolean hayMas = viajes.size() > TAMANO_PAGINA;
+
+		return new ListadoViajesDto(
+				hayMas ? viajes.subList(0, TAMANO_PAGINA) : viajes,
+				pagina,
+				hayMas,
+				restriccionesPasajeroService.reservaActiva(usuarioId).map(ReservaActivaDto::desde).orElse(null),
+				restriccionesPasajeroService.bloqueo(usuarioId, ahora)
+						.map(bloqueo -> new BloqueoCancelacionesDto(bloqueo.cancelaciones(), bloqueo.hasta()))
+						.orElse(null));
+	}
+
+	/** Viajes PUBLICADO y EN_CURSO del conductor, por hora de salida: el resumen del dashboard en modo conductor. */
+	public List<ViajeResumenDto> listarPropios(ObjectId usuarioId) {
+		buscarUsuario(usuarioId);
+		Query consulta = Query.query(Criteria.where("conductor.id").is(usuarioId)
+						.and("estado").in(EstadoViaje.PUBLICADO, EstadoViaje.EN_CURSO))
+				.with(Sort.by(Sort.Direction.ASC, "fecha_salida"));
 		return mongoTemplate.find(consulta, Viaje.class).stream().map(ViajeResumenDto::desde).toList();
 	}
 
@@ -148,7 +183,7 @@ public class ViajeService {
 						usuario.getCalificacion()))
 				.vehiculo(new VehiculoViaje(vehiculo.marca(), vehiculo.modelo(), vehiculo.color(), vehiculo.placa(),
 						vehiculo.esApto(), soat == null ? null : soat.fechaFin()))
-				.sede(new ReferenciaNombre(usuario.getSede().id(), usuario.getSede().nombre()))
+				.sede(new SedeViaje(usuario.getSede().id(), usuario.getSede().nombre(), ciudad(usuario)))
 				.sentido(SentidoViaje.desdeApi(solicitud.direction()))
 				.origen(origen)
 				.destino(destino)
@@ -166,6 +201,11 @@ public class ViajeService {
 				.build();
 		viajeRepository.insert(viaje);
 		return ViajeDetalleDto.desde(viaje);
+	}
+
+	// RN-49: la ciudad es el distrito de la sede en el catálogo (sedes.distrito.nombre).
+	private String ciudad(Usuario usuario) {
+		return sedeRepository.findById(usuario.getSede().id()).map(Sede::ciudad).orElse(null);
 	}
 
 	// El token puede seguir vigente aunque la cuenta ya no exista o haya sido bloqueada.
