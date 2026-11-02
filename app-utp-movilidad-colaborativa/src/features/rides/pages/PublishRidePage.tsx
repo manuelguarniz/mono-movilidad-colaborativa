@@ -653,19 +653,7 @@ export function PublishRidePage() {
                 <AccessibleIcon className="h-4 w-4" />
                 Apto para silla de ruedas
               </span>
-            ) : (
-              <span className="text-sm text-[var(--text-muted)]">
-                Sin accesibilidad declarada ·{" "}
-                <Link
-                  to={VEHICLE_PATH}
-                  state={{ returnTo: PUBLISH_PATH }}
-                  className="font-semibold text-[var(--brand-red)]"
-                  onClick={saveDraft}
-                >
-                  Configurar en mi vehículo
-                </Link>
-              </span>
-            )}
+            ) : null}
             <span className="publish-chip bg-[var(--surface-muted)] text-[var(--text-muted)]">
               {campus.name}
             </span>

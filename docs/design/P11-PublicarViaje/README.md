@@ -29,5 +29,5 @@ Manda el README raíz (sección 11). Detalle y motivo de cada cambio en [prompt.
 - Ruta con líneas rectas y también como lista en texto, hasta 5 paradas (RN-10, RN-29, RNF-11).
 - Condiciones opcionales, hasta 10 (RF-05).
 - Vehículo visible, con sus plazas como máximo del selector (RN-11).
-- Accesibilidad del vehículo en modo lectura: chip «Apto para silla de ruedas», o «Sin accesibilidad declarada · Configurar en mi vehículo» hacia P16 (RN-18). No se activa por viaje.
+- Accesibilidad del vehículo en modo lectura: chip «Apto para silla de ruedas» solo si el vehículo es apto; si no, no se muestra nada (RN-18). No se activa por viaje.
 - Estados de bloqueo: sin vehículo (RN-24), cancelaciones (RN-30) y SOAT vencido en la fecha (RN-37).

@@ -311,7 +311,7 @@ Se aprueba el 2026-11-01 en la segunda ronda. Capturas finales: 11-A → v2.3, 1
 
 Ajustes a resolver en la implementación (React + Tailwind):
 
-1. Vehículo no apto: en lugar del chip va «Sin accesibilidad declarada · Configurar en mi vehículo», que abre P16 y al volver conserva el formulario.
+1. Vehículo no apto: no se muestra el chip ni ningún texto en su lugar (decisión del usuario del 2026-11-01, reemplaza «Sin accesibilidad declarada · Configurar en mi vehículo»).
 2. Errores con los mensajes de la tabla «Mensajes de validación», debajo de cada campo. Sin vehículo (RN-24) se usa el mismo layout de 11-C con su mensaje y el botón «Registrar vehículo» (P16).
 3. «Actualizar SOAT» abre P16 (el texto dice «en tu perfil» porque P16 se abre desde el perfil).
 4. Los botones − y + del precio se deshabilitan en 1 y en 10; el selector de plazas llega hasta las plazas del vehículo.
