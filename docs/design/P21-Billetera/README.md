@@ -30,3 +30,8 @@ Manda el README raíz. Las capturas son una referencia de alta fidelidad, no un 
 - Descripciones de movimientos en una línea con puntos suspensivos; el monto siempre visible.
 - Falta el retiro rechazado: chip «Rechazado» con el motivo y la fila «Retiro devuelto» (RF-12).
 - Mensajes de validación y decisiones de flujo en [prompt.md](prompt.md).
+
+## Implementación (2026-11-21)
+
+Implementada de punta a punta (backend, contrato, API simulada y frontend), junto con el dinero de los viajes: reservar retiene créditos (RN-39), cancelar reembolsa y finalizar paga al conductor (RN-40). El retiro rechazado (ajuste 4) se ve con el chip «Rechazado», el motivo debajo y la fila «Retiro devuelto»; en la API simulada lo muestra Andrea. «Listo» tras una recarga abierta desde «Saldo insuficiente» vuelve al dashboard o al detalle del viaje, donde se reserva de nuevo.
+

@@ -29,8 +29,9 @@ public class ReservaController {
 	@PostMapping("/{bookingId}/cancel")
 	public MensajeDto cancelar(@AuthenticationPrincipal Jwt jwt, @PathVariable ObjectId bookingId) {
 		int devueltos = misViajesService.cancelarReserva(usuarioId(jwt), bookingId);
-		return new MensajeDto("Reserva cancelada. Te devolvimos %d %s."
-				.formatted(devueltos, devueltos == 1 ? "crédito" : "créditos"));
+		// Una reserva anterior a la billetera no retuvo créditos: no hay nada que devolver.
+		return new MensajeDto(devueltos == 0 ? "Reserva cancelada."
+				: "Reserva cancelada. Te devolvimos %d %s.".formatted(devueltos, devueltos == 1 ? "crédito" : "créditos"));
 	}
 
 	private static ObjectId usuarioId(Jwt jwt) {

@@ -71,6 +71,9 @@ export type MockUser = {
   vehicle: Vehicle | null;
   stats: { trips: number; compliance: number; co2SavedKg: number };
   rating: Rating | null;
+  // Billetera (RN-39). Opcionales: un usuario recién registrado empieza en 0.
+  credits?: number;
+  heldCredits?: number;
   createdAt: string;
 };
 
@@ -115,8 +118,43 @@ export type MockReservation = {
   status: "CONFIRMED" | "IN_RIDE" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
   cancelledBy: Actor | null;
   cancelledAt: string | null;
+  // false mientras sus créditos están retenidos; true al reembolsarlos o pagarlos (RN-40).
+  settled?: boolean;
   updatedAt: string;
   createdAt: string;
+};
+
+export type MovementType =
+  | "TOP_UP"
+  | "BOOKING_HOLD"
+  | "REFUND"
+  | "RIDE_EARNING"
+  | "WITHDRAWAL"
+  | "WITHDRAWAL_REVERSAL";
+
+export type MockMovement = {
+  id: string;
+  userId: string;
+  type: MovementType;
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  operationCode: string | null;
+  withdrawalId: string | null;
+  createdAt: string;
+};
+
+export type WithdrawalStatus = "PENDING" | "PAID" | "REJECTED";
+
+export type MockWithdrawal = {
+  id: string;
+  userId: string;
+  credits: number;
+  yapePhone: string;
+  status: WithdrawalStatus;
+  rejectionReason: string | null;
+  reversalApplied: boolean;
+  requestedAt: string;
 };
 
 export type MockOtp = {
@@ -141,6 +179,8 @@ type Database = {
   reservations: MockReservation[];
   otps: Record<string, MockOtp>;
   files: MockFile[];
+  movements: MockMovement[];
+  withdrawals: MockWithdrawal[];
 };
 
 // Los id siguen la numeración de `docs/seed.js` y de los ejemplos del README:
@@ -622,28 +662,38 @@ function seed(): Database {
     ...extra,
   });
   const reservations: MockReservation[] = [
-    reservation(601, oid(504), passenger("Lucía R.", 4.8), 2, 6),
-    reservation(602, oid(504), passenger("Jorge P.", 4.6), 1, 6),
-    reservation(603, oid(503), passenger("Diego C.", 4.7), 1, 6),
+    reservation(601, oid(504), passenger("Lucía R.", 4.8), 2, 6, { settled: false }),
+    reservation(602, oid(504), passenger("Jorge P.", 4.6), 1, 6, { settled: false }),
+    reservation(603, oid(503), passenger("Diego C.", 4.7), 1, 6, { settled: false }),
     {
       ...reservation(604, oid(505), passenger("Valeria R.", 4.8), 2, 4, {
         status: "CANCELLED",
         cancelledBy: "DRIVER",
         cancelledAt: minutesFromNow(-22 * 60),
+        settled: true,
       }),
       passengerId: valeria.id,
     },
   ];
   rides.find((ride) => ride.id === oid(503))!.availableSeats = 2;
 
-  return { users: [valeria, carlos, andrea], rides, reservations, otps: {}, files: [] };
+  const wallet = seedWallets(valeria, carlos, andrea, minutesFromNow);
+
+  return {
+    users: [valeria, carlos, andrea],
+    rides,
+    reservations,
+    otps: {},
+    files: [],
+    ...wallet,
+  };
 }
 
 // El estado se guarda en sessionStorage para que sobreviva a las recargas de la página
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
 // El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
-const STORAGE_KEY = "colaboracar_mock_db_v4";
+const STORAGE_KEY = "colaboracar_mock_db_v5";
 
 function load(): Database {
   try {
@@ -686,4 +736,104 @@ export function syncDriverRides(user: MockUser) {
       ride.vehicle = toRideVehicle(user.vehicle);
     }
   }
+}
+
+/**
+ * Billeteras de los frames de P21. Los movimientos van del más antiguo al más reciente y el
+ * saldo de cada uno se acumula, así que el último coincide con el saldo del usuario:
+ * Carlos 96 (21-A, retirable mín(96, 128 − 50) = 78), Valeria 38 (21-B) y Andrea 40, con un
+ * retiro rechazado y devuelto.
+ */
+function seedWallets(
+  valeria: MockUser,
+  carlos: MockUser,
+  andrea: MockUser,
+  minutesFromNow: (minutes: number) => string,
+) {
+  const movements: MockMovement[] = [];
+  const withdrawals: MockWithdrawal[] = [];
+  let next = 801;
+  const add = (
+    user: MockUser,
+    minutesAgo: number,
+    type: MovementType,
+    amount: number,
+    description: string,
+    extra: Partial<MockMovement> = {},
+  ) => {
+    user.credits = (user.credits ?? 0) + amount;
+    movements.push({
+      id: oid(next++),
+      userId: user.id,
+      type,
+      amount,
+      balanceAfter: user.credits,
+      description,
+      operationCode: null,
+      withdrawalId: null,
+      createdAt: minutesFromNow(-minutesAgo),
+      ...extra,
+    });
+  };
+  const withdrawal = (
+    user: MockUser,
+    minutesAgo: number,
+    credits: number,
+    status: WithdrawalStatus,
+    rejectionReason: string | null = null,
+  ) => {
+    const item: MockWithdrawal = {
+      id: oid(next++),
+      userId: user.id,
+      credits,
+      yapePhone: "987654321",
+      status,
+      rejectionReason,
+      reversalApplied: status === "REJECTED",
+      requestedAt: minutesFromNow(-minutesAgo),
+    };
+    withdrawals.push(item);
+    add(user, minutesAgo, "WITHDRAWAL", -credits, "Celular •••• 321", { withdrawalId: item.id });
+    return item;
+  };
+  const DAY = 24 * 60;
+  const campus = "Campus UTP Trujillo";
+
+  for (const user of [valeria, carlos, andrea]) {
+    user.credits = 0;
+    user.heldCredits = 0;
+  }
+
+  // Carlos M. (conductor): 128 cobrados, 50 retirados y pagados.
+  for (const [days, name, credits] of [
+    [8, "Diego C.", 24],
+    [7, "Jorge P.", 18],
+    [6, "Mateo R.", 20],
+    [5, "Sofía A.", 18],
+    [4, "Lucía R.", 18],
+  ] as const) {
+    add(carlos, days * DAY, "RIDE_EARNING", credits, `${name} · Urb. California → ${campus}`);
+  }
+  add(carlos, 3 * DAY, "BOOKING_HOLD", -2, `${campus} → Urb. Las Quintanas · 1 plaza`);
+  add(carlos, 2 * DAY + 60, "RIDE_EARNING", 12, `Lucía R. · ${campus} → Urb. El Golf`);
+  add(carlos, 2 * DAY, "TOP_UP", 20, "Operación 08451236", { operationCode: "08451236" });
+  withdrawal(carlos, DAY, 50, "PAID");
+  add(carlos, 90, "RIDE_EARNING", 9, `Mateo R. · Urb. California → ${campus}`);
+  add(carlos, 89, "RIDE_EARNING", 9, `Sofía A. · Urb. California → ${campus}`);
+
+  // Valeria R. (pasajera): el reembolso es el viaje que le canceló Andrea (P17).
+  add(valeria, 4 * DAY, "TOP_UP", 50, "Operación 77310452", { operationCode: "77310452" });
+  add(valeria, 3 * DAY, "BOOKING_HOLD", -12, `${campus} → Urb. El Golf · 2 plazas`);
+  add(valeria, 30 * 60, "BOOKING_HOLD", -8, `${campus} → Huanchaco · 2 plazas`);
+  add(valeria, 22 * 60, "REFUND", 8, `Cancelado por el conductor · ${campus} → Huanchaco`);
+
+  // Andrea P. (conductora): un retiro rechazado por el operador y su devolución (RF-12).
+  add(andrea, 6 * DAY, "RIDE_EARNING", 24, `Valeria R. · ${campus} → Huanchaco`);
+  add(andrea, 5 * DAY, "RIDE_EARNING", 16, `Diego C. · ${campus} → Huanchaco`);
+  const rejected = withdrawal(andrea, 2 * DAY, 20, "REJECTED", "El número no tiene Yape activo");
+  add(andrea, 2 * DAY - 120, "WITHDRAWAL_REVERSAL", 20, `Rechazado: ${rejected.rejectionReason}`, {
+    withdrawalId: rejected.id,
+  });
+
+  return { movements, withdrawals };
 }

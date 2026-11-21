@@ -45,6 +45,10 @@ public class Usuario {
 	private Vehiculo vehiculo;
 	private Estadisticas estadisticas;
 	private Calificacion calificacion;
+	/** Saldo disponible en créditos (RN-39). null en cuentas anteriores a la billetera: vale 0. */
+	private Integer saldoCreditos;
+	/** Créditos apartados en reservas sin liquidar. null vale 0. */
+	private Integer creditosRetenidos;
 	private Foto foto;
 	private Instant fechaAceptacionTerminos;
 	private Instant fechaCreacion;

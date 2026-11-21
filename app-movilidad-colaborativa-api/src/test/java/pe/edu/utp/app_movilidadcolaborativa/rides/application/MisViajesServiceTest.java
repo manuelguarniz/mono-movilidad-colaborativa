@@ -29,6 +29,8 @@ import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Calificacion;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
+import pe.edu.utp.app_movilidadcolaborativa.wallet.application.LibroCreditos;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Actor;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -44,6 +46,7 @@ import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -58,8 +61,9 @@ class MisViajesServiceTest {
 	private final ParametrosService parametros = mock(ParametrosService.class);
 	private final RestriccionesPasajeroService restricciones = mock(RestriccionesPasajeroService.class);
 	private final CancelacionesConductorService cancelaciones = mock(CancelacionesConductorService.class);
+	private final LibroCreditos libro = mock(LibroCreditos.class);
 	private final MisViajesService servicio = new MisViajesService(usuarioRepository, viajeRepository,
-			reservaRepository, mongoTemplate, transacciones, parametros, restricciones, cancelaciones);
+			reservaRepository, mongoTemplate, transacciones, parametros, restricciones, cancelaciones, libro);
 	private final ObjectId usuarioId = new ObjectId();
 	private final ObjectId viajeId = new ObjectId();
 
@@ -105,10 +109,12 @@ class MisViajesServiceTest {
 	@Test
 	void cancelarReservaDevuelveLasPlazasYLosCreditos() {
 		ObjectId reservaId = new ObjectId();
-		when(reservaRepository.findById(reservaId))
-				.thenReturn(Optional.of(reserva(reservaId, usuarioId, EstadoReserva.CONFIRMADA, enMinutos(60))));
+		Reserva confirmada = reserva(reservaId, usuarioId, EstadoReserva.CONFIRMADA, enMinutos(60));
+		when(reservaRepository.findById(reservaId)).thenReturn(Optional.of(confirmada));
+		when(libro.reembolsar(eq(confirmada), eq(Actor.PASAJERO), any(Instant.class))).thenReturn(12);
 
 		assertThat(servicio.cancelarReserva(usuarioId, reservaId)).isEqualTo(12);
+		verify(libro).reembolsar(eq(confirmada), eq(Actor.PASAJERO), any(Instant.class));
 
 		assertThat(actualizacion(Reserva.class)).containsEntry("estado", "CANCELADA")
 				.containsEntry("cancelada_por", "PASAJERO").containsKey("fecha_cancelacion");
@@ -196,8 +202,15 @@ class MisViajesServiceTest {
 	@Test
 	void cancelarViajeCancelaSusReservasConfirmadas() {
 		existeViaje(EstadoViaje.PUBLICADO, enMinutos(120));
+		List<Reserva> confirmadas = List.of(
+				reserva(new ObjectId(), new ObjectId(), EstadoReserva.CONFIRMADA, enMinutos(120)),
+				reserva(new ObjectId(), new ObjectId(), EstadoReserva.CONFIRMADA, enMinutos(120)));
+		when(mongoTemplate.find(any(Query.class), eq(Reserva.class))).thenReturn(confirmadas);
 
 		servicio.cancelarViaje(usuarioId, viajeId, "Emergencia mecánica");
+
+		// RN-40: cada reserva cancelada recupera el 100 % de lo retenido.
+		confirmadas.forEach(reserva -> verify(libro).reembolsar(eq(reserva), eq(Actor.CONDUCTOR), any(Instant.class)));
 
 		assertThat(actualizacion(Viaje.class)).containsEntry("estado", "CANCELADO")
 				.containsEntry("cancelado_por", "CONDUCTOR").containsEntry("motivo_cancelacion", "Emergencia mecánica");
@@ -279,6 +292,7 @@ class MisViajesServiceTest {
 		verify(mongoTemplate).updateMulti(any(Query.class), reservas.capture(), eq(Reserva.class));
 		assertThat(reservas.getValue().getUpdateObject().get("$set", Document.class))
 				.containsEntry("estado", "COMPLETADA");
+		verify(libro, times(1)).liquidarViaje(any(Viaje.class), any(Instant.class));
 	}
 
 	@Test

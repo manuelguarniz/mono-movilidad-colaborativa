@@ -23,7 +23,8 @@ import {
 
 /** Perfil del contrato: el usuario sin la contraseña. */
 // `cancellationBlock` (RN-30): el mock no registra cancelaciones, así que nunca hay bloqueo.
-const toUserProfile = ({ password, ...profile }: MockUser) => ({
+// El saldo no es parte del perfil: se consulta en `GET /wallet`.
+const toUserProfile = ({ password, credits, heldCredits, ...profile }: MockUser) => ({
   ...profile,
   cancellationBlock: null,
 });

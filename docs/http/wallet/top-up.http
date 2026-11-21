@@ -1,0 +1,26 @@
+# Recargar créditos, simulado (RN-41)
+# POST /wallet/top-ups
+#
+# Requiere token SESSION. El código de operación no se verifica con Yape.
+
+@baseUrl = http://localhost:8080/api
+@sessionToken = pega-aqui-el-token
+
+### 201 · Recarga aprobada (21-D)
+# { "credits": 20, "balance": 58, "operationCode": "08451236", "createdAt": "2026-11-21T18:40:00Z" }
+POST {{baseUrl}}/wallet/top-ups
+Authorization: Bearer {{sessionToken}}
+Content-Type: application/json
+
+{ "amount": 20, "operationCode": "08451236" }
+
+### 400 · Monto fuera de rango
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [{ "field": "amount", "message": "Elige un monto entre S/ 5 y S/ 200." }] }
+
+### 400 · Código con menos de 6 dígitos
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [{ "field": "operationCode", "message": "El código de operación tiene de 6 a 12 dígitos." }] }
+
+### 409 · Código ya usado
+# { "code": "OPERATION_CODE_ALREADY_USED", "message": "Este código de operación ya fue registrado" }

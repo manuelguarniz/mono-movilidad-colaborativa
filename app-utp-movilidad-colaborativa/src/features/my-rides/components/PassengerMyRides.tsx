@@ -187,6 +187,8 @@ export function PassengerMyRides({ onToast }: PassengerMyRidesProps) {
       // Las plazas vuelven al viaje: se refrescan el listado, el detalle y Mis viajes.
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["rides"] });
+      // RN-40: el reembolso cambia el saldo.
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
   });
 

@@ -7,7 +7,7 @@ info:
   description: |
     Contrato de la API REST de ColaboraCar para el alcance actual (RF-01 a RF-22 y
     RN-01 a RN-16 del `README.md`): autenticación, registro, catálogos, archivos,
-    vehículo, viajes, reservas y perfil.
+    vehículo, viajes, reservas, perfil y billetera.
 
     ## Convenciones
 
@@ -19,8 +19,9 @@ info:
       hora de Perú (`America/Lima`, UTC-5).
     - **Coordenadas**: objeto `{ lat, lng }` en grados decimales. El backend las convierte
       al `Point` GeoJSON (`[lng, lat]`) que se guarda en MongoDB.
-    - **Créditos**: enteros. En este alcance solo se muestran y se registran; no hay cobro
-      ni saldo.
+    - **Créditos**: enteros (1 crédito = S/ 1). Reservar retiene el total del saldo
+      disponible (RN-39); cancelar lo reembolsa y finalizar el viaje lo paga al conductor
+      (RN-40). Cada cambio queda como movimiento en `GET /wallet/movements`.
     - **Listas**: se devuelven dentro de `{ "data": [...] }`. Un recurso individual se
       devuelve directamente, sin envoltorio.
     - **Errores**: toda respuesta 4xx o 5xx tiene el cuerpo `Error`:
@@ -75,6 +76,8 @@ tags:
     description: Reservas del pasajero en Mis viajes (RF-06).
   - name: Users
     description: Perfil del usuario autenticado (RF-19 a RF-21, RN-14).
+  - name: Wallet
+    description: Billetera, recarga simulada con Yape y retiro del conductor (RF-11, RF-12).
 
 security:
   - bearerAuth: []
@@ -915,9 +918,10 @@ paths:
       operationId: reserveRide
       summary: Reservar un viaje
       description: |
-        Descuenta las plazas de forma atómica y crea la reserva en estado `CONFIRMED`,
-        todo en una misma transacción. Un pasajero solo puede tener una reserva
-        `CONFIRMED` por viaje.
+        Descuenta las plazas de forma atómica, crea la reserva en estado `CONFIRMED` y
+        pasa el total (`plazas × pricePerSeat`) del saldo disponible a retenido
+        (movimiento `BOOKING_HOLD`, RN-39), todo en una misma transacción. Un pasajero
+        solo puede tener una reserva `CONFIRMED` por viaje.
 
         El cuerpo es opcional: sin cuerpo se reserva 1 plaza.
       requestBody:
@@ -968,7 +972,9 @@ paths:
             otro viaje.», RN-23) o el viaje ya no está
             publicado o ya salió (`RIDE_NOT_AVAILABLE`). En los tres casos el frontend
             debe refrescar el listado. También si el usuario aún no completó su perfil
-            (`PROFILE_INCOMPLETE`).
+            (`PROFILE_INCOMPLETE`) o si su saldo no cubre el total (`INSUFFICIENT_CREDITS`:
+            «Saldo insuficiente: necesitas N créditos y tienes M.», con `details.required`
+            y `details.available`; el frontend ofrece «Recargar», RN-39).
           content:
             application/json:
               schema:
@@ -1094,9 +1100,10 @@ paths:
       operationId: finishRide
       summary: Finalizar mi viaje (conductor)
       description: |
-        RN-45. El viaje debe estar `IN_PROGRESS`. En una transacción pasa a `COMPLETED`, y
-        sus reservas `IN_RIDE` a `COMPLETED`. La liquidación de créditos (RN-40) llega con
-        la billetera.
+        RN-45 y RN-40. El viaje debe estar `IN_PROGRESS`. En una transacción pasa a
+        `COMPLETED`, sus reservas `IN_RIDE` a `COMPLETED`, y lo retenido de las reservas
+        `COMPLETED` y `NO_SHOW` se paga al conductor (un movimiento `RIDE_EARNING` por
+        reserva) y sale de los retenidos de cada pasajero.
       responses:
         "200":
           description: Viaje completado.
@@ -1158,9 +1165,10 @@ paths:
       summary: Cancelar mi reserva (pasajero)
       description: |
         RN-25. La reserva debe estar `CONFIRMED` y faltar `minutos_limite_cancelacion` (30)
-        o más para la salida. En una transacción, la reserva pasa a `CANCELLED` y sus plazas
-        vuelven al viaje. El reembolso (movimiento `REEMBOLSO`) y la notificación al
-        conductor llegan con la billetera y las notificaciones.
+        o más para la salida. En una transacción, la reserva pasa a `CANCELLED`, sus plazas
+        vuelven al viaje y lo retenido se devuelve al 100 % (movimiento `REFUND`, RN-40).
+        Una reserva anterior a la billetera no retuvo créditos: responde «Reserva
+        cancelada.» sin monto. La notificación al conductor llega con las notificaciones.
       responses:
         "200":
           description: Reserva cancelada.
@@ -1282,6 +1290,148 @@ paths:
                 code: PROFILE_INCOMPLETE
                 message: Completa tu perfil antes de actualizar tus datos
 
+  /wallet:
+    get:
+      tags: [Wallet]
+      operationId: getWallet
+      summary: Mi billetera
+      description: |
+        RF-11 (P21). Saldo disponible, retenido en reservas activas y retirable (RN-42:
+        mín(disponible, Σ `RIDE_EARNING` − Σ retiros no rechazados)). `heldBooking` es la
+        reserva que explica lo retenido, `pendingWithdrawal` el retiro en proceso y
+        `lastYapePhone` el celular del último retiro, para precargar el formulario.
+      responses:
+        "200":
+          description: Billetera del usuario.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /wallet/movements:
+    get:
+      tags: [Wallet]
+      operationId: listWalletMovements
+      summary: Movimientos de mi billetera
+      description: RF-11. Del más reciente al más antiguo, 20 por página.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        "200":
+          description: Página de movimientos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovementPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /wallet/top-ups:
+    post:
+      tags: [Wallet]
+      operationId: topUpWallet
+      summary: Recargar créditos (simulado)
+      description: |
+        RN-41. Recarga simulada con Yape: el código de operación no se verifica. En una
+        transacción crea el pago `APROBADO`, el movimiento `TOP_UP` y sube el saldo,
+        1 crédito por sol.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopUpRequest"
+      responses:
+        "201":
+          description: Recarga aprobada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopUp"
+        "400":
+          description: |
+            `VALIDATION_ERROR` en `amount` («Elige un monto entre S/ 5 y S/ 200.») o en
+            `operationCode` («El código de operación tiene de 6 a 12 dígitos.»).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: |
+            El código ya se usó (`OPERATION_CODE_ALREADY_USED`: «Este código de operación ya
+            fue registrado») o el perfil está incompleto (`PROFILE_INCOMPLETE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: OPERATION_CODE_ALREADY_USED
+                message: Este código de operación ya fue registrado
+
+  /wallet/withdrawals:
+    post:
+      tags: [Wallet]
+      operationId: requestWithdrawal
+      summary: Solicitar un retiro a Yape (conductor)
+      description: |
+        RN-42. En una transacción crea el retiro `PENDING` y el movimiento `WITHDRAWAL`, que
+        descuenta el saldo. Un operador lo marca `PAGADO` o `RECHAZADO` en la base de datos;
+        si lo rechaza, un job devuelve los créditos en ≤ 1 min (movimiento
+        `WITHDRAWAL_REVERSAL`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawalRequest"
+      responses:
+        "201":
+          description: Retiro en proceso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Withdrawal"
+        "400":
+          description: |
+            `VALIDATION_ERROR` en `amount` («El retiro mínimo es de 10 créditos.» o «Solo
+            puedes retirar hasta N créditos (lo que ganaste como conductor)») o en `yapePhone`
+            («Ingresa un celular de 9 dígitos que empiece con 9.»).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            El usuario no es conductor (`DRIVER_ROLE_REQUIRED`: «Solo los conductores pueden
+            retirar créditos») o el token no es de sesión (`FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: "Ya hay un retiro pendiente (`WITHDRAWAL_PENDING`: «Ya tienes un retiro pendiente»)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1368,7 +1518,8 @@ components:
             `NO_SEATS_AVAILABLE`, `ALREADY_BOOKED`, `ACTIVE_BOOKING_EXISTS`,
             `PASSENGER_CANCELLATION_LIMIT`, `OWN_RIDE`, `BOOKING_NOT_FOUND`,
             `INVALID_STATUS`, `CANCELLATION_DEADLINE_PASSED`, `START_WINDOW_CLOSED`,
-            `RIDE_IN_PROGRESS_EXISTS`, `INTERNAL_ERROR`.
+            `RIDE_IN_PROGRESS_EXISTS`, `INSUFFICIENT_CREDITS`, `OPERATION_CODE_ALREADY_USED`,
+            `WITHDRAWAL_PENDING`, `DRIVER_ROLE_REQUIRED`, `INTERNAL_ERROR`.
 
             Una ruta o un método que no existe responde con el nombre del estado HTTP
             (`NOT_FOUND`, `METHOD_NOT_ALLOWED`) y el mensaje `La solicitud no es válida`.
@@ -1396,8 +1547,9 @@ components:
         details:
           type: object
           description: |
-            Datos adicionales de algunos errores: `attemptsLeft` en `OTP_INVALID` y
-            `retryAfter` (segundos) en `OTP_RESEND_TOO_SOON`.
+            Datos adicionales de algunos errores: `attemptsLeft` en `OTP_INVALID`,
+            `retryAfter` (segundos) en `OTP_RESEND_TOO_SOON` y `required` y `available` en
+            `INSUFFICIENT_CREDITS`.
           additionalProperties: true
 
     NamedRef:
@@ -2648,3 +2800,144 @@ components:
           minimum: 1
           default: 1
           description: Plazas a reservar.
+
+    # --------------------------------------------------------------- Billetera
+    Wallet:
+      type: object
+      description: "Billetera (P21). Origen: `usuarios`, `movimientos_creditos`, `retiros` y `reservas`."
+      required: [available, held, withdrawable, activeMode, driver, heldBooking, pendingWithdrawal, lastYapePhone, limits]
+      properties:
+        available:
+          type: integer
+          example: 96
+        held:
+          type: integer
+          example: 0
+        withdrawable:
+          type: integer
+          example: 78
+        activeMode:
+          $ref: "#/components/schemas/Role"
+        driver:
+          type: boolean
+          description: Tiene el rol `DRIVER` (puede retirar).
+        heldBooking:
+          type: [object, "null"]
+          properties:
+            id: { $ref: "#/components/schemas/ObjectId" }
+            rideId: { $ref: "#/components/schemas/ObjectId" }
+            departureTime: { type: string, format: date-time }
+            origin: { type: string }
+            destination: { type: string }
+            credits: { type: integer }
+        pendingWithdrawal:
+          type: [object, "null"]
+          properties:
+            id: { $ref: "#/components/schemas/ObjectId" }
+            credits: { type: integer }
+            phoneLast3: { type: string, example: "321" }
+            requestedAt: { type: string, format: date-time }
+        lastYapePhone:
+          type: [string, "null"]
+          example: "987654321"
+        limits:
+          type: object
+          description: Parámetros de RN-41 y RN-42 (colección `app`).
+          properties:
+            topUpMin: { type: integer, example: 5 }
+            topUpMax: { type: integer, example: 200 }
+            withdrawalMin: { type: integer, example: 10 }
+
+    MovementType:
+      type: string
+      enum: [TOP_UP, BOOKING_HOLD, REFUND, RIDE_EARNING, WITHDRAWAL, WITHDRAWAL_REVERSAL]
+      description: |
+        `RECARGA`, `RETENCION_RESERVA`, `REEMBOLSO`, `COBRO_VIAJE`, `RETIRO` y
+        `REVERSION_RETIRO` en `movimientos_creditos`.
+
+    WithdrawalStatus:
+      type: string
+      enum: [PENDING, PAID, REJECTED]
+      description: "`PENDIENTE` («En proceso»), `PAGADO` («Pagado») y `RECHAZADO` («Rechazado»)."
+
+    Movement:
+      type: object
+      required: [id, type, amount, balanceAfter, description, createdAt, withdrawal]
+      properties:
+        id: { $ref: "#/components/schemas/ObjectId" }
+        type: { $ref: "#/components/schemas/MovementType" }
+        amount:
+          type: integer
+          description: Con signo; positivo es abono.
+          example: 9
+        balanceAfter: { type: integer, example: 96 }
+        description:
+          type: string
+          example: Mateo R. · Urb. California → Campus UTP Trujillo
+        createdAt: { type: string, format: date-time }
+        withdrawal:
+          type: [object, "null"]
+          description: Solo en `WITHDRAWAL` y `WITHDRAWAL_REVERSAL`, con el estado actual del retiro.
+          properties:
+            id: { $ref: "#/components/schemas/ObjectId" }
+            status: { $ref: "#/components/schemas/WithdrawalStatus" }
+            rejectionReason: { type: [string, "null"] }
+
+    MovementPage:
+      type: object
+      required: [data, page, hasMore]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Movement" }
+        page: { type: integer }
+        hasMore: { type: boolean }
+
+    TopUpRequest:
+      type: object
+      required: [amount, operationCode]
+      properties:
+        amount:
+          type: integer
+          description: Soles, entre `recarga_minima` (5) y `recarga_maxima` (200).
+          example: 20
+        operationCode:
+          type: string
+          pattern: "^\\d{6,12}$"
+          example: "08451236"
+
+    TopUp:
+      type: object
+      required: [credits, balance, operationCode, createdAt]
+      properties:
+        credits: { type: integer, example: 20 }
+        balance: { type: integer, example: 58 }
+        operationCode: { type: string, example: "08451236" }
+        createdAt: { type: string, format: date-time }
+
+    WithdrawalRequest:
+      type: object
+      required: [amount, yapePhone]
+      properties:
+        amount:
+          type: integer
+          description: Créditos, desde `retiro_minimo` (10) hasta el saldo retirable.
+          example: 50
+        yapePhone:
+          type: string
+          pattern: "^9\\d{8}$"
+          example: "987654321"
+
+    Withdrawal:
+      type: object
+      required: [id, credits, phoneLast3, status, requestedAt, balance]
+      properties:
+        id: { $ref: "#/components/schemas/ObjectId" }
+        credits: { type: integer, example: 50 }
+        phoneLast3: { type: string, example: "321" }
+        status: { $ref: "#/components/schemas/WithdrawalStatus" }
+        requestedAt: { type: string, format: date-time }
+        balance:
+          type: integer
+          description: Saldo disponible después del descuento.
+          example: 46

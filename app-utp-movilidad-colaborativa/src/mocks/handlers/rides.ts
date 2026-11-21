@@ -24,6 +24,7 @@ import {
   validationError,
   type FieldError,
 } from "@/mocks/http";
+import { balanceOf, holdCredits, refundReservation, settleRide } from "@/mocks/ledger";
 
 /** Viaje del listado: sin coordenadas, paradas ni datos internos. */
 const toRideSummary = ({
@@ -693,9 +694,19 @@ export const rideHandlers = [
         "Este viaje ya no tiene asientos disponibles",
       );
     }
+    // RN-39: el saldo disponible debe cubrir el total.
+    const total = seats * ride.pricePerSeat;
+    if (balanceOf(user) < total) {
+      return apiError(
+        409,
+        "INSUFFICIENT_CREDITS",
+        `Saldo insuficiente: necesitas ${total} créditos y tienes ${balanceOf(user)}.`,
+        { required: total, available: balanceOf(user) },
+      );
+    }
 
     ride.availableSeats -= seats;
-    db.reservations.push({
+    const reservation: MockReservation = {
       id: faker.database.mongodbObjectId(),
       rideId: ride.id,
       passengerId: user.id,
@@ -705,13 +716,15 @@ export const rideHandlers = [
         rating: user.rating,
       },
       seats,
-      totalCredits: seats * ride.pricePerSeat,
+      totalCredits: total,
       status: "CONFIRMED",
       cancelledBy: null,
       cancelledAt: null,
       updatedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
-    });
+    };
+    db.reservations.push(reservation);
+    holdCredits(user, reservation, ride);
     saveDb();
 
     return HttpResponse.json({ message: "Reserva confirmada" }, { status: 201 });
@@ -759,6 +772,7 @@ export const rideHandlers = [
     for (const item of db.reservations) {
       if (item.rideId === ride.id && item.status === "CONFIRMED") {
         Object.assign(item, { status: "CANCELLED", cancelledBy: "DRIVER", cancelledAt: now, updatedAt: now });
+        refundReservation(item, ride, "DRIVER");
       }
     }
     saveDb();
@@ -845,6 +859,7 @@ export const rideHandlers = [
         Object.assign(item, { status: "COMPLETED", updatedAt: now });
       }
     }
+    settleRide(ride);
     saveDb();
     return HttpResponse.json({ message: "Viaje completado" });
   }),
@@ -919,10 +934,13 @@ export const rideHandlers = [
     if (ride.status === "PUBLISHED") {
       ride.availableSeats += reservation.seats;
     }
+    const credits = refundReservation(reservation, ride, "PASSENGER");
     saveDb();
-    const credits = reservation.totalCredits;
     return HttpResponse.json({
-      message: `Reserva cancelada. Te devolvimos ${credits} ${credits === 1 ? "crédito" : "créditos"}.`,
+      message:
+        credits === 0
+          ? "Reserva cancelada."
+          : `Reserva cancelada. Te devolvimos ${credits} ${credits === 1 ? "crédito" : "créditos"}.`,
     });
   }),
 ];

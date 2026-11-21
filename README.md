@@ -55,7 +55,7 @@ Son 14 requerimientos, uno por objetivo de usuario, para que cada uno tenga su s
 | RF-07 | Mis viajes | El conductor confirma el inicio del viaje, marcando qué pasajeros subieron, y lo finaliza al llegar. Los pasajeros reciben un aviso en cada paso. | Conductor | 17 | — |
 | RF-08 | Sistema | Un proceso programado cancela los viajes que no se iniciaron a tiempo, cierra los viajes en curso 15 minutos después de su llegada estimada, liquida los créditos, envía recordatorios y recalcula las estadísticas. | Sistema (job) | — | RF-12 |
 | RF-09 | Historial | El usuario consulta su historial de viajes terminados, cancelados o perdidos, como pasajero y como conductor. | Ambos | 19 | — |
-| RF-10 | Calificaciones | Al terminar un viaje, el pasajero califica al conductor y el conductor a cada pasajero que subió, con 1 a 5 estrellas y un comentario opcional. Tienen 7 días para hacerlo. | Ambos | 19, 20 | — |
+| RF-10 | Calificaciones | Al terminar un viaje, el pasajero califica al conductor y el conductor a cada pasajero que subió, con 1 a 5 estrellas y un comentario opcional. Tienen 24 horas desde que terminó el viaje para hacerlo. | Ambos | 19, 20 | — |
 | RF-11 | Billetera | El usuario consulta su saldo disponible y retenido y sus movimientos, y recarga créditos con un pago simulado por Yape. | Ambos | 21 | — |
 | RF-12 | Billetera | El conductor solicita el retiro de los créditos que ganó a su número de Yape. Un operador lo paga o lo rechaza desde la base de datos. | Conductor | 21 | — |
 | RF-13 | Notificaciones | El usuario recibe en una bandeja de la app los avisos de sus reservas, viajes, cancelaciones, recordatorios y calificaciones pendientes, y los marca como leídos. | Ambos | 18 (y campana en 06) | RF-16 |
@@ -120,7 +120,7 @@ Los mensajes entre comillas son literales: los devuelve la API (`app-movilidad-c
 - **RF-10 — Calificar (nuevo).** Se abre desde la notificación «Viaje completado» o desde el historial (RN-47).
   - **Quién califica a quién.** El pasajero, si su reserva quedó `COMPLETADA`, califica al conductor. El conductor califica a cada pasajero `COMPLETADA`, uno por uno. A quien no se presentó no se le califica.
   - **Datos.** De 1 a 5 estrellas, obligatorio, y comentario opcional de hasta 200 caracteres.
-  - **Plazo.** Hasta `dias_para_calificar` (7) después del fin del viaje; pasado ese plazo: «El plazo para calificar este viaje terminó».
+  - **Plazo.** Hasta `dias_para_calificar` (1), es decir 24 horas, después de `fecha_fin`; pasado ese plazo: «El plazo para calificar este viaje terminó».
   - **Repetida.** «Ya calificaste a esta persona en este viaje». La calificación no se edita ni se borra.
   - **Efecto.** Se recalcula el promedio y la cantidad en `usuarios.calificacion` del calificado, y se copia en sus viajes activos (si es conductor) o en su reserva activa (si es pasajero). El promedio se muestra en el perfil, en la tarjeta del viaje y en Mis viajes; sin calificaciones se muestra «Nuevo».
 - **RF-11 — Billetera y recarga (nuevo).**
@@ -205,7 +205,7 @@ Son 50 reglas. Las RN-01 a RN-34 conservan su ID de la versión anterior; alguna
 | RN-44 | — | Un viaje `PUBLICADO` que no se inició hasta `minutos_tolerancia_inicio` (30) después de la salida se cancela solo, con reembolso a los pasajeros, y cuenta para el límite del conductor (RN-30). | Aplicación (job `@Scheduled`) |
 | RN-45 | 17 — Mis viajes | El conductor puede finalizar un viaje `EN_CURSO` en cualquier momento después de iniciarlo. | Aplicación |
 | RN-46 | 17 — Mis viajes | Un conductor puede tener como máximo un viaje `EN_CURSO` a la vez. | Aplicación |
-| RN-47 | 19 y 20 — Calificar | Solo califican los participantes de un viaje `COMPLETADO`: el pasajero con reserva `COMPLETADA` califica al conductor, y el conductor a cada pasajero `COMPLETADA`. Una calificación por autor, calificado y viaje; puntaje entero de 1 a 5; comentario de hasta 200 caracteres; plazo de `dias_para_calificar` (7) desde `fecha_fin`. No se edita ni se borra. | Aplicación + BD (índice único) |
+| RN-47 | 19 y 20 — Calificar | Solo califican los participantes de un viaje `COMPLETADO`: el pasajero con reserva `COMPLETADA` califica al conductor, y el conductor a cada pasajero `COMPLETADA`. Una calificación por autor, calificado y viaje; puntaje entero de 1 a 5; comentario de hasta 200 caracteres; plazo de `dias_para_calificar` (1), es decir 24 horas, desde `fecha_fin`. No se edita ni se borra. | Aplicación + BD (índice único) |
 | RN-48 | 13 y 14 — Perfil | Cambiar de modo requiere confirmar en un modal. Para pasar a conductor hace falta un vehículo `ACTIVO`. No se puede cambiar de modo con un viaje `EN_CURSO`, como conductor o como pasajero. | Aplicación |
 | RN-49 | 06 — Dashboard | El listado de viajes no filtra por sede: muestra todas las sedes. Cada viaje lleva la etiqueta `ciudad` de su sede, copiada del catálogo al publicar. | Aplicación |
 | RN-50 | 19 — Historial | El historial solo muestra estados finales: reservas `COMPLETADA`, `CANCELADA` y `NO_SE_PRESENTO`, y viajes `COMPLETADO` y `CANCELADO`. No hay límite de antigüedad. | Aplicación |
@@ -405,7 +405,7 @@ El detalle de las colecciones está en la sección 5.
 
 El detalle para ejecutar, probar y extender el backend está en su propio documento, [app-movilidad-colaborativa-api/README.md](app-movilidad-colaborativa-api/README.md): variables de entorno, tokens, formato de errores, mensajes de validación por endpoint y ejemplos con curl. El contrato de la API es [docs/openapi.yaml](docs/openapi.yaml), y [docs/http/](docs/http/) tiene una solicitud de ejemplo por endpoint, con la respuesta esperada. Aquí solo va el resumen.
 
-El backend implementa 23 de los 24 endpoints del contrato actual. Lo nuevo de este documento todavía no tiene endpoints:
+El backend implementa 27 de los 28 endpoints del contrato actual. Lo nuevo de este documento que todavía no tiene endpoints figura como pendiente:
 
 | Módulo | Estado |
 | --- | --- |
@@ -414,10 +414,11 @@ El backend implementa 23 de los 24 endpoints del contrato actual. Lo nuevo de es
 | Catálogos (departamentos, distritos, sedes) | Implementado. La ciudad de una sede (RN-49) es el nombre de su distrito (`sedes.distrito.nombre`) |
 | Perfil (consultar y actualizar datos) | Implementado; falta el modal de cambio de modo y el resumen de saldo y calificación |
 | Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional hasta que P05 y P16 lo pidan, y las fotos hasta que exista la carga de imágenes |
-| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/{rideId}` trae además la reserva del usuario en ese viaje (`myBooking`, con la hora límite para cancelar de RN-25), su reserva activa en otro viaje (RN-23) y su bloqueo (RN-38), para la barra inferior de P09. Faltan la retención de créditos y la liquidación |
-| Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Sin billetera ni notificaciones: los reembolsos y cobros solo se informan. Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
+| Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/{rideId}` trae además la reserva del usuario en ese viaje (`myBooking`, con la hora límite para cancelar de RN-25), su reserva activa en otro viaje (RN-23) y su bloqueo (RN-38), para la barra inferior de P09. Reservar retiene el total del saldo disponible y, sin saldo, responde `INSUFFICIENT_CREDITS` con el botón «Recargar» (RN-39) |
+| Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Cancelar reembolsa el 100 % y finalizar paga al conductor (RN-40). Sin notificaciones. Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
 | Archivos (carga de imágenes) | Pendiente |
-| Billetera, retiros, historial, calificaciones, notificaciones y job programado | Pendiente |
+| Billetera (consultar, movimientos, recarga simulada y retiro) | Implementado (RF-11, RF-12, RN-41, RN-42), con el job que devuelve los retiros rechazados por el operador. Las reservas creadas antes de la billetera no retuvieron créditos (`reservas.liquidada` ausente) y no se reembolsan ni se cobran |
+| Historial, calificaciones, notificaciones y el resto del job programado | Pendiente |
 
 Tres decisiones definen cómo se comporta la API:
 
@@ -823,7 +824,7 @@ Insertar el movimiento y actualizar los saldos de `usuarios` se ejecutan en una 
   "minutos_cierre_automatico": 15,
   "minutos_recordatorio": 30,
   "dias_dispositivo_confiable": 90,
-  "dias_para_calificar": 7,
+  "dias_para_calificar": 1,
   "recarga_minima": 5,
   "recarga_maxima": 200,
   "retiro_minimo": 10,
@@ -1210,7 +1211,7 @@ sequenceDiagram
 
 ### 8.4 Calificación
 
-Después del cierre, cada participante puede calificar durante 7 días, desde la notificación o desde el historial (RF-09, RF-10).
+Después del cierre, cada participante puede calificar durante 24 horas, desde la notificación o desde el historial (RF-09, RF-10).
 
 ```mermaid
 sequenceDiagram
@@ -1226,7 +1227,7 @@ sequenceDiagram
     API-->>FE: 200 Historial con «Calificar» donde corresponde
     U->>FE: Pulsa «Calificar», elige estrellas y escribe un comentario opcional
     FE->>API: POST /api/ratings
-    API->>API: Validar participante, plazo de 7 días y puntaje de 1 a 5
+    API->>API: Validar participante, plazo de 24 h y puntaje de 1 a 5
     alt Plazo vencido o ya calificó
         API-->>FE: 409 RATING_WINDOW_CLOSED o ALREADY_RATED
         FE-->>U: Muestra el mensaje
@@ -1403,7 +1404,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada (sin SOAT) · rediseño aprobado |
 | 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Diseño aprobado |
 | 18 | — | Notificaciones | Notificaciones | Pendiente de diseño |
-| 19 | — | Historial | Historial | Pendiente de diseño |
+| 19 | [P19-Historial/v3.1.png](<docs/design/P19-Historial/v3.1.png>) | Historial | Historial | Diseño aprobado |
 | 20 | — | Calificar | Calificaciones | Pendiente de diseño |
 | 21 | [P21-Billetera/v1.1.png](<docs/design/P21-Billetera/v1.1.png>) | Billetera | Billetera | Diseño aprobado |
 
@@ -1594,8 +1595,11 @@ Cada fila cita los IDs de RF vigentes en su fecha. Las decisiones que una poster
 | 2026-10-29 | ¿Qué pasa si el conductor no inicia el viaje? | A los 30 min de la salida, el job lo cancela, reembolsa y lo cuenta como cancelación del conductor (RN-44). | Evita viajes colgados y protege al pasajero. |
 | 2026-10-29 | ¿Qué pasa con el pasajero que no se presenta? | El conductor lo marca al iniciar; la reserva queda `NO_SE_PRESENTO`, el conductor cobra y cuenta para el límite del pasajero (RN-38, RN-40). | El conductor reservó la plaza y la esperó. |
 | 2026-10-29 | ¿Cuándo se cierra un viaje que nadie finaliza? | A los 15 min de la llegada estimada (`fecha_salida + duracion_min`) (RN-27). | Pedido del equipo. |
-| 2026-10-29 | ¿Cómo se califica? | Mutua y opcional, de 1 a 5 estrellas con comentario, hasta 7 días después del viaje (RN-47). | Da confianza sin bloquear el uso de la app. |
+| 2026-10-29 | ¿Cómo se califica? | Mutua y opcional, de 1 a 5 estrellas con comentario, hasta 7 días después del viaje (RN-47). *Reemplazada el 2026-11-21: 24 horas.* | Da confianza sin bloquear el uso de la app. |
 | 2026-10-29 | ¿Cómo se cambia de modo? | Con el selector del perfil y un modal de confirmación; no durante un viaje en curso (RN-48). | Pedido del equipo. |
+| 2026-11-21 | ¿Hasta cuándo se califica? | Hasta 24 horas después de `fecha_fin` (RF-10, RN-47). `dias_para_calificar` pasa de 7 a 1 en `app` y sigue siendo configurable. Reemplaza el plazo de 7 días. | Decisión del usuario al diseñar P19 Historial. |
+| 2026-11-21 | ¿Qué pasa con las reservas creadas antes de la billetera, que no retuvieron créditos? | No se liquidan: solo se reembolsan o cobran las reservas con `liquidada = false`. Al cancelarlas, el mensaje es «Reserva cancelada.» sin monto. | Reembolsarlas o cobrarlas crearía créditos que nadie pagó. |
+| 2026-11-21 | ¿Quién puede solicitar un retiro? | Quien tiene el rol `CONDUCTOR`, aunque esté en modo pasajero; la pantalla solo muestra «Retirar» en modo conductor. Si no: `DRIVER_ROLE_REQUIRED`, «Solo los conductores pueden retirar créditos». | RF-12 lo limita al conductor, y el saldo retirable ya excluye lo que no se ganó conduciendo. |
 
 ### 12.2 Preguntas abiertas
 

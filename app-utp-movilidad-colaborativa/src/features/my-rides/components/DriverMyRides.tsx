@@ -245,6 +245,8 @@ export function DriverMyRides({ onToast }: DriverMyRidesProps) {
       // Cambia el estado del viaje, sus plazas y el contador: se refrescan los viajes y el perfil.
       queryClient.invalidateQueries({ queryKey: ["rides"] });
       queryClient.invalidateQueries({ queryKey: ["users", "me"] });
+      // RN-40: finalizar cobra los créditos y cancelar los reembolsa.
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
   });
 

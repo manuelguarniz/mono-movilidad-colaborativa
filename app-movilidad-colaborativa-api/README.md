@@ -41,7 +41,7 @@ El resto de pruebas no usa la base de datos: `ValidacionSolicitudesTest` comprue
 
 ## 2. Estado y estructura
 
-El contrato define 24 endpoints y el backend implementa 23. Toda la API cuelga de `/api`.
+El contrato define 28 endpoints y el backend implementa 27. Toda la API cuelga de `/api`.
 
 | Módulo | Endpoints | Estado |
 | --- | --- | --- |
@@ -51,7 +51,8 @@ El contrato define 24 endpoints y el backend implementa 23. Toda la API cuelga d
 | Archivos | `POST /files` | Pendiente; solo existen el modelo y el repositorio |
 | Vehículos | `POST /vehicles`, `GET` y `PUT /vehicles/me` | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional mientras P05 y P16 no lo pidan, y las fotos lo son hasta que exista `POST /files` |
 | Viajes y reservas | `GET` y `POST /rides`, `GET /rides/{rideId}`, `POST /rides/{rideId}/reserve` | Implementado. La publicación valida el vehículo activo (RN-24), el límite de cancelaciones (RN-30, con los parámetros de la colección `app`) y el SOAT en la salida (RN-37) |
-| Mis viajes | `GET /rides/mine`, `POST /rides/{rideId}/cancel`, `/start`, `/finish`, `GET /bookings/mine`, `POST /bookings/{bookingId}/cancel` | Implementado sin billetera ni notificaciones: los reembolsos y cobros solo se informan, y no hay avisos al otro participante. El job que cancela o cierra los viajes vencidos (RF-08) está pendiente |
+| Mis viajes | `GET /rides/mine`, `POST /rides/{rideId}/cancel`, `/start`, `/finish`, `GET /bookings/mine`, `POST /bookings/{bookingId}/cancel` | Implementado, con reembolso al cancelar y cobro al finalizar (RN-40). Sin notificaciones: no hay avisos al otro participante. El job que cancela o cierra los viajes vencidos (RF-08) está pendiente |
+| Billetera | `GET /wallet`, `GET /wallet/movements`, `POST /wallet/top-ups`, `POST /wallet/withdrawals` | Implementado: saldo, retenido y retirable, movimientos, recarga simulada (RN-41) y retiro (RN-42). El job `ReversionRetirosJob` devuelve cada minuto los retiros que el operador marca `RECHAZADO` |
 | Perfil | `GET` y `PUT /users/me` | Implementado; la foto es opcional hasta que exista `POST /files` |
 
 El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módulo. Cada módulo tiene tres capas: `application` (casos de uso), `domain` (model, dto, validation) e `infrastructure` (web, persistence, security, mail).
@@ -63,6 +64,7 @@ El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módu
 | `users` | Modelo `Usuario`, con su vehículo embebido, y sus reglas (`ReglasUsuario`, RN-01 a RN-05 y RN-14); consulta y actualización del perfil. |
 | `vehicles` | Registro, consulta y actualización del vehículo, que se guarda embebido en `Usuario`; sus reglas (`ReglasVehiculo`, RN-07 a RN-09). |
 | `rides` | Listado, detalle y publicación de viajes (`ViajeService`) y reserva de plazas (`ReservaService`); modelos `Viaje` y `Reserva` y sus reglas (`ReglasViaje`, RN-11 a RN-13). |
+| `wallet` | Billetera (`BilleteraService`), libro de créditos (`LibroCreditos`: cada cambio de saldo con su movimiento, retención, reembolso y liquidación) y el job de reversión de retiros; modelos `Pago`, `MovimientoCredito` y `Retiro`. |
 | `files` | Modelo `Archivo` y su repositorio. |
 | `shared` | Lo transversal: errores (`CodigoError`, `ApiException`, `ManejadorErrores`), validaciones comunes, alcances del token, seguridad, CORS y configuración. |
 
@@ -169,6 +171,10 @@ Están centralizados, con su estado HTTP, en el enum `CodigoError`. Los cuatro p
 | `CANCELLATION_DEADLINE_PASSED` | 409 | Ya no puedes cancelar: faltan menos de 30 minutos para la salida (RN-25, RN-26) |
 | `START_WINDOW_CLOSED` | 409 | Podrás iniciar el viaje desde las HH:mm / Ya pasó el plazo para iniciar este viaje (RN-43) |
 | `RIDE_IN_PROGRESS_EXISTS` | 409 | Finaliza tu viaje en curso para iniciar este. (RN-46) |
+| `INSUFFICIENT_CREDITS` | 409 | Saldo insuficiente: necesitas N créditos y tienes M. (RN-39; `details.required`, `details.available`) |
+| `OPERATION_CODE_ALREADY_USED` | 409 | Este código de operación ya fue registrado (RN-41) |
+| `WITHDRAWAL_PENDING` | 409 | Ya tienes un retiro pendiente (RN-42) |
+| `DRIVER_ROLE_REQUIRED` | 403 | Solo los conductores pueden retirar créditos (RF-12) |
 | `OTP_INVALID` | 400 | Código inválido. Te quedan N intentos. (`details.attemptsLeft`) |
 | `OTP_EXPIRED` | 400 | El código expiró. Solicita uno nuevo. |
 | `OTP_ATTEMPTS_EXCEEDED` | 429 | Agotaste los intentos. Solicita un nuevo código. |
@@ -417,7 +423,7 @@ No recibe parámetros. Devuelve `{ data, cancellations }`: los viajes `PUBLICADO
 | --- | --- | --- |
 | `reason` | Opcional; hasta 200 caracteres | El motivo debe tener como máximo 200 caracteres |
 
-El cuerpo es opcional. Negocio: 404 `RIDE_NOT_FOUND` (no existe o es de otro conductor), 409 `INVALID_STATUS` («Este viaje ya no está publicado») y 409 `CANCELLATION_DEADLINE_PASSED` («Ya no puedes cancelar: faltan menos de 30 minutos para la salida. Si no puedes hacer el viaje, no lo inicies y se cancelará solo.»). En una transacción, el viaje pasa a `CANCELADO` con `cancelado_por = CONDUCTOR`, `motivo_cancelacion` y `fecha_cancelacion`, y sus reservas `CONFIRMADA` a `CANCELADA` con `cancelada_por = CONDUCTOR`. Responde 200 con `{ "message": "Viaje cancelado" }`.
+El cuerpo es opcional. Negocio: 404 `RIDE_NOT_FOUND` (no existe o es de otro conductor), 409 `INVALID_STATUS` («Este viaje ya no está publicado») y 409 `CANCELLATION_DEADLINE_PASSED` («Ya no puedes cancelar: faltan menos de 30 minutos para la salida. Si no puedes hacer el viaje, no lo inicies y se cancelará solo.»). En una transacción, el viaje pasa a `CANCELADO` con `cancelado_por = CONDUCTOR`, `motivo_cancelacion` y `fecha_cancelacion`, y sus reservas `CONFIRMADA` a `CANCELADA` con `cancelada_por = CONDUCTOR`, cada una con su reembolso del 100 % (movimiento `REEMBOLSO`, RN-40). Responde 200 con `{ "message": "Viaje cancelado" }`.
 
 **`POST /rides/{rideId}/start`** (conductor, RN-43, RN-46)
 
@@ -430,7 +436,7 @@ Negocio, en orden: 404 `RIDE_NOT_FOUND`, 409 `INVALID_STATUS` («Este viaje ya n
 
 **`POST /rides/{rideId}/finish`** (conductor, RN-45)
 
-Sin cuerpo. Negocio: 404 `RIDE_NOT_FOUND` y 409 `INVALID_STATUS` («Este viaje no está en curso»). En una transacción, el viaje pasa a `COMPLETADO` con `fecha_fin` y `finalizado_por = CONDUCTOR`, y sus reservas `EN_VIAJE` a `COMPLETADA`. La liquidación (RN-40) llega con la billetera. Responde 200 con `{ "message": "Viaje completado" }`.
+Sin cuerpo. Negocio: 404 `RIDE_NOT_FOUND` y 409 `INVALID_STATUS` («Este viaje no está en curso»). En una transacción, el viaje pasa a `COMPLETADO` con `fecha_fin` y `finalizado_por = CONDUCTOR`, y sus reservas `EN_VIAJE` a `COMPLETADA`. En la misma transacción se liquidan (RN-40): lo retenido de cada reserva `COMPLETADA` o `NO_SE_PRESENTO` con `liquidada = false` se paga al conductor (un `COBRO_VIAJE` por reserva) y sale de `creditos_retenidos` del pasajero. Responde 200 con `{ "message": "Viaje completado" }`.
 
 **`GET /bookings/mine`** (pasajero, RF-06)
 
@@ -438,7 +444,7 @@ Devuelve `{ active, cancelled, cancellations }`: la reserva activa (`CONFIRMADA`
 
 **`POST /bookings/{bookingId}/cancel`** (pasajero, RN-25)
 
-Sin cuerpo. Negocio: 404 `BOOKING_NOT_FOUND` (no existe o es de otro usuario), 409 `INVALID_STATUS` («Esta reserva ya no está confirmada») y 409 `CANCELLATION_DEADLINE_PASSED` («Ya no puedes cancelar: faltan menos de 30 minutos para la salida»). En una transacción, la reserva pasa a `CANCELADA` con `cancelada_por = PASAJERO` y `fecha_cancelacion`, y sus plazas vuelven al viaje si sigue `PUBLICADO`. Responde 200 con `{ "message": "Reserva cancelada. Te devolvimos N créditos." }`.
+Sin cuerpo. Negocio: 404 `BOOKING_NOT_FOUND` (no existe o es de otro usuario), 409 `INVALID_STATUS` («Esta reserva ya no está confirmada») y 409 `CANCELLATION_DEADLINE_PASSED` («Ya no puedes cancelar: faltan menos de 30 minutos para la salida»). En una transacción, la reserva pasa a `CANCELADA` con `cancelada_por = PASAJERO` y `fecha_cancelacion`, y sus plazas vuelven al viaje si sigue `PUBLICADO`; lo retenido vuelve al 100 % (movimiento `REEMBOLSO`). Responde 200 con `{ "message": "Reserva cancelada. Te devolvimos N créditos." }`, o «Reserva cancelada.» si la reserva es anterior a la billetera (sin `liquidada`) y no retuvo créditos.
 
 **`GET /rides/{rideId}`**
 
@@ -471,8 +477,37 @@ Negocio, en el orden en que se comprueba:
 | `ACTIVE_BOOKING_EXISTS` | 409 | Ya tienes una reserva activa. Cancélala para reservar otro viaje. (RN-23: otra reserva `CONFIRMADA` o `EN_VIAJE`) |
 | `PASSENGER_CANCELLATION_LIMIT` | 403 | Cancelaste o no te presentaste a N viajes en los últimos 30 días. Podrás reservar de nuevo desde el DD/MM. (RN-38) |
 | `NO_SEATS_AVAILABLE` | 409 | Este viaje ya no tiene asientos disponibles |
+| `INSUFFICIENT_CREDITS` | 409 | Saldo insuficiente: necesitas N créditos y tienes M. (RN-39) |
 
-El descuento de plazas y la creación de la reserva van en una misma transacción de MongoDB (`MongoTransactionManager`, en `MongoConfig`). El descuento filtra por `plazas_disponibles >= seats`, así que dos pasajeros no pueden llevarse la última plaza; si dos reservas chocan dentro de la transacción, se reintenta hasta 3 veces. El índice único parcial de `reservas` cubre la doble reserva simultánea del mismo pasajero.
+El descuento de plazas, la creación de la reserva (con `liquidada = false`) y la retención del total (movimiento `RETENCION_RESERVA`: baja `saldo_creditos` y sube `creditos_retenidos`) van en una misma transacción de MongoDB (`MongoTransactionManager`, en `MongoConfig`). El descuento filtra por `plazas_disponibles >= seats`, así que dos pasajeros no pueden llevarse la última plaza; si dos reservas chocan dentro de la transacción, se reintenta hasta 3 veces. El índice único parcial de `reservas` cubre la doble reserva simultánea del mismo pasajero.
+
+**`GET /wallet`** (RF-11)
+
+Devuelve `{ available, held, withdrawable, activeMode, driver, heldBooking, pendingWithdrawal, lastYapePhone, limits }`. `available` y `held` son `saldo_creditos` y `creditos_retenidos` (0 si faltan en cuentas antiguas). `withdrawable` es mín(disponible, Σ `COBRO_VIAJE` − Σ retiros no `RECHAZADO`) (RN-42). `heldBooking` es la reserva activa que retuvo créditos; `pendingWithdrawal`, el retiro `PENDIENTE` con los 3 últimos dígitos del celular; `limits`, `recarga_minima`, `recarga_maxima` y `retiro_minimo` de la colección `app`.
+
+**`GET /wallet/movements?page=N`** (RF-11)
+
+`{ data, page, hasMore }`, 20 por página, del más reciente al más antiguo. Cada movimiento trae `type` (`TOP_UP`, `BOOKING_HOLD`, `REFUND`, `RIDE_EARNING`, `WITHDRAWAL` o `WITHDRAWAL_REVERSAL`), `amount` con signo, `balanceAfter`, `description`, `createdAt` y, en los retiros, `withdrawal` con su `status` actual (`PENDING`, `PAID` o `REJECTED`) y `rejectionReason`.
+
+**`POST /wallet/top-ups`** (RN-41)
+
+| Campo | Regla | Mensaje |
+| --- | --- | --- |
+| `amount` | Obligatorio; entero entre `recarga_minima` (5) y `recarga_maxima` (200) | Elige un monto entre S/ 5 y S/ 200. |
+| `operationCode` | Obligatorio; de 6 a 12 dígitos | El código de operación tiene de 6 a 12 dígitos. |
+
+Negocio: 409 `PROFILE_INCOMPLETE` («Completa tu perfil antes de recargar créditos») y 409 `OPERATION_CODE_ALREADY_USED` («Este código de operación ya fue registrado»; también lo da el índice único de `pagos.referencia_proveedor` ante dos recargas simultáneas). En una transacción se crea el pago `APROBADO` (`monto_centimos`, `proveedor = SIMULADO`), el movimiento `RECARGA` y sube el saldo, 1 crédito por sol. Responde 201 con `{ credits, balance, operationCode, createdAt }`.
+
+**`POST /wallet/withdrawals`** (RN-42)
+
+| Campo | Regla | Mensaje |
+| --- | --- | --- |
+| `amount` | Obligatorio; desde `retiro_minimo` (10) hasta el saldo retirable | El retiro mínimo es de 10 créditos. / Solo puedes retirar hasta N créditos (lo que ganaste como conductor) |
+| `yapePhone` | Obligatorio; 9 dígitos que empiezan con 9 | Ingresa un celular de 9 dígitos que empiece con 9. |
+
+Negocio, en orden: 403 `DRIVER_ROLE_REQUIRED` («Solo los conductores pueden retirar créditos»), 400 el mínimo, 409 `WITHDRAWAL_PENDING` («Ya tienes un retiro pendiente»; también lo da el índice único parcial de `retiros`) y 400 el tope retirable. En una transacción se crea el retiro `PENDIENTE` y el movimiento `RETIRO`, que descuenta el saldo. Responde 201 con `{ id, credits, phoneLast3, status, requestedAt, balance }`.
+
+El operador resuelve el retiro en Atlas: `estado = PAGADO` con `codigo_operacion` y `fecha_resolucion`, o `estado = RECHAZADO` con `motivo_rechazo`. `ReversionRetirosJob` (cada 60 s, configurable con `app.jobs.reversion-retiros`) devuelve los rechazados con `reversion_aplicada` distinto de `true`: inserta `REVERSION_RETIRO`, sube el saldo y marca `reversion_aplicada = true`, en una transacción.
 
 ## 5. Ejemplos con curl
 

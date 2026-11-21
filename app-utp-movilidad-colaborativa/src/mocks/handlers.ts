@@ -4,6 +4,7 @@ import { fileHandlers } from "@/mocks/handlers/files";
 import { rideHandlers } from "@/mocks/handlers/rides";
 import { userHandlers } from "@/mocks/handlers/users";
 import { vehicleHandlers } from "@/mocks/handlers/vehicles";
+import { walletHandlers } from "@/mocks/handlers/wallet";
 
 // API simulada con el contrato `docs/openapi.yaml`: un archivo por módulo en `handlers/`.
 export const handlers = [
@@ -13,4 +14,5 @@ export const handlers = [
   ...vehicleHandlers,
   ...rideHandlers,
   ...userHandlers,
+  ...walletHandlers,
 ];

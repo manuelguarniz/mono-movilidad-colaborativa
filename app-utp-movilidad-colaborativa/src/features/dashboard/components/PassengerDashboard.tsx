@@ -7,6 +7,7 @@ import { RideFiltersSheet } from "@/features/dashboard/components/RideFiltersShe
 import { RideSearchBar, type FilterField } from "@/features/dashboard/components/RideSearchBar";
 import { dashboardService } from "@/features/dashboard/services/dashboardService";
 import type { RideSearchFilters, RideSummary } from "@/features/dashboard/types";
+import { ReserveErrorAlert } from "@/features/rides/components/ReserveErrorAlert";
 import { ReserveRideConfirmModal } from "@/features/rides/components/ReserveRideConfirmModal";
 import { formatDepartureLabel, formatLimaDayMonth, formatLimaTime } from "@/shared/utils/limaTime";
 import CarIcon from "@/assets/images/icons/ride.svg?react";
@@ -72,6 +73,8 @@ export function PassengerDashboard() {
       // Con éxito o con error cambian las plazas o el estado del viaje: se refresca el listado.
       queryClient.invalidateQueries({ queryKey: ["rides"] });
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      // RN-39: la reserva retiene créditos.
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
   });
 
@@ -141,11 +144,11 @@ export function PassengerDashboard() {
       )}
 
       {reserveMutation.isError && (
-        <p className="dashboard-message dashboard-message-error" role="alert">
-          {reserveMutation.error instanceof Error
-            ? reserveMutation.error.message
-            : "No se pudo reservar el viaje"}
-        </p>
+        <ReserveErrorAlert
+          error={reserveMutation.error}
+          returnTo="/dashboard"
+          className="dashboard-message dashboard-message-error"
+        />
       )}
 
       {ridesQuery.isLoading ? (

@@ -1,0 +1,34 @@
+# Mi billetera (RF-11)
+# GET /wallet
+#
+# Requiere token SESSION.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Conductor con 96 disponibles y 78 retirables (21-A)
+# {
+#   "available": 96, "held": 0, "withdrawable": 78,
+#   "activeMode": "DRIVER", "driver": true,
+#   "heldBooking": null, "pendingWithdrawal": null,
+#   "lastYapePhone": "987654321",
+#   "limits": { "topUpMin": 5, "topUpMax": 200, "withdrawalMin": 10 }
+# }
+GET {{baseUrl}}/wallet
+Authorization: Bearer {{sessionToken}}
+
+### 200 · Movimientos, 20 por página
+# {
+#   "data": [
+#     { "id": "…", "type": "RIDE_EARNING", "amount": 9, "balanceAfter": 96,
+#       "description": "Mateo R. · Urb. California → Campus UTP Trujillo",
+#       "createdAt": "2026-11-21T19:06:00Z", "withdrawal": null },
+#     { "id": "…", "type": "WITHDRAWAL", "amount": -50, "balanceAfter": 78,
+#       "description": "Celular •••• 321", "createdAt": "2026-11-20T23:40:00Z",
+#       "withdrawal": { "id": "…", "status": "PAID", "rejectionReason": null } }
+#   ],
+#   "page": 1, "hasMore": false
+# }
+GET {{baseUrl}}/wallet/movements?page=1
+Authorization: Bearer {{sessionToken}}

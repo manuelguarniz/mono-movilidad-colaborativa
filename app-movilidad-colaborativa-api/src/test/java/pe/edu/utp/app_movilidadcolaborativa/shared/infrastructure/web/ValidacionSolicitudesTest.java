@@ -21,6 +21,8 @@ import pe.edu.utp.app_movilidadcolaborativa.auth.infrastructure.web.AuthControll
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.application.CatalogoService;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.web.CatalogoController;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.MisViajesService;
+import pe.edu.utp.app_movilidadcolaborativa.wallet.application.BilleteraService;
+import pe.edu.utp.app_movilidadcolaborativa.wallet.infrastructure.web.BilleteraController;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ReservaService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ViajeService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.FiltroViajesRequest;
@@ -72,6 +74,7 @@ class ValidacionSolicitudesTest {
 	private final ViajeService viajeService = mock(ViajeService.class);
 	private final ReservaService reservaService = mock(ReservaService.class);
 	private final MisViajesService misViajesService = mock(MisViajesService.class);
+	private final BilleteraService billeteraService = mock(BilleteraService.class);
 	private MockMvc mvc;
 
 	@BeforeEach
@@ -83,7 +86,7 @@ class ValidacionSolicitudesTest {
 						new CatalogoController(catalogoService), new UsuarioController(perfilService),
 							new VehiculoController(vehiculoService),
 							new ViajeController(viajeService, reservaService, misViajesService),
-							new ReservaController(misViajesService))
+							new ReservaController(misViajesService), new BilleteraController(billeteraService))
 				.setControllerAdvice(new ManejadorErrores())
 				.setValidator(validador)
 				.setCustomArgumentResolvers(jwtDelUsuario())
@@ -461,5 +464,20 @@ class ValidacionSolicitudesTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.errors[0].message").value("El identificador no es válido"));
 		verify(misViajesService, org.mockito.Mockito.never()).iniciar(any(), any(), any());
+	}
+
+	@Test
+	void laBilleteraRechazaUnCodigoDeOperacionOUnCelularInvalidos() throws Exception {
+		mvc.perform(post("/wallet/top-ups").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"amount\":20,\"operationCode\":\"12345\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("operationCode"))
+				.andExpect(jsonPath("$.errors[0].message").value("El código de operación tiene de 6 a 12 dígitos."));
+		mvc.perform(post("/wallet/withdrawals").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"amount\":50,\"yapePhone\":\"887654321\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("yapePhone"))
+				.andExpect(jsonPath("$.errors[0].message").value("Ingresa un celular de 9 dígitos que empiece con 9."));
+		verifyNoInteractions(billeteraService);
 	}
 }

@@ -1,0 +1,34 @@
+# Solicitar un retiro a Yape (conductor, RN-42)
+# POST /wallet/withdrawals
+#
+# Requiere token SESSION de un usuario con rol conductor.
+
+@baseUrl = http://localhost:8080/api
+@sessionToken = pega-aqui-el-token
+
+### 201 · Retiro en proceso (21-F)
+# { "id": "…", "credits": 50, "phoneLast3": "321", "status": "PENDING",
+#   "requestedAt": "2026-11-21T19:30:00Z", "balance": 46 }
+POST {{baseUrl}}/wallet/withdrawals
+Authorization: Bearer {{sessionToken}}
+Content-Type: application/json
+
+{ "amount": 50, "yapePhone": "987654321" }
+
+### 400 · Menos del mínimo
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [{ "field": "amount", "message": "El retiro mínimo es de 10 créditos." }] }
+
+### 400 · Más de lo retirable
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [{ "field": "amount", "message": "Solo puedes retirar hasta 78 créditos (lo que ganaste como conductor)" }] }
+
+### 400 · Celular inválido
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [{ "field": "yapePhone", "message": "Ingresa un celular de 9 dígitos que empiece con 9." }] }
+
+### 403 · No es conductor
+# { "code": "DRIVER_ROLE_REQUIRED", "message": "Solo los conductores pueden retirar créditos" }
+
+### 409 · Ya tiene un retiro pendiente
+# { "code": "WITHDRAWAL_PENDING", "message": "Ya tienes un retiro pendiente" }

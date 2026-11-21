@@ -34,6 +34,7 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionEx
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
+import pe.edu.utp.app_movilidadcolaborativa.wallet.application.LibroCreditos;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -50,8 +51,8 @@ import java.util.stream.Collectors;
 /**
  * Mis viajes (RF-06, RF-07): la reserva activa del pasajero y los viajes del conductor, la cancelación de cada uno
  * (RN-25, RN-26), y el inicio y el fin del viaje (RN-43, RN-45, RN-46). Cada cambio de estado es un update
- * condicionado al estado actual, dentro de una transacción. La billetera y las notificaciones todavía no existen:
- * los créditos devueltos o cobrados solo se informan.
+ * condicionado al estado actual, dentro de una transacción, junto con el reembolso o el cobro de los créditos
+ * (RN-40). Las notificaciones todavía no existen.
  */
 @Service
 @RequiredArgsConstructor
@@ -72,6 +73,7 @@ public class MisViajesService {
 	private final ParametrosService parametrosService;
 	private final RestriccionesPasajeroService restriccionesPasajeroService;
 	private final CancelacionesConductorService cancelacionesConductorService;
+	private final LibroCreditos libroCreditos;
 
 	// ------------------------------------------------------------------ Pasajero
 
@@ -101,7 +103,7 @@ public class MisViajesService {
 				ContadorCancelacionesDto.desde(restriccionesPasajeroService.contador(usuarioId, ahora)));
 	}
 
-	/** RN-25: devuelve los créditos que se reembolsan (el 100 % de lo retenido). */
+	/** RN-25 y RN-40: devuelve los créditos reembolsados (el 100 % de lo retenido; 0 si la reserva no retuvo). */
 	public int cancelarReserva(ObjectId usuarioId, ObjectId reservaId) {
 		buscarUsuario(usuarioId);
 		Reserva reserva = reservaRepository.findById(reservaId)
@@ -116,6 +118,7 @@ public class MisViajesService {
 			throw new ApiException(CodigoError.CANCELLATION_DEADLINE_PASSED, fueraDePlazo(limite));
 		}
 
+		int[] devueltos = {0};
 		enTransaccion(() -> {
 			Query confirmada = Query.query(Criteria.where("_id").is(reservaId).and("estado").is(EstadoReserva.CONFIRMADA));
 			Update cancelacion = new Update()
@@ -131,8 +134,9 @@ public class MisViajesService {
 							.and("estado").is(EstadoViaje.PUBLICADO)),
 					new Update().inc("plazas_disponibles", reserva.plazas()).set("fecha_actualizacion", ahora),
 					Viaje.class);
+			devueltos[0] = libroCreditos.reembolsar(reserva, Actor.PASAJERO, ahora);
 		});
-		return reserva.totalCreditos();
+		return devueltos[0];
 	}
 
 	// ----------------------------------------------------------------- Conductor
@@ -184,6 +188,9 @@ public class MisViajesService {
 		}
 
 		enTransaccion(() -> {
+			// Se leen dentro de la transacción para reembolsar exactamente las que se cancelan.
+			List<Reserva> confirmadas = mongoTemplate.find(Query.query(Criteria.where("viaje_id").is(viajeId)
+					.and("estado").is(EstadoReserva.CONFIRMADA)), Reserva.class);
 			cambiarEstado(viaje, EstadoViaje.PUBLICADO, new Update()
 					.set("estado", EstadoViaje.CANCELADO.name())
 					.set("cancelado_por", Actor.CONDUCTOR.name())
@@ -198,6 +205,7 @@ public class MisViajesService {
 							.set("fecha_cancelacion", ahora)
 							.set("fecha_actualizacion", ahora),
 					Reserva.class);
+			confirmadas.forEach(reserva -> libroCreditos.reembolsar(reserva, Actor.CONDUCTOR, ahora));
 		});
 	}
 
@@ -248,7 +256,10 @@ public class MisViajesService {
 		});
 	}
 
-	/** RN-45: el viaje pasa a COMPLETADO y las reservas EN_VIAJE a COMPLETADA. La liquidación (RN-40) queda pendiente. */
+	/**
+	 * RN-45 y RN-40: el viaje pasa a COMPLETADO, las reservas EN_VIAJE a COMPLETADA, y lo retenido de las COMPLETADA y
+	 * NO_SE_PRESENTO se paga al conductor.
+	 */
 	public void finalizar(ObjectId usuarioId, ObjectId viajeId) {
 		Viaje viaje = viajePropio(usuarioId, viajeId);
 		exigirEstado(viaje, EstadoViaje.EN_CURSO, "Este viaje no está en curso");
@@ -264,6 +275,7 @@ public class MisViajesService {
 							.and("estado").is(EstadoReserva.EN_VIAJE)),
 					new Update().set("estado", EstadoReserva.COMPLETADA.name()).set("fecha_actualizacion", ahora),
 					Reserva.class);
+			libroCreditos.liquidarViaje(viaje, ahora);
 		});
 	}
 

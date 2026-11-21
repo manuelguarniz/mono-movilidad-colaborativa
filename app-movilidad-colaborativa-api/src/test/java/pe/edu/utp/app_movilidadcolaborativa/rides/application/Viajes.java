@@ -16,14 +16,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /** Viaje de ejemplo para las pruebas de los servicios: publicado, con 3 plazas y salida dentro de una hora. */
-final class Viajes {
+public final class Viajes {
 
 	static final ObjectId SEDE_ID = new ObjectId();
 
 	private Viajes() {
 	}
 
-	static Viaje.ViajeBuilder publicado(ObjectId viajeId, ObjectId conductorId) {
+	public static Viaje.ViajeBuilder publicado(ObjectId viajeId, ObjectId conductorId) {
 		Instant ahora = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 		return Viaje.builder()
 				.id(viajeId)

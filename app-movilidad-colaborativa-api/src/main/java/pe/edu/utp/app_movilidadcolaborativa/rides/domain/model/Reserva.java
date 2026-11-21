@@ -26,6 +26,11 @@ public record Reserva(
 		Integer plazas,
 		Integer totalCreditos,
 		EstadoReserva estado,
+		/**
+		 * false mientras sus créditos están retenidos; true cuando se reembolsan o se pagan al conductor (RN-40). Las
+		 * reservas anteriores a la billetera no lo tienen (null): no retuvieron créditos, así que no se liquidan.
+		 */
+		Boolean liquidada,
 		Actor canceladaPor,
 		Instant fechaCancelacion,
 		Instant fechaCreacion,

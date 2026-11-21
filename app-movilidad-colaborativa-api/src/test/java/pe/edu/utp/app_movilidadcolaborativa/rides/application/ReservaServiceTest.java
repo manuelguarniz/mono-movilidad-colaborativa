@@ -25,9 +25,12 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
+import pe.edu.utp.app_movilidadcolaborativa.wallet.application.LibroCreditos;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,7 +43,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** Camino feliz y reglas de estado de la reserva (RF-04, RN-23, RN-38), sin base de datos. */
+/** Camino feliz y reglas de estado de la reserva (RF-04, RN-23, RN-38, RN-39), sin base de datos. */
 class ReservaServiceTest {
 
 	private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
@@ -49,15 +52,24 @@ class ReservaServiceTest {
 	private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
 	private final PlatformTransactionManager transacciones = mock(PlatformTransactionManager.class);
 	private final RestriccionesPasajeroService restricciones = mock(RestriccionesPasajeroService.class);
+	private final LibroCreditos libro = mock(LibroCreditos.class);
 	private final ReservaService servicio = new ReservaService(usuarioRepository, viajeRepository, reservaRepository,
-			mongoTemplate, transacciones, restricciones);
+			mongoTemplate, transacciones, restricciones, libro);
 	private final ObjectId pasajeroId = new ObjectId();
 	private final ObjectId conductorId = new ObjectId();
 	private final ObjectId viajeId = new ObjectId();
 
+	{
+		when(libro.retener(any(Reserva.class), any(Instant.class))).thenReturn(OptionalInt.of(90));
+	}
+
 	private void existePasajero(EstadoUsuario estado) {
+		existePasajero(estado, 100);
+	}
+
+	private void existePasajero(EstadoUsuario estado, Integer saldo) {
 		when(usuarioRepository.findById(pasajeroId)).thenReturn(Optional.of(Usuario.builder().id(pasajeroId)
-				.nombres("Valeria").apellidos("Rodríguez").estado(estado).build()));
+				.nombres("Valeria").apellidos("Rodríguez").estado(estado).saldoCreditos(saldo).build()));
 	}
 
 	private void existe(Viaje viaje) {
@@ -109,7 +121,9 @@ class ReservaServiceTest {
 		assertThat(reserva.plazas()).isEqualTo(2);
 		assertThat(reserva.totalCreditos()).isEqualTo(10);
 		assertThat(reserva.estado()).isEqualTo(EstadoReserva.CONFIRMADA);
+		assertThat(reserva.liquidada()).isFalse();
 		assertThat(reserva.fechaCancelacion()).isNull();
+		verify(libro).retener(reserva, reserva.fechaCreacion());
 		assertThat(reserva.fechaCreacion()).isEqualTo(reserva.fechaActualizacion()).isNotNull();
 
 		verify(transacciones).commit(any());
@@ -129,6 +143,33 @@ class ReservaServiceTest {
 		verify(transacciones).rollback(any());
 		verify(transacciones).commit(any());
 		verify(mongoTemplate, times(1)).insert(any(Reserva.class));
+	}
+
+	// ------------------------------------------------------------------- Saldo
+
+	@Test
+	void sinSaldoSuficienteNoSeReservaYSeInformaCuantoFalta() {
+		// Cuenta anterior a la billetera: sin saldo_creditos vale 0.
+		existePasajero(EstadoUsuario.ACTIVO, null);
+		existe(viaje().build());
+		ApiException error = org.assertj.core.api.Assertions.catchThrowableOfType(ApiException.class,
+				() -> servicio.reservar(pasajeroId, viajeId, 2));
+		assertThat(error.getCodigo()).isEqualTo(CodigoError.INSUFFICIENT_CREDITS);
+		assertThat(error.getMessage()).isEqualTo("Saldo insuficiente: necesitas 10 créditos y tienes 0.");
+		assertThat(error.getDetalles()).isEqualTo(Map.of("required", 10, "available", 0));
+		verifyNoInteractions(mongoTemplate, transacciones);
+	}
+
+	@Test
+	void siElSaldoBajaAntesDeRetenerSeRevierteLaReserva() {
+		existePasajero(EstadoUsuario.ACTIVO, 10);
+		existe(viaje().build());
+		elDescuentoModifica(1);
+		when(libro.retener(any(Reserva.class), any(Instant.class))).thenReturn(OptionalInt.empty());
+
+		falla(2, CodigoError.INSUFFICIENT_CREDITS);
+		verify(transacciones).rollback(any());
+		verify(transacciones, never()).commit(any());
 	}
 
 	// ------------------------------------------------------- Reglas de estado

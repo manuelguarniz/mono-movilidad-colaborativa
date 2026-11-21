@@ -55,3 +55,7 @@ Content-Type: application/json
 {
   "seats": 1
 }
+
+### 409 · Saldo insuficiente (RN-39)
+# { "code": "INSUFFICIENT_CREDITS", "message": "Saldo insuficiente: necesitas 12 créditos y tienes 8.",
+#   "details": { "required": 12, "available": 8 } }

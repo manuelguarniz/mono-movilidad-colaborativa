@@ -27,12 +27,13 @@ import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.validation.ReglasUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
+import pe.edu.utp.app_movilidadcolaborativa.wallet.application.LibroCreditos;
 
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
-/** Reserva de plazas en un viaje publicado (RF-04, RN-23, RN-38). */
+/** Reserva de plazas en un viaje publicado, con retención de créditos (RF-04, RN-23, RN-38, RN-39). */
 @Service
 @RequiredArgsConstructor
 public class ReservaService {
@@ -54,8 +55,9 @@ public class ReservaService {
 	private final MongoTemplate mongoTemplate;
 	private final PlatformTransactionManager transactionManager;
 	private final RestriccionesPasajeroService restriccionesPasajeroService;
+	private final LibroCreditos libroCreditos;
 
-	/** Descuenta las plazas y crea la reserva CONFIRMADA en una misma transacción. */
+	/** Descuenta las plazas, crea la reserva CONFIRMADA y retiene sus créditos en una misma transacción. */
 	public void reservar(ObjectId usuarioId, ObjectId viajeId, int plazas) {
 		Usuario pasajero = usuarioRepository.findById(usuarioId)
 				.filter(usuario -> usuario.getEstado() != EstadoUsuario.BLOQUEADO)
@@ -87,6 +89,12 @@ public class ReservaService {
 		if (viaje.plazasDisponibles() < plazas) {
 			throw sinPlazas();
 		}
+		// RN-39: el saldo disponible cubre el total. Se vuelve a exigir dentro de la transacción.
+		int total = plazas * viaje.precioPorPlaza();
+		int saldo = LibroCreditos.valor(pasajero.getSaldoCreditos());
+		if (saldo < total) {
+			throw saldoInsuficiente(total, saldo);
+		}
 
 		Reserva reserva = Reserva.builder()
 				.id(new ObjectId())
@@ -97,13 +105,14 @@ public class ReservaService {
 						viaje.conductor().nombre(), new VehiculoResumen(viaje.vehiculo().marca(),
 								viaje.vehiculo().modelo(), viaje.vehiculo().color())))
 				.plazas(plazas)
-				.totalCreditos(plazas * viaje.precioPorPlaza())
+				.totalCreditos(total)
 				.estado(EstadoReserva.CONFIRMADA)
+				.liquidada(false)
 				.fechaCreacion(ahora)
 				.fechaActualizacion(ahora)
 				.build();
 		try {
-			guardar(reserva);
+			guardar(reserva, saldo);
 		} catch (DuplicateKeyException ex) {
 			// Dos reservas simultáneas del mismo pasajero: el índice único rechaza la segunda.
 			throw yaReservado();
@@ -111,11 +120,11 @@ public class ReservaService {
 	}
 
 	// Dos pasajeros que reservan el mismo viaje a la vez chocan dentro de la transacción: se reintenta.
-	private void guardar(Reserva reserva) {
+	private void guardar(Reserva reserva, int saldoLeido) {
 		TransactionTemplate transaccion = new TransactionTemplate(transactionManager);
 		for (int intento = 1;; intento++) {
 			try {
-				transaccion.executeWithoutResult(estado -> descontarPlazasYGuardar(reserva));
+				transaccion.executeWithoutResult(estado -> descontarPlazasYGuardar(reserva, saldoLeido));
 				return;
 			} catch (TransientDataAccessException ex) {
 				if (intento == INTENTOS) {
@@ -125,8 +134,8 @@ public class ReservaService {
 		}
 	}
 
-	// El filtro por plazas suficientes hace atómico el descuento y evita la sobreventa.
-	private void descontarPlazasYGuardar(Reserva reserva) {
+	// El filtro por plazas suficientes hace atómico el descuento y evita la sobreventa; el del saldo, que quede negativo.
+	private void descontarPlazasYGuardar(Reserva reserva, int saldoLeido) {
 		Query conPlazas = Query.query(Criteria.where("_id").is(reserva.viajeId())
 				.and("estado").is(EstadoViaje.PUBLICADO)
 				.and("plazas_disponibles").gte(reserva.plazas()));
@@ -137,6 +146,16 @@ public class ReservaService {
 			throw sinPlazas();
 		}
 		mongoTemplate.insert(reserva);
+		if (libroCreditos.retener(reserva, reserva.fechaCreacion()).isEmpty()) {
+			throw saldoInsuficiente(reserva.totalCreditos(), saldoLeido);
+		}
+	}
+
+	/** RN-39, con details.required y details.available para el botón «Recargar». */
+	private static ApiException saldoInsuficiente(int total, int saldo) {
+		return new ApiException(CodigoError.INSUFFICIENT_CREDITS,
+				"Saldo insuficiente: necesitas %d créditos y tienes %d.".formatted(total, saldo),
+				Map.of("required", total, "available", saldo));
 	}
 
 	private static ApiException sinPlazas() {

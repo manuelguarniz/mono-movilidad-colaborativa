@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import { dashboardService } from "@/features/dashboard/services/dashboardService";
 import { ReserveRideConfirmModal } from "@/features/rides/components/ReserveRideConfirmModal";
+import { ReserveErrorAlert } from "@/features/rides/components/ReserveErrorAlert";
 import { RideRouteMap } from "@/features/rides/components/RideRouteMap";
 import { rideService } from "@/features/rides/services/rideService";
 import type { MyBooking, Place } from "@/features/rides/types";
@@ -80,6 +81,8 @@ export function RideDetailPage() {
       // Con éxito pasa a 09-B; con error pudo cambiar el estado o las plazas: se refresca todo.
       queryClient.invalidateQueries({ queryKey: ["rides"] });
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      // RN-39: la reserva retiene créditos.
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
   });
 
@@ -444,13 +447,7 @@ export function RideDetailPage() {
             ) : null}
 
             {reserveMutation.isError ? (
-              <div className="dashboard-alert" role="alert">
-                <p>
-                  {reserveMutation.error instanceof Error
-                    ? reserveMutation.error.message
-                    : "No pudimos reservar el viaje"}
-                </p>
-              </div>
+              <ReserveErrorAlert error={reserveMutation.error} returnTo={`/viajes/${rideId}`} />
             ) : null}
 
             <button

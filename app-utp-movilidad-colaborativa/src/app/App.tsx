@@ -12,6 +12,7 @@ import { RegisterPage } from "@/features/auth/pages/RegisterPage";
 import { RegisterVehiclePage } from "@/features/vehicles/pages/RegisterVehiclePage";
 import { UpdateVehiclePage } from "@/features/vehicles/pages/UpdateVehiclePage";
 import { VerificationPage } from "@/features/auth/pages/VerificationPage";
+import { WalletPage } from "@/features/wallet/pages/WalletPage";
 import { ProtectedRoute } from "@/app/routes/ProtectedRoute";
 import { SessionExpiredRedirect } from "@/app/routes/SessionExpiredRedirect";
 import { authService } from "@/features/auth/services/authService";
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/mis-viajes" element={<MyRidesPage />} />
+            <Route path="/billetera" element={<WalletPage />} />
             <Route path="/perfil" element={<ProfilePage />} />
           </Route>
           <Route path="/perfil/datos" element={<UpdateProfilePage />} />
