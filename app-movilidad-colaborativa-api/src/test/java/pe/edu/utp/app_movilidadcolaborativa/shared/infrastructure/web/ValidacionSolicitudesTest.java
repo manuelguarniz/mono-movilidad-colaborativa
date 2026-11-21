@@ -39,6 +39,7 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.web.ReservaCont
 import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.web.ViajeController;
 import pe.edu.utp.app_movilidadcolaborativa.users.application.PerfilService;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.ActualizarPerfilRequest;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.CambiarModoRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
@@ -61,6 +62,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -237,6 +239,24 @@ class ValidacionSolicitudesTest {
 		verify(perfilService).actualizar(any(ObjectId.class), solicitud.capture());
 		assertThat(solicitud.getValue()).isEqualTo(new ActualizarPerfilRequest(null, "Ana", "Torres", "CE",
 				"AB123456", "+51987654321", "PASSENGER"));
+	}
+
+	@Test
+	void cambiarModoValidaLaModalidad() throws Exception {
+		mvc.perform(patch("/users/me/mode").contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("activeMode"))
+				.andExpect(jsonPath("$.errors[0].message").value("La modalidad es obligatoria"));
+		mvc.perform(patch("/users/me/mode").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"activeMode\":\"ADMIN\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].message").value("La modalidad no es válida"));
+		verifyNoInteractions(perfilService);
+
+		mvc.perform(patch("/users/me/mode").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"activeMode\":\"PASSENGER\"}"))
+				.andExpect(status().isOk());
+		verify(perfilService).cambiarModo(any(ObjectId.class), eq(new CambiarModoRequest("PASSENGER")));
 	}
 
 	@Test

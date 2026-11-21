@@ -1207,6 +1207,59 @@ paths:
                 code: CANCELLATION_DEADLINE_PASSED
                 message: "Ya no puedes cancelar: faltan menos de 30 minutos para la salida"
 
+  /users/me/mode:
+    patch:
+      tags: [Users]
+      operationId: changeMyMode
+      summary: Cambiar de modo
+      description: |
+        Cambia solo la modalidad activa, después de que el usuario la confirmó en el modal
+        del perfil (RF-14, RN-48). Para pasar a `DRIVER` hace falta un vehículo `ACTIVE`, y
+        nadie cambia de modo con un viaje `IN_PROGRESS`, como conductor o como pasajero.
+        Pedir la modalidad que ya está activa no cambia nada y responde 200.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModeChangeRequest"
+      responses:
+        "200":
+          description: Perfil con la modalidad nueva.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: |
+            `activeMode` falta («La modalidad es obligatoria») o no es válida («La modalidad
+            no es válida») (`VALIDATION_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            «Registra un vehículo para usar la modalidad de conductor» (`VEHICLE_REQUIRED`),
+            o el token no es de sesión (`FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            «No puedes cambiar de modo durante un viaje en curso» (`TRIP_IN_PROGRESS`), o el
+            perfil sigue pendiente (`PROFILE_INCOMPLETE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: TRIP_IN_PROGRESS
+                message: No puedes cambiar de modo durante un viaje en curso
+
   /users/me:
     get:
       tags: [Users]
@@ -1214,7 +1267,9 @@ paths:
       summary: Consultar mi perfil
       description: |
         Devuelve el perfil completo en una sola respuesta, incluido el vehículo si el
-        usuario es conductor.
+        usuario es conductor y el viaje en curso que le impide cambiar de modo
+        (`tripInProgress`, RN-48). El saldo no forma parte del perfil: se consulta en
+        `GET /wallet`.
       responses:
         "200":
           description: Perfil del usuario.
@@ -1278,14 +1333,16 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           description: |
-            `activeMode` es `DRIVER` pero el usuario no tiene vehículo
+            `activeMode` es `DRIVER` pero el usuario no tiene un vehículo `ACTIVE`
             (`VEHICLE_REQUIRED`), o el token no es de sesión (`FORBIDDEN_SCOPE`).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
         "409":
-          description: El usuario aún no completó su perfil (`PROFILE_INCOMPLETE`).
+          description: |
+            El usuario aún no completó su perfil (`PROFILE_INCOMPLETE`), o `activeMode`
+            cambia la modalidad durante un viaje en curso (`TRIP_IN_PROGRESS`, RN-48).
           content:
             application/json:
               schema:
@@ -1647,7 +1704,7 @@ components:
             `NO_SEATS_AVAILABLE`, `ALREADY_BOOKED`, `ACTIVE_BOOKING_EXISTS`,
             `PASSENGER_CANCELLATION_LIMIT`, `OWN_RIDE`, `BOOKING_NOT_FOUND`,
             `INVALID_STATUS`, `CANCELLATION_DEADLINE_PASSED`, `START_WINDOW_CLOSED`,
-            `RIDE_IN_PROGRESS_EXISTS`, `INSUFFICIENT_CREDITS`, `OPERATION_CODE_ALREADY_USED`,
+            `RIDE_IN_PROGRESS_EXISTS`, `TRIP_IN_PROGRESS`, `INSUFFICIENT_CREDITS`, `OPERATION_CODE_ALREADY_USED`,
             `WITHDRAWAL_PENDING`, `DRIVER_ROLE_REQUIRED`, `RATING_NOT_ALLOWED`,
             `RATING_WINDOW_CLOSED`, `ALREADY_RATED`, `INTERNAL_ERROR`.
 
@@ -2137,6 +2194,43 @@ components:
             Solo en `GET /users/me`. `null` si el usuario no tiene vehículo o no superó el
             límite de cancelaciones (RN-30). «Publicar viaje» lo usa para bloquearse desde la
             entrada (P11, frame 11-C).
+        tripInProgress:
+          oneOf:
+            - $ref: "#/components/schemas/TripInProgress"
+            - type: "null"
+          description: |
+            Viaje `IN_PROGRESS` que el usuario conduce o en el que viaja con su reserva
+            `IN_RIDE`; `null` si no hay. Mientras exista no puede cambiar de modo (RN-48):
+            el perfil abre el aviso 14-D en lugar de la confirmación.
+
+    TripInProgress:
+      type: object
+      required: [rideId, role, origin, destination, startedAt]
+      properties:
+        rideId:
+          type: string
+        role:
+          type: string
+          enum: [DRIVER, PASSENGER]
+          description: "`DRIVER` si conduce el viaje, `PASSENGER` si viaja en él."
+        origin:
+          type: [string, "null"]
+          example: Campus UTP Trujillo
+        destination:
+          type: [string, "null"]
+          example: Urb. El Golf, Víctor Larco
+        startedAt:
+          type: [string, "null"]
+          format: date-time
+          description: Hora real de inicio («Salió 14:20»).
+
+    ModeChangeRequest:
+      type: object
+      required: [activeMode]
+      properties:
+        activeMode:
+          type: string
+          enum: [PASSENGER, DRIVER]
 
     CancellationBlock:
       type: object

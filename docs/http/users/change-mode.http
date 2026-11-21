@@ -1,0 +1,77 @@
+# Cambiar de modo
+# PATCH /users/me/mode
+#
+# Requiere token SESSION. Se llama después de confirmar en el modal del perfil (RF-14, RN-48).
+# Pedir el modo que ya está activo responde 200 sin cambiar nada.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Modo cambiado: devuelve el perfil completo
+# Respuesta 200 OK (resumida)
+# {
+#   "id": "6ac8653f547b48cd81f1d86b",
+#   "email": "carlos.mendoza@utp.edu.pe",
+#   "roles": ["PASSENGER", "DRIVER"],
+#   "activeMode": "PASSENGER",
+#   "status": "ACTIVE",
+#   "vehicle": { "plate": "ABC-123", "status": "ACTIVE", "...": "..." },
+#   "cancellationBlock": null,
+#   "tripInProgress": null
+# }
+PATCH {{baseUrl}}/users/me/mode
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "activeMode": "PASSENGER"
+}
+
+### 400 · Modalidad no válida
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     { "field": "activeMode", "message": "La modalidad no es válida" }
+#   ]
+# }
+PATCH {{baseUrl}}/users/me/mode
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "activeMode": "ADMIN"
+}
+
+### 403 · Pasar a conductor sin vehículo ACTIVO
+# Respuesta 403 Forbidden
+# {
+#   "code": "VEHICLE_REQUIRED",
+#   "message": "Registra un vehículo para usar la modalidad de conductor"
+# }
+PATCH {{baseUrl}}/users/me/mode
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "activeMode": "DRIVER"
+}
+
+### 409 · Con un viaje EN_CURSO (como conductor o con una reserva EN_VIAJE)
+# Respuesta 409 Conflict
+# {
+#   "code": "TRIP_IN_PROGRESS",
+#   "message": "No puedes cambiar de modo durante un viaje en curso"
+# }
+# GET /users/me trae el viaje en "tripInProgress":
+# { "rideId": "...", "role": "DRIVER", "origin": "Campus UTP Trujillo",
+#   "destination": "Urb. El Golf, Víctor Larco", "startedAt": "2026-11-21T19:20:00Z" }
+PATCH {{baseUrl}}/users/me/mode
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "activeMode": "PASSENGER"
+}

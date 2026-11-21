@@ -475,7 +475,7 @@ function seed(): Database {
         declaredAt: "2026-10-02T10:00:00Z",
       },
     },
-    stats: { trips: 342, compliance: 99, co2SavedKg: 128 },
+    stats: { trips: 86, compliance: 97, co2SavedKg: 187 },
     rating: { average: 4.9, count: 120 },
     createdAt: "2026-10-01T15:04:00Z",
   };
@@ -713,7 +713,7 @@ function seed(): Database {
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
 // El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
-const STORAGE_KEY = "colaboracar_mock_db_v6";
+const STORAGE_KEY = "colaboracar_mock_db_v7";
 
 function load(): Database {
   try {

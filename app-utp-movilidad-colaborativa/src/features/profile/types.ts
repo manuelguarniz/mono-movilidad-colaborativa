@@ -26,6 +26,16 @@ export type UserProfile = {
   stats: { trips: number; compliance: number; co2SavedKg: number };
   rating: { average: number; count: number } | null;
   createdAt: string;
+  // RN-48: viaje `IN_PROGRESS` que conduce (DRIVER) o en el que viaja (PASSENGER); `null` si no hay.
+  tripInProgress: TripInProgress | null;
+};
+
+export type TripInProgress = {
+  rideId: string;
+  role: Role;
+  origin: string | null;
+  destination: string | null;
+  startedAt: string | null;
 };
 
 // `UserUpdateRequest` (PUT /users/me). El documento solo se envía mientras el usuario no

@@ -53,7 +53,7 @@ El contrato define 31 endpoints y el backend implementa 30. Toda la API cuelga d
 | Viajes y reservas | `GET` y `POST /rides`, `GET /rides/{rideId}`, `POST /rides/{rideId}/reserve` | Implementado. La publicación valida el vehículo activo (RN-24), el límite de cancelaciones (RN-30, con los parámetros de la colección `app`) y el SOAT en la salida (RN-37) |
 | Mis viajes | `GET /rides/mine`, `POST /rides/{rideId}/cancel`, `/start`, `/finish`, `GET /bookings/mine`, `POST /bookings/{bookingId}/cancel` | Implementado, con reembolso al cancelar y cobro al finalizar (RN-40). Sin notificaciones: no hay avisos al otro participante. El job que cancela o cierra los viajes vencidos (RF-08) está pendiente |
 | Billetera | `GET /wallet`, `GET /wallet/movements`, `POST /wallet/top-ups`, `POST /wallet/withdrawals` | Implementado: saldo, retenido y retirable, movimientos, recarga simulada (RN-41) y retiro (RN-42). El job `ReversionRetirosJob` devuelve cada minuto los retiros que el operador marca `RECHAZADO` |
-| Perfil | `GET` y `PUT /users/me` | Implementado; la foto es opcional hasta que exista `POST /files` |
+| Perfil | `GET` y `PUT /users/me`, `PATCH /users/me/mode` | Implementado, con el cambio de modo de RN-48 (`tripInProgress` en el perfil); la foto es opcional hasta que exista `POST /files` |
 | Historial | `GET /history?role&page` | Implementado (RF-09, RN-50): como pasajero o como conductor, 20 por página, con lo que falta calificar en cada viaje completado |
 | Calificaciones | `GET /ratings/rides/{rideId}`, `POST /ratings` | Implementado (RF-10, RN-47): plazo de 24 h desde `fecha_fin` (`dias_para_calificar`), una por reserva y persona, promedio recalculado en una transacción y copiado en los viajes activos. Sin la notificación «Viaje completado» |
 
@@ -174,6 +174,7 @@ Están centralizados, con su estado HTTP, en el enum `CodigoError`. Los cuatro p
 | `CANCELLATION_DEADLINE_PASSED` | 409 | Ya no puedes cancelar: faltan menos de 30 minutos para la salida (RN-25, RN-26) |
 | `START_WINDOW_CLOSED` | 409 | Podrás iniciar el viaje desde las HH:mm / Ya pasó el plazo para iniciar este viaje (RN-43) |
 | `RIDE_IN_PROGRESS_EXISTS` | 409 | Finaliza tu viaje en curso para iniciar este. (RN-46) |
+| `TRIP_IN_PROGRESS` | 409 | No puedes cambiar de modo durante un viaje en curso (RN-48) |
 | `INSUFFICIENT_CREDITS` | 409 | Saldo insuficiente: necesitas N créditos y tienes M. (RN-39; `details.required`, `details.available`) |
 | `OPERATION_CODE_ALREADY_USED` | 409 | Este código de operación ya fue registrado (RN-41) |
 | `WITHDRAWAL_PENDING` | 409 | Ya tienes un retiro pendiente (RN-42) |
@@ -266,7 +267,7 @@ No recibe cuerpo ni tiene errores propios; solo exige un token `SESSION`.
 
 **`GET /users/me`**
 
-No recibe parámetros. Devuelve el perfil completo, con el vehículo si el usuario es conductor. Los datos que el usuario aún no registra llegan como `null` (teléfono, documento, dirección de residencia, vehículo, calificación y, mientras no exista `POST /files`, la foto); las estadísticas empiezan en cero. Negocio: 401 `UNAUTHORIZED` si la cuenta ya no existe o está bloqueada.
+No recibe parámetros. Devuelve el perfil completo, con el vehículo si el usuario es conductor y, en `tripInProgress`, el viaje `EN_CURSO` que conduce o en el que viaja con su reserva `EN_VIAJE` (`rideId`, `role`, `origin`, `destination`, `startedAt`; `null` si no hay). El saldo no viene aquí: se consulta en `GET /wallet`. Los datos que el usuario aún no registra llegan como `null` (teléfono, documento, dirección de residencia, vehículo, calificación y, mientras no exista `POST /files`, la foto); las estadísticas empiezan en cero. Negocio: 401 `UNAUTHORIZED` si la cuenta ya no existe o está bloqueada.
 
 **`PUT /users/me`**
 
@@ -297,9 +298,21 @@ Negocio:
 | Código | HTTP | Mensaje |
 | --- | --- | --- |
 | `INVALID_FILE_REFERENCE` | 400 | La foto de perfil no existe o no te pertenece |
-| `VEHICLE_REQUIRED` | 403 | Registra un vehículo para usar la modalidad de conductor (`activeMode` es `DRIVER` y el usuario no tiene vehículo) |
+| `VEHICLE_REQUIRED` | 403 | Registra un vehículo para usar la modalidad de conductor (`activeMode` es `DRIVER` y el usuario no tiene un vehículo `ACTIVO`) |
 | `PROFILE_INCOMPLETE` | 409 | Completa tu perfil antes de actualizar tus datos (la cuenta sigue en `PROFILE_PENDING`) |
+| `TRIP_IN_PROGRESS` | 409 | No puedes cambiar de modo durante un viaje en curso (`activeMode` cambia y hay un viaje `EN_CURSO`, RN-48) |
 | `UNAUTHORIZED` | 401 | Tu sesión expiró. Vuelve a iniciar sesión. (la cuenta ya no existe o está bloqueada) |
+
+**`PATCH /users/me/mode`**
+
+Cambia solo `modo_activo`, después de confirmar en el modal del perfil (RF-14, RN-48). Pedir el modo que ya está activo responde 200 sin guardar nada.
+
+| Campo | Regla | Mensaje |
+| --- | --- | --- |
+| `activeMode` | Obligatorio | La modalidad es obligatoria |
+| `activeMode` | `PASSENGER` o `DRIVER` | La modalidad no es válida |
+
+Negocio, en orden: 401 `UNAUTHORIZED`, 409 `PROFILE_INCOMPLETE`, 403 `VEHICLE_REQUIRED` («Registra un vehículo para usar la modalidad de conductor»: pasa a `DRIVER` sin vehículo o con vehículo `INACTIVO`) y 409 `TRIP_IN_PROGRESS` («No puedes cambiar de modo durante un viaje en curso»: conduce un viaje `EN_CURSO` o tiene una reserva `EN_VIAJE`). Responde 200 con el perfil. `PUT /users/me` aplica las mismas dos reglas cuando `activeMode` cambia.
 
 Si cambia el nombre o la foto de un conductor, el servicio actualiza su copia (`conductor.nombre`, `conductor.foto_url`) en sus viajes `PUBLICADO` o `EN_CURSO`.
 

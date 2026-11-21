@@ -20,3 +20,11 @@ Manda el README raíz (sección 11).
 - Agregar el saldo con acceso a la billetera y la calificación.
 - «Puntualidad» pasa a llamarse «Cumplimiento» (RN-28).
 - Correo de ejemplo `utp.edu.pe`, no `sharecar.pe`.
+
+## Implementación (2026-11-21)
+
+- Frontend: [ProfilePage.tsx](../../../app-utp-movilidad-colaborativa/src/features/profile/pages/ProfilePage.tsx) y [ModeChangeSheet.tsx](../../../app-utp-movilidad-colaborativa/src/features/profile/components/ModeChangeSheet.tsx). Backend: `PATCH /users/me/mode` y `tripInProgress` en `GET /users/me`.
+- Billetera: una sola entrada (toda la tarjeta con chevron), sin el enlace «Ir a la billetera».
+- Sin SOAT declarado, la fila muestra «No declarado» y no hay chip ni nota (texto no definido en el README).
+- La campana sigue sin contador: P18 (RF-13) no existe todavía.
+

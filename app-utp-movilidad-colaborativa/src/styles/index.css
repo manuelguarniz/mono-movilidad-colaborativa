@@ -819,6 +819,41 @@ body {
     @apply rounded-2xl border border-[var(--border-neutral)] bg-white p-4;
   }
 
+  .profile-avatar {
+    @apply flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--surface-muted)] text-2xl font-semibold text-[var(--text-brown)];
+  }
+
+  /* Franja del SOAT por vencer (14-B) o vencido. */
+  .profile-banner {
+    @apply flex items-start gap-3 rounded-xl px-4 py-3 text-sm;
+  }
+
+  /* Selector «MODO DE USO» (14-A): el modo activo es una píldora blanca. */
+  .profile-mode-segment {
+    @apply mt-3 grid h-12 grid-cols-2 gap-1 rounded-xl bg-[var(--surface-muted)] p-1;
+  }
+
+  .profile-mode-option {
+    @apply flex items-center justify-center gap-1.5 rounded-lg text-[0.9375rem] font-medium text-[var(--text-brown)] transition;
+  }
+
+  .profile-mode-option-active {
+    @apply bg-white font-semibold text-[var(--brand-red)] shadow-sm;
+  }
+
+  /* Hojas de cambio de modo (14-C, 14-D). */
+  .profile-sheet-icon {
+    @apply mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-full;
+  }
+
+  .profile-sheet-title {
+    @apply mt-4 text-balance text-center text-xl font-semibold text-[var(--text-primary)];
+  }
+
+  .profile-sheet-secondary {
+    @apply inline-flex h-14 w-full items-center justify-center rounded-xl bg-[var(--surface-muted)] text-lg font-semibold text-[var(--text-primary)] transition active:scale-[0.99] disabled:opacity-60;
+  }
+
   .profile-card-label {
     @apply text-xs font-medium uppercase tracking-wider text-[var(--text-muted)];
   }
@@ -832,15 +867,20 @@ body {
   }
 
   .profile-stat {
-    @apply flex flex-col items-center gap-0.5 rounded-xl bg-[#f3f3f3] px-1 py-2.5 text-center;
+    @apply flex flex-col items-center gap-0.5 rounded-xl bg-[var(--surface-muted)] px-1 py-2.5 text-center;
   }
 
   .profile-action {
-    @apply mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#e9e4e3] text-sm font-semibold uppercase tracking-wide text-[var(--text-primary)] transition active:scale-[0.99];
+    @apply mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--surface-muted)] text-[0.9375rem] font-semibold text-[var(--text-primary)] transition active:scale-[0.99];
+  }
+
+  /* «Actualizar vehículo» con el SOAT por vencer o vencido (14-B). */
+  .profile-action-primary {
+    @apply bg-[var(--brand-red)] text-white;
   }
 
   .profile-data {
-    @apply mt-3 space-y-2 rounded-xl bg-[#f3f3f3] px-3 py-3;
+    @apply mt-3 space-y-2.5 rounded-xl bg-[var(--surface-muted)] px-3 py-3;
   }
 
   .profile-data-row {
@@ -848,7 +888,7 @@ body {
   }
 
   .profile-data-row dt {
-    @apply flex items-center gap-1.5 text-[var(--text-muted)];
+    @apply flex shrink-0 items-center gap-1.5 text-[var(--text-muted)];
   }
 
   .profile-data-row dd {
@@ -856,7 +896,7 @@ body {
   }
 
   .profile-logout {
-    @apply flex h-14 w-full items-center justify-center gap-2 rounded-xl border border-[#e8cac2] bg-[var(--brand-soft)] text-lg font-semibold text-[var(--brand-red)] transition active:scale-[0.99] disabled:opacity-60;
+    @apply flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-soft)] text-lg font-semibold text-[var(--brand-red)] transition active:scale-[0.99] disabled:opacity-60;
   }
 
   .dashboard-message {

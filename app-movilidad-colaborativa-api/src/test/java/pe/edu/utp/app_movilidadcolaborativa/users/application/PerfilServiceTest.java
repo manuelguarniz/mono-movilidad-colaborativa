@@ -17,7 +17,13 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoReserva;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoViaje;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Lugar;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.ActualizarPerfilRequest;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.CambiarModoRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.DireccionResidencia;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
@@ -213,6 +219,76 @@ class PerfilServiceTest {
 				.isInstanceOfSatisfying(ApiException.class,
 						ex -> assertThat(ex.getCodigo()).isEqualTo(CodigoError.VEHICLE_REQUIRED));
 		verifyNoInteractions(mongoTemplate);
+	}
+
+	@Test
+	void cambiarModoGuardaSoloLaModalidad() {
+		existe(conductor().build());
+
+		PerfilUsuarioDto perfil = servicio.cambiarModo(usuarioId, new CambiarModoRequest("DRIVER"));
+
+		assertThat(cambiosDelUsuario()).containsEntry("modo_activo", Rol.CONDUCTOR)
+				.doesNotContainKeys("nombres", "telefono");
+		assertThat(perfil.tripInProgress()).isNull();
+	}
+
+	@Test
+	void cambiarAlMismoModoNoGuardaNada() {
+		existe(conductor().modoActivo(Rol.CONDUCTOR).build());
+
+		servicio.cambiarModo(usuarioId, new CambiarModoRequest("DRIVER"));
+
+		verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), eq(Usuario.class));
+	}
+
+	@Test
+	void cambiarAConductorExigeUnVehiculoActivo() {
+		existe(conductor().vehiculo(new Vehiculo("ABC-123", TipoVehiculo.SEDAN, "Toyota", "Yaris", "Blanco", 2021, 4,
+				"45678912", true, EstadoVehiculo.INACTIVO, null, null, Instant.now(), null, null)).build());
+
+		assertThatThrownBy(() -> servicio.cambiarModo(usuarioId, new CambiarModoRequest("DRIVER")))
+				.isInstanceOfSatisfying(ApiException.class, ex -> {
+					assertThat(ex.getCodigo()).isEqualTo(CodigoError.VEHICLE_REQUIRED);
+					assertThat(ex.getMessage()).isEqualTo("Registra un vehículo para usar la modalidad de conductor");
+				});
+		verifyNoInteractions(mongoTemplate);
+	}
+
+	@Test
+	void noSeCambiaDeModoConUnViajeEnCursoComoConductor() {
+		existe(conductor().modoActivo(Rol.CONDUCTOR).build());
+		Instant inicio = Instant.parse("2026-11-21T19:20:00Z");
+		Viaje viaje = Viaje.builder().id(new ObjectId()).estado(EstadoViaje.EN_CURSO)
+				.origen(new Lugar("Campus UTP Trujillo", null, null))
+				.destino(new Lugar("Urb. El Golf, Víctor Larco", null, null))
+				.fechaSalida(inicio.minusSeconds(300)).fechaInicio(inicio).build();
+		when(mongoTemplate.findOne(any(Query.class), eq(Viaje.class))).thenReturn(viaje);
+
+		assertThatThrownBy(() -> servicio.cambiarModo(usuarioId, new CambiarModoRequest("PASSENGER")))
+				.isInstanceOfSatisfying(ApiException.class, ex -> {
+					assertThat(ex.getCodigo()).isEqualTo(CodigoError.TRIP_IN_PROGRESS);
+					assertThat(ex.getMessage()).isEqualTo("No puedes cambiar de modo durante un viaje en curso");
+				});
+		verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), eq(Usuario.class));
+
+		assertThat(servicio.consultar(usuarioId).tripInProgress()).isEqualTo(new PerfilUsuarioDto.ViajeEnCursoDto(
+				viaje.id().toHexString(), "DRIVER", "Campus UTP Trujillo", "Urb. El Golf, Víctor Larco", inicio));
+	}
+
+	@Test
+	void noSeCambiaDeModoConUnaReservaEnViaje() {
+		existe(conductor().build());
+		ObjectId viajeId = new ObjectId();
+		Instant salida = Instant.parse("2026-11-21T12:00:00Z");
+		when(mongoTemplate.findOne(any(Query.class), eq(Reserva.class))).thenReturn(Reserva.builder()
+				.viajeId(viajeId).estado(EstadoReserva.EN_VIAJE)
+				.viaje(new Reserva.ResumenViaje("Real Plaza", "Campus UTP Trujillo", salida, "Andrea P.", null))
+				.build());
+
+		assertThatThrownBy(() -> servicio.actualizar(usuarioId, solicitud(null, null, "DRIVER")))
+				.isInstanceOfSatisfying(ApiException.class,
+						ex -> assertThat(ex.getCodigo()).isEqualTo(CodigoError.TRIP_IN_PROGRESS));
+		assertThat(servicio.consultar(usuarioId).tripInProgress().role()).isEqualTo("PASSENGER");
 	}
 
 	@Test

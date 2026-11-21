@@ -237,13 +237,61 @@ No incluyas "Confirmar" ni ningún botón que cambie el modo.
 
 ## Bitácora
 
-| Captura | Frame | Prompt                                               | Resultado |
-| ------- | ----- | ---------------------------------------------------- | --------- |
-| v1.1    | 13-A  | Contexto común + 13-A (adjuntar P14 v1.1, modo App) | —        |
+| Captura | Frame | Prompt | Resultado |
+| --- | --- | --- | --- |
+| v1.1 | 13-A | Contexto común + 13-A (adjuntar P14 v1.1, modo App) | ✅ Aprobada |
+| v1.2 | 13-B | Duplica 13-A (v1.1) | ✅ Aprobada con ajuste (#2) |
+| v1.3 | 13-C | Modal sobre 13-A (v1.1) | ✅ Aprobada |
+| v1.4 | 13-D | Modal sobre P14 v1.1 | ✅ Aprobada |
+| v1.5 | 13-E | Modal sobre 13-A (v1.1) | ✅ Aprobada (reexportada el 2026-11-21 a las 14:51, 932 × 2174; corrige #3) |
 
 ### Decisiones de flujo
 
-- Tocar «Conductor» sin vehículo abre 13-C; «Registrar vehículo» abre P05 y, al guardar, el usuario suma el rol `CONDUCTOR` y entra al dashboard en modo conductor (RF-02, casuística C). _Propuesta._
-- Con vehículo, tocar «Conductor» abre 13-D; con «Confirmar» se guarda `modo_activo` y se recarga el dashboard (P06) en modo conductor (RF-14). _Propuesta._
-- Con una reserva `EN_VIAJE`, tocar «Conductor» abre 13-E antes que 13-C o 13-D (RN-48). _Propuesta._
-- La tarjeta de billetera abre P21; «Actualizar datos» y «Declarar en Actualizar datos» abren P15; «Registrar vehículo» abre P05. _Propuesta._
+- Tocar «Conductor» sin vehículo abre 13-C; «Registrar vehículo» abre P05 y, al guardar, el usuario suma el rol `CONDUCTOR` y entra al dashboard en modo conductor (RF-02, casuística C). _Adoptada sin objeción (2026-11-21)._
+- Con vehículo, tocar «Conductor» abre 13-D; con «Confirmar» se guarda `modo_activo` y se recarga el dashboard (P06) en modo conductor (RF-14). _Adoptada sin objeción (2026-11-21)._
+- Con una reserva `EN_VIAJE`, tocar «Conductor» abre 13-E antes que 13-C o 13-D (RN-48). _Adoptada sin objeción (2026-11-21)._
+- La tarjeta de billetera abre P21; «Actualizar datos» y «Declarar en Actualizar datos» abren P15; «Registrar vehículo» abre P05. _Adoptada sin objeción (2026-11-21)._
+- Los supuestos de arriba (tarjeta de asistencia de movilidad, tarjeta «¿TIENES VEHÍCULO?», billetera sin retirable, correo y cifras de ejemplo, 13-D sobre el perfil de Carlos) se adoptan sin objeción.
+
+### Revisión de v1.1 a v1.5 (2026-11-21)
+
+Tamaños: v1.1 y v1.2 a 828 px (móvil a 2×); v1.3 a 900 × 3510, v1.4 a 860 × 1848 y v1.5 a 932 × 2174 tras reexportarla (móvil a 2× con márgenes de sombra de exportación, no es escritorio).
+
+**Lo que funciona:**
+
+- **13-A (v1.1):** encabezado con «LR» y campana «3», «Lucía R.» con «★ 4.8 (19 calificaciones)» y el correo completo, y las estadísticas 24 / 92 % «Cumplimiento» / 34 kg. «MODO DE USO» tiene «Pasajero» seleccionado y la ayuda en femenino. La billetera trae la etiqueta «BILLETERA», el chevron, los 38 créditos disponibles y los 12 retenidos, sin retirable ni enlace duplicado (mejor que P14 v1.1). La asistencia de movilidad muestra el chip «No declarada», la nota de privacidad y el enlace a P15. «¿TIENES VEHÍCULO?» trae «Registrar vehículo». La sede y la residencia quedan de solo lectura, el estado de cuenta muestra «Activa» y debajo van «Cerrar sesión» y la barra con «Perfil» activa. No hay tarjeta de vehículo, SOAT ni nada fuera del alcance, y las tildes se ven bien.
+- **13-B (v1.2):** «Sin calificaciones aún» con la estrella en contorno, 0 viajes y 0 kg, la nota «Tu cumplimiento aparecerá…» y la billetera con 0 y «Recarga con Yape para reservar tu primer viaje.». El resto es idéntico a v1.1, sin bloques repetidos.
+- **13-C (v1.3):** hoja inferior sobre el perfil de Lucía, con el texto de RF-14 literal, la ayuda, «Registrar vehículo» y «Cancelar». El selector del fondo sigue en «Pasajero».
+- **13-D (v1.4):** sobre el perfil de Carlos, con el título y el texto de RF-14 literales, la nota de reservas y «Confirmar» / «Cancelar».
+- **13-E (v1.5):** chip «En viaje» (estado de la reserva), «Salió 14:20», la ruta completa en una línea, «CM · Carlos M. · Toyota Yaris blanco», el texto pedido y «Ir a Mis viajes» / «Entendido», sin «Confirmar».
+
+**Corregido después de la revisión:** #3. La v1.5 se reexportó (md5 `fcb847cc…`): la hoja ahora está anclada abajo y cubre la barra inferior, sin la franja blanca. Los bordes oscuros con ruido a los lados son la sombra de exportación sobre un fondo transparente (el PNG tiene canal alfa), no un defecto del diseño.
+
+**Pendiente (Bajo o Medio mecánico, se resuelve en la implementación):**
+
+| # | Problema | Frame | Severidad | Veces |
+| --- | --- | --- | --- | --- |
+| 1 | Las tres estadísticas van en un solo bloque gris con divisores, no en tres bloques separados como en P14 | 13-A, 13-B | Baja | 1.ª |
+| 2 | Falta el valor «—» en el bloque de cumplimiento: solo aparece la etiqueta | 13-B | Media | 1.ª |
+| 4 | El velo de los modales es gris claro, no negro al 40 % (igual que en P14) | 13-C, 13-D, 13-E | Baja | 1.ª |
+
+Los pendientes que quedan son mecánicos (un texto, el anclaje del modal y el componente compartido de estadísticas), y el contenido de cada frame es correcto. Se aprueba sin otra ronda.
+
+### Decisión
+
+Se aprueba el 2026-11-21 en la primera ronda. Capturas finales: 13-A → v1.1, 13-B → v1.2, 13-C → v1.3, 13-D → v1.4, 13-E → v1.5.
+
+Ajustes a resolver en la implementación (React + Tailwind):
+
+1. Las estadísticas usan el mismo componente que P14: tres bloques grises separados (#1).
+2. Sin viajes completados, el cumplimiento muestra «—» con la etiqueta «Cumplimiento», y la nota «Tu cumplimiento aparecerá cuando completes tu primer viaje.» (RF-14, #2).
+3. Las hojas inferiores usan el mismo componente que P14 (`ModeChangeSheet`): ancladas abajo, por encima de la barra inferior, con un velo negro al 40 % a todo el ancho que también cubre la barra (#4).
+4. El texto de ayuda del selector y de «¿TIENES VEHÍCULO?» concuerda con el género solo si el perfil lo tiene; si no, se usa una forma neutra («Para usar el modo conductor necesitas registrar un vehículo», «para publicar viajes»).
+5. Tarjeta de asistencia de movilidad: chip «No declarada» o el tipo declarado («Silla de ruedas», «Muletas o andador», «Otra») con la nota debajo; solo se ve en el perfil propio (RN-17, RN-22). La variante con asistencia declarada no se diseñó.
+6. La billetera del pasajero sin rol `CONDUCTOR` muestra disponibles y retenidos; con el rol, también los retirables, como en P14.
+7. Orden de los modales al tocar «Conductor»: primero 13-E (reserva `EN_VIAJE`), luego 13-C (sin vehículo `ACTIVO`) y si no, 13-D (RN-48).
+
+**Aprendizaje para las siguientes pantallas:**
+
+- Adjuntar una captura aprobada de la pantalla hermana (P14 v1.1), en lugar del frame del prototipo, hizo que los 5 frames salieran a la primera con el mismo sistema visual. Incluso corrigió el detalle de la billetera que había quedado pendiente en P14.
+- En los modales que Stitch exporta con fondo negro o con la hoja flotando, basta con anotar el anclaje para la implementación si el contenido es correcto.

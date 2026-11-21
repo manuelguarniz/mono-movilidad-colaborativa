@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw";
 import {
+  db,
   saveDb,
   syncDriverRides,
   type DocumentType,
@@ -24,10 +25,55 @@ import {
 /** Perfil del contrato: el usuario sin la contraseña. */
 // `cancellationBlock` (RN-30): el mock no registra cancelaciones, así que nunca hay bloqueo.
 // El saldo no es parte del perfil: se consulta en `GET /wallet`.
-const toUserProfile = ({ password, credits, heldCredits, ...profile }: MockUser) => ({
-  ...profile,
-  cancellationBlock: null,
-});
+const toUserProfile = (user: MockUser) => {
+  const { password, credits, heldCredits, ...profile } = user;
+  return { ...profile, cancellationBlock: null, tripInProgress: tripInProgress(user) };
+};
+
+/**
+ * RN-48: el viaje `IN_PROGRESS` que conduce el usuario o, si no, aquel en el que viaja con
+ * su reserva `IN_RIDE`. Mientras exista no puede cambiar de modo.
+ */
+function tripInProgress(user: MockUser) {
+  let role: Role = "DRIVER";
+  let ride = db.rides.find((r) => r.driver.id === user.id && r.status === "IN_PROGRESS");
+  if (!ride) {
+    const booking = db.reservations.find(
+      (r) => r.passengerId === user.id && r.status === "IN_RIDE",
+    );
+    ride = booking ? db.rides.find((r) => r.id === booking.rideId) : undefined;
+    role = "PASSENGER";
+  }
+  if (!ride) {
+    return null;
+  }
+  return {
+    rideId: ride.id,
+    role,
+    origin: ride.origin.label,
+    destination: ride.destination.label,
+    startedAt: ride.startedAt ?? ride.departureTime,
+  };
+}
+
+/** Mismas reglas que `PerfilService.validarCambioDeModo`; `null` si el cambio procede. */
+function modeChangeError(user: MockUser, mode: Role) {
+  if (mode === "DRIVER" && (!user.vehicle || user.vehicle.status === "INACTIVE")) {
+    return apiError(
+      403,
+      "VEHICLE_REQUIRED",
+      "Registra un vehículo para usar la modalidad de conductor",
+    );
+  }
+  if (mode !== user.activeMode && tripInProgress(user)) {
+    return apiError(
+      409,
+      "TRIP_IN_PROGRESS",
+      "No puedes cambiar de modo durante un viaje en curso",
+    );
+  }
+  return null;
+}
 
 export const userHandlers = [
   http.get(api("/users/me"), ({ request }) => {
@@ -120,12 +166,9 @@ export const userHandlers = [
         "Completa tu perfil antes de actualizar tus datos",
       );
     }
-    if (body.activeMode === "DRIVER" && !user.vehicle) {
-      return apiError(
-        403,
-        "VEHICLE_REQUIRED",
-        "Registra un vehículo para usar la modalidad de conductor",
-      );
+    const modeError = modeChangeError(user, body.activeMode as Role);
+    if (modeError) {
+      return modeError;
     }
     if (body.photoFileId != null) {
       const photo = findOwnFile(body.photoFileId as string, user, "PROFILE_PHOTO");
@@ -150,6 +193,40 @@ export const userHandlers = [
     syncDriverRides(user);
     saveDb();
 
+    return HttpResponse.json(toUserProfile(user));
+  }),
+
+  // Cambio de modo confirmado en el modal del perfil (RF-14, RN-48).
+  http.patch(api("/users/me/mode"), async ({ request }) => {
+    const user = authenticate(request);
+    if (user instanceof Response) {
+      return user;
+    }
+    const body = await readBody(request);
+    if (!body) {
+      return invalidJson();
+    }
+    if (body.activeMode == null) {
+      return validationError([{ field: "activeMode", message: "La modalidad es obligatoria" }]);
+    }
+    if (body.activeMode !== "PASSENGER" && body.activeMode !== "DRIVER") {
+      return validationError([{ field: "activeMode", message: "La modalidad no es válida" }]);
+    }
+    if (user.status === "PROFILE_PENDING") {
+      return apiError(
+        409,
+        "PROFILE_INCOMPLETE",
+        "Completa tu perfil antes de actualizar tus datos",
+      );
+    }
+    if (body.activeMode !== user.activeMode) {
+      const modeError = modeChangeError(user, body.activeMode);
+      if (modeError) {
+        return modeError;
+      }
+      user.activeMode = body.activeMode;
+      saveDb();
+    }
     return HttpResponse.json(toUserProfile(user));
   }),
 ];

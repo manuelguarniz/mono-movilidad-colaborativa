@@ -413,7 +413,7 @@ El backend implementa 30 de los 31 endpoints del contrato actual. Lo nuevo de es
 | Autenticación (login, OTP, cierre de sesión) | Implementado con OTP en cada login; falta el dispositivo confiable (RF-01) |
 | Registro (cuenta y completar perfil) | Implementado; falta la asistencia de movilidad. La foto de perfil es opcional hasta que exista la carga de imágenes |
 | Catálogos (departamentos, distritos, sedes) | Implementado. La ciudad de una sede (RN-49) es el nombre de su distrito (`sedes.distrito.nombre`) |
-| Perfil (consultar y actualizar datos) | Implementado; falta el modal de cambio de modo y el resumen de saldo y calificación |
+| Perfil (consultar y actualizar datos) | Implementado: P14 con calificación, saldo (de `GET /wallet`), SOAT con aviso a ≤ 15 días y cambio de modo con modal por `PATCH /users/me/mode` (RN-48, `TRIP_IN_PROGRESS`). P13 usa la misma pantalla en modo pasajero mientras no tenga diseño aprobado |
 | Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional hasta que P05 y P16 lo pidan, y las fotos hasta que exista la carga de imágenes |
 | Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/{rideId}` trae además la reserva del usuario en ese viaje (`myBooking`, con la hora límite para cancelar de RN-25), su reserva activa en otro viaje (RN-23) y su bloqueo (RN-38), para la barra inferior de P09. Reservar retiene el total del saldo disponible y, sin saldo, responde `INSUFFICIENT_CREDITS` con el botón «Recargar» (RN-39) |
 | Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Cancelar reembolsa el 100 % y finalizar paga al conductor (RN-40). Sin notificaciones. Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
@@ -1246,7 +1246,7 @@ sequenceDiagram
 
 ### 9.1 Perfil, vehículo y cambio de modo
 
-El perfil se carga con un solo documento, que ya incluye el vehículo, el SOAT, el saldo y la calificación. Desde ahí se actualizan los datos personales y los del vehículo, y se cambia de modo con confirmación (RF-14).
+El perfil se carga con un solo documento, que ya incluye el vehículo, el SOAT, la calificación y el viaje en curso (`tripInProgress`, RN-48). El saldo de la tarjeta «Billetera» sale de `GET /wallet` (2026-11-21, al implementar P14), que ya calcula lo retirable y se refresca con cada recarga o retiro. Desde ahí se actualizan los datos personales y los del vehículo, y se cambia de modo con confirmación (RF-14).
 
 ```mermaid
 sequenceDiagram
@@ -1401,7 +1401,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 10 | [10. confirm_detalle_viaje.jpeg](<frames/10. confirm_detalle_viaje.jpeg>) | Confirmar reserva (detalle) | Viajes | Implementada |
 | 11 | [P11-PublicarViaje/v2.3.png](<docs/design/P11-PublicarViaje/v2.3.png>) | Publicar viaje | Viajes | Implementada · rediseño aprobado |
 | 12 | [12. confirm_publicar_viaje.jpeg](<frames/12. confirm_publicar_viaje.jpeg>) | Confirmar publicación | Viajes | Implementada |
-| 13 | [13. perfil_pasajero.jpeg](<frames/13. perfil_pasajero.jpeg>) | Perfil — pasajero | Perfil | Implementada |
+| 13 | [P13-PerfilPasajero/v1.1.png](<docs/design/P13-PerfilPasajero/v1.1.png>) | Perfil — pasajero | Perfil | Implementada · rediseño aprobado |
 | 14 | [P14-PerfilConductor/v1.1.png](<docs/design/P14-PerfilConductor/v1.1.png>) | Perfil — conductor | Perfil | Implementada · rediseño aprobado |
 | 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada |
 | 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada (sin SOAT) · rediseño aprobado |

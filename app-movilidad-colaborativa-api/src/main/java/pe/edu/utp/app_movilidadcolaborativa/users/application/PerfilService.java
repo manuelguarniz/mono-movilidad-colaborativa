@@ -11,14 +11,22 @@ import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.Archivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.PropositoArchivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.infrastructure.persistence.ArchivoRepository;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.CancelacionesConductorService;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoReserva;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoViaje;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Lugar;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.dto.ErrorDto.ErrorCampo;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.ActualizarPerfilRequest;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.CambiarModoRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.BloqueoCancelacionesDto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.ViajeEnCursoDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoVehiculo;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Foto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Rol;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.TipoDocumento;
@@ -31,13 +39,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** Consulta y actualización del perfil del usuario autenticado (RF-19 a RF-21, RN-14). */
+/** Consulta y actualización del perfil del usuario autenticado y cambio de modo (RF-14, RF-19 a RF-21, RN-14, RN-48). */
 @Service
 @RequiredArgsConstructor
 public class PerfilService {
 
 	private static final String COLECCION_VIAJES = "viajes";
 	private static final List<String> ESTADOS_VIAJE_ACTIVO = List.of("PUBLICADO", "EN_CURSO");
+	static final String MENSAJE_SIN_VEHICULO = "Registra un vehículo para usar la modalidad de conductor";
+	static final String MENSAJE_VIAJE_EN_CURSO = "No puedes cambiar de modo durante un viaje en curso";
 
 	private final UsuarioRepository usuarioRepository;
 	private final ArchivoRepository archivoRepository;
@@ -46,7 +56,8 @@ public class PerfilService {
 
 	/**
 	 * El perfil sale de un solo documento, que ya incluye la sede, las estadísticas y el vehículo. A quien tiene
-	 * vehículo se le cuentan además sus cancelaciones recientes (RN-30).
+	 * vehículo se le cuentan además sus cancelaciones recientes (RN-30), y a todos se les busca el viaje en curso
+	 * (RN-48).
 	 */
 	public PerfilUsuarioDto consultar(ObjectId usuarioId) {
 		Usuario usuario = buscarUsuario(usuarioId);
@@ -54,7 +65,7 @@ public class PerfilService {
 				: cancelacionesConductorService.bloqueo(usuarioId, Instant.now())
 						.map(encontrado -> new BloqueoCancelacionesDto(encontrado.cancelaciones(), encontrado.hasta()))
 						.orElse(null);
-		return PerfilUsuarioDto.desde(usuario, bloqueo);
+		return PerfilUsuarioDto.desde(usuario, bloqueo, viajeEnCurso(usuarioId));
 	}
 
 	/**
@@ -78,10 +89,7 @@ public class PerfilService {
 		}
 
 		Rol modoActivo = Rol.desdeApi(solicitud.activeMode());
-		if (modoActivo == Rol.CONDUCTOR && usuario.getVehiculo() == null) {
-			throw new ApiException(CodigoError.VEHICLE_REQUIRED,
-					"Registra un vehículo para usar la modalidad de conductor");
-		}
+		validarCambioDeModo(usuario, modoActivo);
 		cambios.set("modo_activo", modoActivo);
 
 		Foto foto = usuario.getFoto();
@@ -99,6 +107,71 @@ public class PerfilService {
 		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(usuarioId)), cambios, Usuario.class);
 		actualizarCopiaEnViajes(usuario, solicitud, foto);
 		return consultar(usuarioId);
+	}
+
+	/**
+	 * Cambia solo la modalidad, después de que el usuario la confirmó en el modal del perfil (RF-14, RN-48). Pedir
+	 * la modalidad que ya está activa no cambia nada.
+	 */
+	public PerfilUsuarioDto cambiarModo(ObjectId usuarioId, CambiarModoRequest solicitud) {
+		Usuario usuario = buscarUsuario(usuarioId);
+		if (usuario.getEstado() == EstadoUsuario.PERFIL_PENDIENTE) {
+			throw new ApiException(CodigoError.PROFILE_INCOMPLETE, "Completa tu perfil antes de actualizar tus datos");
+		}
+		Rol modoActivo = Rol.desdeApi(solicitud.activeMode());
+		if (modoActivo != usuario.getModoActivo()) {
+			validarCambioDeModo(usuario, modoActivo);
+			mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(usuarioId)),
+					new Update().set("modo_activo", modoActivo).set("fecha_actualizacion", Instant.now()),
+					Usuario.class);
+		}
+		return consultar(usuarioId);
+	}
+
+	/**
+	 * RN-48: para ser conductor hace falta un vehículo ACTIVO (un vehículo sin estado, de datos anteriores, cuenta
+	 * como activo), y nadie cambia de modo con un viaje EN_CURSO. Quedarse en el mismo modo siempre se permite.
+	 */
+	private void validarCambioDeModo(Usuario usuario, Rol modoActivo) {
+		if (modoActivo == Rol.CONDUCTOR && (usuario.getVehiculo() == null
+				|| usuario.getVehiculo().estado() == EstadoVehiculo.INACTIVO)) {
+			throw new ApiException(CodigoError.VEHICLE_REQUIRED, MENSAJE_SIN_VEHICULO);
+		}
+		if (modoActivo != usuario.getModoActivo() && viajeEnCurso(usuario.getId()) != null) {
+			throw new ApiException(CodigoError.TRIP_IN_PROGRESS, MENSAJE_VIAJE_EN_CURSO);
+		}
+	}
+
+	/** El viaje EN_CURSO que conduce el usuario o, si no, aquel en el que viaja con su reserva EN_VIAJE. */
+	private ViajeEnCursoDto viajeEnCurso(ObjectId usuarioId) {
+		Viaje conducido = mongoTemplate.findOne(Query.query(Criteria.where("conductor.id").is(usuarioId)
+				.and("estado").is(EstadoViaje.EN_CURSO)), Viaje.class);
+		if (conducido != null) {
+			return enCurso(conducido, Rol.CONDUCTOR);
+		}
+		Reserva reserva = mongoTemplate.findOne(Query.query(Criteria.where("pasajero.id").is(usuarioId)
+				.and("estado").is(EstadoReserva.EN_VIAJE)), Reserva.class);
+		if (reserva == null) {
+			return null;
+		}
+		Viaje viaje = mongoTemplate.findById(reserva.viajeId(), Viaje.class);
+		if (viaje != null) {
+			return enCurso(viaje, Rol.PASAJERO);
+		}
+		// Sin el viaje, basta la copia de la reserva para explicar por qué no se puede cambiar de modo.
+		Reserva.ResumenViaje resumen = reserva.viaje();
+		return new ViajeEnCursoDto(reserva.viajeId().toHexString(), Rol.PASAJERO.getApi(),
+				resumen == null ? null : resumen.origen(), resumen == null ? null : resumen.destino(),
+				resumen == null ? null : resumen.fechaSalida());
+	}
+
+	private static ViajeEnCursoDto enCurso(Viaje viaje, Rol rol) {
+		return new ViajeEnCursoDto(viaje.id().toHexString(), rol.getApi(), etiqueta(viaje.origen()),
+				etiqueta(viaje.destino()), viaje.fechaInicio() != null ? viaje.fechaInicio() : viaje.fechaSalida());
+	}
+
+	private static String etiqueta(Lugar lugar) {
+		return lugar == null ? null : lugar.etiqueta();
 	}
 
 	// El token puede seguir vigente aunque la cuenta ya no exista o haya sido bloqueada.

@@ -12,8 +12,10 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Perfil completo del usuario. Nunca incluye contrasena_hash ni saldo_creditos. cancellationBlock solo existe si
- * el conductor superó el límite de cancelaciones (RN-30): «Publicar viaje» se bloquea desde la entrada.
+ * Perfil completo del usuario. Nunca incluye contrasena_hash ni saldo_creditos (el saldo sale de GET /wallet).
+ * cancellationBlock solo existe si el conductor superó el límite de cancelaciones (RN-30): «Publicar viaje» se
+ * bloquea desde la entrada. tripInProgress solo existe si el usuario tiene un viaje EN_CURSO, como conductor o como
+ * pasajero con su reserva EN_VIAJE: mientras tanto no puede cambiar de modo (RN-48).
  */
 public record PerfilUsuarioDto(
 		String id,
@@ -35,7 +37,12 @@ public record PerfilUsuarioDto(
 		EstadisticasDto stats,
 		CalificacionDto rating,
 		Instant createdAt,
-		BloqueoCancelacionesDto cancellationBlock) {
+		BloqueoCancelacionesDto cancellationBlock,
+		ViajeEnCursoDto tripInProgress) {
+
+	/** role: DRIVER si conduce el viaje, PASSENGER si viaja en él; startedAt es la hora real de inicio. */
+	public record ViajeEnCursoDto(String rideId, String role, String origin, String destination, Instant startedAt) {
+	}
 
 	/** count: viajes cancelados en la ventana; until: desde cuándo podrá publicar de nuevo. */
 	public record BloqueoCancelacionesDto(int count, Instant until) {
@@ -96,10 +103,11 @@ public record PerfilUsuarioDto(
 	}
 
 	public static PerfilUsuarioDto desde(Usuario usuario) {
-		return desde(usuario, null);
+		return desde(usuario, null, null);
 	}
 
-	public static PerfilUsuarioDto desde(Usuario usuario, BloqueoCancelacionesDto bloqueo) {
+	public static PerfilUsuarioDto desde(Usuario usuario, BloqueoCancelacionesDto bloqueo,
+			ViajeEnCursoDto viajeEnCurso) {
 		List<Rol> roles = usuario.getRoles() == null ? List.of() : usuario.getRoles();
 		return new PerfilUsuarioDto(
 				usuario.getId().toHexString(),
@@ -121,6 +129,7 @@ public record PerfilUsuarioDto(
 				EstadisticasDto.desde(usuario.getEstadisticas()),
 				CalificacionDto.desde(usuario.getCalificacion()),
 				usuario.getFechaCreacion(),
-				bloqueo);
+				bloqueo,
+				viajeEnCurso);
 	}
 }
