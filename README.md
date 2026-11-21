@@ -27,6 +27,7 @@ Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la a
 - **Recomendación con IA y coincidencia automática de rutas** (RF09 a RF11 del docx). La búsqueda es con filtros (RF-03).
 - **Perfil Administrador** (gestión de usuarios, incidencias, reportes y condiciones de la plataforma; RF16 a RF20 del docx). Las cuentas `BLOQUEADO`, los retiros y la colección `app` se editan directamente en la base de datos.
 - **Botón de emergencia, reporte de incidencias y compartir el viaje con un contacto.**
+- **Reseñas visibles para otros usuarios:** las calificaciones solo sirven para calcular el promedio de estrellas del perfil de cada usuario (RF-10). No hay pantalla para leer los comentarios recibidos o de otras personas; el comentario se guarda, pero solo su autor lo ve al enviarlo (P20) y en su historial nunca aparece el de otros.
 - **Mapas avanzados:** trazado de rutas por calles, búsqueda de direcciones, tráfico en tiempo real, búsqueda por cercanía y seguimiento del vehículo en vivo.
 - **Recuperación y cambio de contraseña**, gestión de los dispositivos confiables y edición de un viaje ya publicado (se cancela y se publica de nuevo).
 - **«Cambiar sede» y «Modificar casa»** de los frames 13 y 14, y los distintivos «A/C activo» y «Conductor frecuente» del frame 09: se quitan del prototipo.
@@ -119,7 +120,7 @@ Los mensajes entre comillas son literales: los devuelve la API (`app-movilidad-c
   - **Sin viajes:** «Aún no tienes viajes terminados».
 - **RF-10 — Calificar (nuevo).** Se abre desde la notificación «Viaje completado» o desde el historial (RN-47).
   - **Quién califica a quién.** El pasajero, si su reserva quedó `COMPLETADA`, califica al conductor. El conductor califica a cada pasajero `COMPLETADA`, uno por uno. A quien no se presentó no se le califica.
-  - **Datos.** De 1 a 5 estrellas, obligatorio, y comentario opcional de hasta 200 caracteres.
+  - **Datos.** De 1 a 5 estrellas, obligatorio, y comentario opcional de hasta 200 caracteres. El comentario se guarda pero no se muestra a otros usuarios (sección 1.1).
   - **Plazo.** Hasta `dias_para_calificar` (1), es decir 24 horas, después de `fecha_fin`; pasado ese plazo: «El plazo para calificar este viaje terminó».
   - **Repetida.** «Ya calificaste a esta persona en este viaje». La calificación no se edita ni se borra.
   - **Efecto.** Se recalcula el promedio y la cantidad en `usuarios.calificacion` del calificado, y se copia en sus viajes activos (si es conductor) o en su reserva activa (si es pasajero). El promedio se muestra en el perfil, en la tarjeta del viaje y en Mis viajes; sin calificaciones se muestra «Nuevo».
@@ -1405,7 +1406,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Diseño aprobado |
 | 18 | — | Notificaciones | Notificaciones | Pendiente de diseño |
 | 19 | [P19-Historial/v3.1.png](<docs/design/P19-Historial/v3.1.png>) | Historial | Historial | Diseño aprobado |
-| 20 | — | Calificar | Calificaciones | Pendiente de diseño |
+| 20 | [P20-Calificar/v1.1.png](<docs/design/P20-Calificar/v1.1.png>) | Calificar | Calificaciones | Diseño aprobado |
 | 21 | [P21-Billetera/v1.1.png](<docs/design/P21-Billetera/v1.1.png>) | Billetera | Billetera | Diseño aprobado |
 
 Los frames son una referencia visual y difieren de este documento en los puntos de la tabla. En todos ellos manda este documento.
@@ -1598,6 +1599,7 @@ Cada fila cita los IDs de RF vigentes en su fecha. Las decisiones que una poster
 | 2026-10-29 | ¿Cómo se califica? | Mutua y opcional, de 1 a 5 estrellas con comentario, hasta 7 días después del viaje (RN-47). *Reemplazada el 2026-11-21: 24 horas.* | Da confianza sin bloquear el uso de la app. |
 | 2026-10-29 | ¿Cómo se cambia de modo? | Con el selector del perfil y un modal de confirmación; no durante un viaje en curso (RN-48). | Pedido del equipo. |
 | 2026-11-21 | ¿Hasta cuándo se califica? | Hasta 24 horas después de `fecha_fin` (RF-10, RN-47). `dias_para_calificar` pasa de 7 a 1 en `app` y sigue siendo configurable. Reemplaza el plazo de 7 días. | Decisión del usuario al diseñar P19 Historial. |
+| 2026-11-21 | ¿Quién ve los comentarios de las calificaciones? | Nadie más que su autor. Las calificaciones solo alimentan el promedio de estrellas del perfil; leer reseñas queda fuera del alcance (sección 1.1). | Decisión del usuario al diseñar P20 Calificar; no hay pantalla de reseñas. |
 | 2026-11-21 | ¿Qué pasa con las reservas creadas antes de la billetera, que no retuvieron créditos? | No se liquidan: solo se reembolsan o cobran las reservas con `liquidada = false`. Al cancelarlas, el mensaje es «Reserva cancelada.» sin monto. | Reembolsarlas o cobrarlas crearía créditos que nadie pagó. |
 | 2026-11-21 | ¿Quién puede solicitar un retiro? | Quien tiene el rol `CONDUCTOR`, aunque esté en modo pasajero; la pantalla solo muestra «Retirar» en modo conductor. Si no: `DRIVER_ROLE_REQUIRED`, «Solo los conductores pueden retirar créditos». | RF-12 lo limita al conductor, y el saldo retirable ya excluye lo que no se ganó conduciendo. |
 

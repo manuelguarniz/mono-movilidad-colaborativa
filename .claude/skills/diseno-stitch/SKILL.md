@@ -116,7 +116,7 @@ Igual que el modo A, pero:
 - **Etiquetas de estado** exactamente como en la sección 2.3 del README.
 - **Reglas visibles:** una hora de salida, sede/ciudad en cada viaje, precio de 1 a 10 créditos, cancelación hasta 30 min antes, dato de movilidad reducida solo visible para el conductor del viaje y para el propio usuario (RN-17, RN-22).
 - **Modo pasajero/conductor:** se toma del perfil (RF-14, RN-48); una pantalla que no sea el perfil no debe ofrecer un selector para cambiarlo, salvo que el usuario lo decida y se registre.
-- **Fuera del alcance (no debe aparecer):** chat, paradas acordadas por el pasajero, botón de emergencia, compartir viaje, seguimiento en vivo o rutas por calles, recuperación o cambio de contraseña, edición de un viaje publicado, «Cambiar sede», «Modificar casa», «A/C activo», «Conductor frecuente», «Puntualidad» (es «Cumplimiento»), pagos con tarjeta, recomendaciones con IA, panel de administrador, correos fuera de `@utp.edu.pe`.
+- **Fuera del alcance (no debe aparecer):** chat, paradas acordadas por el pasajero, botón de emergencia, compartir viaje, seguimiento en vivo o rutas por calles, recuperación o cambio de contraseña, edición de un viaje publicado, «Cambiar sede», «Modificar casa», «A/C activo», «Conductor frecuente», «Puntualidad» (es «Cumplimiento»), pagos con tarjeta, reseñas o comentarios de calificaciones visibles para otros usuarios, recomendaciones con IA, panel de administrador, correos fuera de `@utp.edu.pe`.
 - **Contenido realista:** sin lorem ipsum, con los datos de ejemplo compartidos.
 - **Fallas típicas de Stitch** (revisarlas siempre):
   - Codificación rota en tildes y símbolos («Ã“valo», «crÃ©ditos», «Â·»). Se corrige pidiendo los textos literales en UTF-8.
