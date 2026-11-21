@@ -1,6 +1,7 @@
 package pe.edu.utp.app_movilidadcolaborativa.users.domain.dto;
 
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.AsistenciaMovilidad;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Calificacion;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.DireccionResidencia;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Estadisticas;
@@ -15,7 +16,8 @@ import java.util.List;
  * Perfil completo del usuario. Nunca incluye contrasena_hash ni saldo_creditos (el saldo sale de GET /wallet).
  * cancellationBlock solo existe si el conductor superó el límite de cancelaciones (RN-30): «Publicar viaje» se
  * bloquea desde la entrada. tripInProgress solo existe si el usuario tiene un viaje EN_CURSO, como conductor o como
- * pasajero con su reserva EN_VIAJE: mientras tanto no puede cambiar de modo (RN-48).
+ * pasajero con su reserva EN_VIAJE: mientras tanto no puede cambiar de modo (RN-48). mobilityAssistance solo viaja
+ * en el perfil propio (RN-22) y nunca lleva la fecha de consentimiento.
  */
 public record PerfilUsuarioDto(
 		String id,
@@ -30,6 +32,7 @@ public record PerfilUsuarioDto(
 		Referencia district,
 		SedeDto campus,
 		Lugar homeAddress,
+		AsistenciaDto mobilityAssistance,
 		List<String> roles,
 		String activeMode,
 		String status,
@@ -40,8 +43,27 @@ public record PerfilUsuarioDto(
 		BloqueoCancelacionesDto cancellationBlock,
 		ViajeEnCursoDto tripInProgress) {
 
-	/** role: DRIVER si conduce el viaje, PASSENGER si viaja en él; startedAt es la hora real de inicio. */
-	public record ViajeEnCursoDto(String rideId, String role, String origin, String destination, Instant startedAt) {
+	/**
+	 * role: DRIVER si conduce el viaje, PASSENGER si viaja en él; startedAt es la hora real de inicio. driver y
+	 * vehicle son las copias del viaje, para que el pasajero vea con quién viaja (13-E).
+	 */
+	public record ViajeEnCursoDto(String rideId, String role, String origin, String destination, Instant startedAt,
+			ConductorDto driver, VehiculoResumenDto vehicle) {
+	}
+
+	public record ConductorDto(String name, String photoUrl) {
+	}
+
+	public record VehiculoResumenDto(String brand, String model, String color) {
+	}
+
+	/** type: WHEELCHAIR, CRUTCHES_OR_WALKER u OTHER (RN-17). */
+	public record AsistenciaDto(String type, String note) {
+
+		static AsistenciaDto desde(AsistenciaMovilidad asistencia) {
+			return asistencia == null || asistencia.tipo() == null ? null
+					: new AsistenciaDto(asistencia.tipo().getApi(), asistencia.nota());
+		}
 	}
 
 	/** count: viajes cancelados en la ventana; until: desde cuándo podrá publicar de nuevo. */
@@ -122,6 +144,7 @@ public record PerfilUsuarioDto(
 				Referencia.desde(usuario.getDistrito()),
 				SedeDto.desde(usuario.getSede()),
 				Lugar.desde(usuario.getDireccionResidencia()),
+				AsistenciaDto.desde(usuario.getAsistenciaMovilidad()),
 				roles.stream().map(Rol::getApi).toList(),
 				usuario.getModoActivo() == null ? null : usuario.getModoActivo().getApi(),
 				usuario.getEstado().getApi(),

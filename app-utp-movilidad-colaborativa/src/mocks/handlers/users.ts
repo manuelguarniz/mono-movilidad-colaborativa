@@ -27,7 +27,12 @@ import {
 // El saldo no es parte del perfil: se consulta en `GET /wallet`.
 const toUserProfile = (user: MockUser) => {
   const { password, credits, heldCredits, ...profile } = user;
-  return { ...profile, cancellationBlock: null, tripInProgress: tripInProgress(user) };
+  return {
+    ...profile,
+    mobilityAssistance: user.mobilityAssistance ?? null,
+    cancellationBlock: null,
+    tripInProgress: tripInProgress(user),
+  };
 };
 
 /**
@@ -53,6 +58,8 @@ function tripInProgress(user: MockUser) {
     origin: ride.origin.label,
     destination: ride.destination.label,
     startedAt: ride.startedAt ?? ride.departureTime,
+    driver: { name: ride.driver.name, photoUrl: ride.driver.photoUrl },
+    vehicle: { brand: ride.vehicle.brand, model: ride.vehicle.model, color: ride.vehicle.color },
   };
 }
 

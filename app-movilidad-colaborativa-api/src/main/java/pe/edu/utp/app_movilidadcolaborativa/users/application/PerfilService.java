@@ -24,6 +24,8 @@ import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.ActualizarPerfilReq
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.CambiarModoRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.BloqueoCancelacionesDto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.ConductorDto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.VehiculoResumenDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto.ViajeEnCursoDto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoVehiculo;
@@ -160,14 +162,25 @@ public class PerfilService {
 		}
 		// Sin el viaje, basta la copia de la reserva para explicar por qué no se puede cambiar de modo.
 		Reserva.ResumenViaje resumen = reserva.viaje();
-		return new ViajeEnCursoDto(reserva.viajeId().toHexString(), Rol.PASAJERO.getApi(),
-				resumen == null ? null : resumen.origen(), resumen == null ? null : resumen.destino(),
-				resumen == null ? null : resumen.fechaSalida());
+		if (resumen == null) {
+			return new ViajeEnCursoDto(reserva.viajeId().toHexString(), Rol.PASAJERO.getApi(), null, null, null, null,
+					null);
+		}
+		Reserva.VehiculoResumen vehiculo = resumen.vehiculo();
+		return new ViajeEnCursoDto(reserva.viajeId().toHexString(), Rol.PASAJERO.getApi(), resumen.origen(),
+				resumen.destino(), resumen.fechaSalida(),
+				resumen.conductor() == null ? null : new ConductorDto(resumen.conductor(), null),
+				vehiculo == null ? null : new VehiculoResumenDto(vehiculo.marca(), vehiculo.modelo(), vehiculo.color()));
 	}
 
 	private static ViajeEnCursoDto enCurso(Viaje viaje, Rol rol) {
+		ConductorDto conductor = viaje.conductor() == null ? null
+				: new ConductorDto(viaje.conductor().nombre(), viaje.conductor().fotoUrl());
+		VehiculoResumenDto vehiculo = viaje.vehiculo() == null ? null
+				: new VehiculoResumenDto(viaje.vehiculo().marca(), viaje.vehiculo().modelo(), viaje.vehiculo().color());
 		return new ViajeEnCursoDto(viaje.id().toHexString(), rol.getApi(), etiqueta(viaje.origen()),
-				etiqueta(viaje.destino()), viaje.fechaInicio() != null ? viaje.fechaInicio() : viaje.fechaSalida());
+				etiqueta(viaje.destino()), viaje.fechaInicio() != null ? viaje.fechaInicio() : viaje.fechaSalida(),
+				conductor, vehiculo);
 	}
 
 	private static String etiqueta(Lugar lugar) {

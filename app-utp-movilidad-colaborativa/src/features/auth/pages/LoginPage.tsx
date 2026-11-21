@@ -29,8 +29,11 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await authService.login(email, password);
-      navigate("/auth/verificacion");
+      const { scope } = await authService.login(email, password);
+      // El OTP se pide solo en el primer login de la cuenta (RN-35).
+      navigate(scope === "SESSION" ? "/dashboard" : "/auth/verificacion", {
+        replace: scope === "SESSION",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesión");
     } finally {

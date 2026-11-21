@@ -249,6 +249,16 @@ export const authHandlers = [
       );
     }
 
+    // RN-35: solo el primer login de la cuenta pide OTP.
+    if (user.lastLoginAt) {
+      user.lastLoginAt = new Date().toISOString();
+      saveDb();
+      return HttpResponse.json({
+        ...issueToken(user.id, "SESSION"),
+        user: toSessionUser(user),
+      });
+    }
+
     return HttpResponse.json({
       ...issueToken(user.id, "PRE_AUTH"),
       otp: sendOtp(user.id),
@@ -277,6 +287,7 @@ export const authHandlers = [
 
     if (otp.attemptsLeft > 0 && otp.code === body.code) {
       delete db.otps[user.id];
+      user.lastLoginAt = new Date().toISOString();
       saveDb();
       return HttpResponse.json({
         ...issueToken(user.id, "SESSION"),

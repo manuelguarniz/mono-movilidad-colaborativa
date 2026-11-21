@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import { ConfirmSheet } from "@/features/my-rides/components/ConfirmSheet";
 import type { Role, TripInProgress } from "@/features/profile/types";
 import { formatLimaTime } from "@/shared/utils/limaTime";
@@ -23,7 +24,8 @@ type ModeChangeSheetProps = {
   onClose: () => void;
 };
 
-const COPY: Record<Role, { title: string; body: string; note?: string }> = {
+// 14-C (a pasajero) y 13-D (a conductor). En 13-D la nota va en un bloque gris.
+const COPY: Record<Role, { title: string; body: string; note: string }> = {
   PASSENGER: {
     title: "¿Cambiar a modo pasajero?",
     body: "Verás los viajes disponibles para reservar.",
@@ -32,6 +34,7 @@ const COPY: Record<Role, { title: string; body: string; note?: string }> = {
   DRIVER: {
     title: "¿Cambiar a modo conductor?",
     body: "Verás tus viajes publicados y podrás publicar nuevos.",
+    note: "Tus reservas como pasajero se mantienen. Las ves al volver a modo pasajero.",
   },
 };
 
@@ -46,11 +49,13 @@ function SheetIcon({ tone, children }: { tone: "brand" | "amber"; children: Reac
   );
 }
 
-/** 14-C (confirmar el cambio), 14-D (viaje en curso) y el caso sin vehículo de P13. */
+/** 14-C y 13-D (confirmar el cambio), 14-D y 13-E (viaje en curso) y 13-C (sin vehículo). */
 export function ModeChangeSheet({ step, isBusy, error, onConfirm, onClose }: ModeChangeSheetProps) {
   if (step.kind === "trip-in-progress") {
     const { trip } = step;
     const startedAt = trip.startedAt ? new Date(trip.startedAt) : null;
+    // 13-E: el pasajero ve el estado de su reserva («En viaje») y con quién viaja.
+    const isPassenger = trip.role === "PASSENGER";
     return (
       <ConfirmSheet
         titleId={TITLE_ID}
@@ -76,7 +81,12 @@ export function ModeChangeSheet({ step, isBusy, error, onConfirm, onClose }: Mod
         </h2>
         <div className="mt-4 rounded-xl bg-[var(--surface-muted)] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="status-chip status-chip-green">En curso</span>
+            <span className="status-chip status-chip-green gap-1.5">
+              {isPassenger ? (
+                <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+              ) : null}
+              {isPassenger ? "En viaje" : "En curso"}
+            </span>
             {startedAt ? (
               <span className="text-sm tabular-nums text-[var(--text-muted)]">
                 Salió {formatLimaTime(startedAt)}
@@ -92,9 +102,26 @@ export function ModeChangeSheet({ step, isBusy, error, onConfirm, onClose }: Mod
               <span className="inline-block">{trip.destination}</span>
             </p>
           ) : null}
+          {isPassenger && trip.driver ? (
+            <p className="mt-3 flex items-center gap-2 border-t border-[var(--border-neutral)] pt-3 text-sm text-[var(--text-brown)]">
+              <DriverAvatar
+                name={trip.driver.name}
+                photoUrl={trip.driver.photoUrl}
+                className="driver-avatar h-7 w-7 border bg-white bg-none text-[0.625rem]"
+              />
+              <span className="min-w-0 truncate">
+                {trip.driver.name}
+                {trip.vehicle
+                  ? ` · ${trip.vehicle.brand} ${trip.vehicle.model} ${trip.vehicle.color.toLowerCase()}`
+                  : ""}
+              </span>
+            </p>
+          ) : null}
         </div>
         <p className="mt-4 text-center text-[var(--text-brown)]">
-          Finaliza el viaje en Mis viajes y luego vuelve a intentarlo.
+          {isPassenger
+            ? "Podrás cambiar de modo cuando el conductor finalice el viaje."
+            : "Finaliza el viaje en Mis viajes y luego vuelve a intentarlo."}
         </p>
       </ConfirmSheet>
     );
@@ -124,6 +151,9 @@ export function ModeChangeSheet({ step, isBusy, error, onConfirm, onClose }: Mod
         <h2 id={TITLE_ID} className="profile-sheet-title">
           Registra un vehículo para usar la modalidad de conductor
         </h2>
+        <p className="mt-2 text-center text-[var(--text-brown)]">
+          Necesitas los datos del vehículo y su SOAT vigente. Te toma unos minutos.
+        </p>
       </ConfirmSheet>
     );
   }
@@ -167,12 +197,12 @@ export function ModeChangeSheet({ step, isBusy, error, onConfirm, onClose }: Mod
         {copy.title}
       </h2>
       <p className="mt-2 text-center text-[var(--text-brown)]">{copy.body}</p>
-      {copy.note ? (
-        <p className="mt-4 flex items-start gap-2 text-[0.8125rem] text-[var(--text-muted)]">
-          <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          {copy.note}
-        </p>
-      ) : null}
+      <p
+        className={`mt-4 flex items-start gap-2 text-[0.8125rem] text-[var(--text-muted)] ${step.target === "DRIVER" ? "rounded-xl bg-[var(--surface-muted)] px-3 py-3" : ""}`}
+      >
+        <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        {copy.note}
+      </p>
     </ConfirmSheet>
   );
 }

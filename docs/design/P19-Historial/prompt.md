@@ -39,8 +39,8 @@ Sistema visual (respetar exactamente, es el de las pantallas ya diseñadas):
   (ej. "OCTUBRE 2026"), títulos 28px semibold, cifras con números tabulares.
 - Iconos de línea (Material Symbols Outlined), estrellas de calificación en ámbar.
 - Avatares de personas: círculos grises #EEEEEE con las iniciales en #5B403D, sin fotos.
-- Encabezado: menú hamburguesa a la izquierda, logotipo "ColaboraCar" en rojo #BD0016
-  bold centrado (solo el texto, sin punto ni adornos), campana de notificaciones con punto
+- Encabezado (sin menú hamburguesa): logotipo "ColaboraCar" en rojo #BD0016 a la izquierda,
+  bold (solo el texto, sin punto ni adornos), campana de notificaciones con punto
   rojo y avatar con las iniciales del usuario a la derecha.
 - Barra de navegación inferior blanca, fija abajo a todo el ancho, con 5 pestañas: Viajes,
   Mis viajes, Historial, Billetera, Perfil. La pestaña activa es una píldora roja #BD0016

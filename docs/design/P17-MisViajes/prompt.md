@@ -28,8 +28,8 @@ Sistema visual (respetar exactamente, es el de las pantallas ya diseñadas):
 - Tipografía Inter. Etiquetas de sección en mayúsculas pequeñas con tracking
   (ej. "PRÓXIMO VIAJE"), títulos 28px semibold, horas grandes 28px con cifras tabulares.
 - Iconos de línea (Material Symbols Outlined), estrellas de calificación en ámbar.
-- Encabezado: menú hamburguesa a la izquierda, logotipo "ColaboraCar" en rojo #BD0016
-  bold centrado (solo el texto, sin punto ni adornos), campana de notificaciones con punto
+- Encabezado (sin menú hamburguesa): logotipo "ColaboraCar" en rojo #BD0016 a la izquierda,
+  bold (solo el texto, sin punto ni adornos), campana de notificaciones con punto
   rojo y avatar con las iniciales del usuario a la derecha.
 - Barra de navegación inferior blanca, fija abajo a todo el ancho, con 5 pestañas: Viajes,
   Mis viajes, Historial, Billetera, Perfil. La pestaña activa es una píldora roja #BD0016
@@ -218,7 +218,7 @@ Convierte esta pantalla a formato de teléfono móvil vertical:
   el contenido debe ocupar el 100 % del ancho, con márgenes laterales de 16 px.
 - No es un diseño web ni de escritorio: una sola columna, sin barras laterales
   ni contenedores centrados con fondo vacío alrededor.
-- El encabezado (menú, logotipo ColaboraCar, campana y avatar) ocupa todo el ancho
+- El encabezado (logotipo ColaboraCar, campana y avatar; sin menú hamburguesa) ocupa todo el ancho
   arriba.
 - La barra de navegación inferior (Viajes, Mis viajes, Historial, Billetera, Perfil)
   queda fija abajo, a todo el ancho, con "Mis viajes" activa como píldora roja #BD0016.

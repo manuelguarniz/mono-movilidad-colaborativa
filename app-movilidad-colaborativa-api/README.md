@@ -61,7 +61,7 @@ El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módu
 
 | Paquete | Contenido |
 | --- | --- |
-| `auth` | Login en dos pasos, OTP, registro y completar perfil; emisión de JWT y envío del código por correo. |
+| `auth` | Login (OTP solo en el primer login de la cuenta, RN-35), registro y completar perfil; emisión de JWT y envío del código por correo. |
 | `catalogs` | Departamentos, distritos y sedes. |
 | `users` | Modelo `Usuario`, con su vehículo embebido, y sus reglas (`ReglasUsuario`, RN-01 a RN-05 y RN-14); consulta y actualización del perfil. |
 | `vehicles` | Registro, consulta y actualización del vehículo, que se guarda embebido en `Usuario`; sus reglas (`ReglasVehiculo`, RN-07 a RN-09). |
@@ -73,13 +73,13 @@ El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módu
 
 ## 3. Tokens y alcances
 
-La API es stateless y usa JWT firmados con HS256. El `subject` es el id del usuario y el claim `scope` lleva un único alcance. Cada ruta exige uno concreto, así que el token que entrega el login no sirve como token de sesión.
+La API es stateless y usa JWT firmados con HS256. El `subject` es el id del usuario y el claim `scope` lleva un único alcance. Cada ruta exige uno concreto, así que el token `PRE_AUTH` que entrega el primer login no sirve como token de sesión.
 
 | Alcance | Lo entrega | Vigencia | Rutas que admite |
 | --- | --- | --- | --- |
 | `REGISTRATION` | `POST /auth/register` | 15 min | `/auth/complete-profile` y `POST /vehicles` |
-| `PRE_AUTH` | `POST /auth/login` | 10 min | `/auth/verify-code` y `/auth/resend-code` |
-| `SESSION` | `POST /auth/verify-code` | 8 h | El resto de rutas protegidas, y también `/auth/complete-profile` y `POST /vehicles` |
+| `PRE_AUTH` | `POST /auth/login`, solo en el primer login de la cuenta | 10 min | `/auth/verify-code` y `/auth/resend-code` |
+| `SESSION` | `POST /auth/verify-code` y `POST /auth/login` desde el segundo login | 8 h | El resto de rutas protegidas, y también `/auth/complete-profile` y `POST /vehicles` |
 
 - Son públicas `POST /auth/register`, `POST /auth/login` y `GET /catalogs/**`.
 - Un token válido con el alcance equivocado recibe 403 `FORBIDDEN_SCOPE`.
@@ -240,6 +240,8 @@ Negocio:
 
 Negocio: 401 `INVALID_CREDENTIALS`, 403 `ACCOUNT_BLOCKED` y 500 `INTERNAL_ERROR` si no se pudo enviar el correo.
 
+OTP solo en el primer login (RN-35): si `usuarios.ultima_conexion` está vacía, envía el código y responde el token `PRE_AUTH` con `otp`. Si ya tiene fecha, la actualiza y responde el token `SESSION` con `user`, sin OTP. `POST /auth/verify-code` registra `ultima_conexion` al validar el código; un código incorrecto no la registra.
+
 **`POST /auth/verify-code`**
 
 | Campo | Regla | Mensaje |
@@ -267,7 +269,7 @@ No recibe cuerpo ni tiene errores propios; solo exige un token `SESSION`.
 
 **`GET /users/me`**
 
-No recibe parámetros. Devuelve el perfil completo, con el vehículo si el usuario es conductor y, en `tripInProgress`, el viaje `EN_CURSO` que conduce o en el que viaja con su reserva `EN_VIAJE` (`rideId`, `role`, `origin`, `destination`, `startedAt`; `null` si no hay). El saldo no viene aquí: se consulta en `GET /wallet`. Los datos que el usuario aún no registra llegan como `null` (teléfono, documento, dirección de residencia, vehículo, calificación y, mientras no exista `POST /files`, la foto); las estadísticas empiezan en cero. Negocio: 401 `UNAUTHORIZED` si la cuenta ya no existe o está bloqueada.
+No recibe parámetros. Devuelve el perfil completo, con el vehículo si el usuario es conductor y, en `tripInProgress`, el viaje `EN_CURSO` que conduce o en el que viaja con su reserva `EN_VIAJE` (`rideId`, `role`, `origin`, `destination`, `startedAt`, y las copias `driver` y `vehicle`; `null` si no hay). `mobilityAssistance` es `{ type, note }` (`WHEELCHAIR`, `CRUTCHES_OR_WALKER` u `OTHER`) o `null`; es solo de lectura y nunca trae la fecha de consentimiento (RN-17, RN-22). El saldo no viene aquí: se consulta en `GET /wallet`. Los datos que el usuario aún no registra llegan como `null` (teléfono, documento, dirección de residencia, vehículo, calificación y, mientras no exista `POST /files`, la foto); las estadísticas empiezan en cero. Negocio: 401 `UNAUTHORIZED` si la cuenta ya no existe o está bloqueada.
 
 **`PUT /users/me`**
 
@@ -579,7 +581,7 @@ curl -X POST "$API/auth/complete-profile" -H "Content-Type: application/json" \
   -d '{"firstName":"Ana","lastName":"Torres","departmentId":"<departmentId>","districtId":"<districtId>","campusId":"<campusId>"}'
 ```
 
-Login. La respuesta trae el token `PRE_AUTH` y envía el código OTP:
+Login. En el primer login de la cuenta la respuesta trae el token `PRE_AUTH` y envía el código OTP. Desde el segundo login trae directamente el token `SESSION` y no hay que verificar código (RN-35):
 
 ```bash
 curl -X POST "$API/auth/login" -H "Content-Type: application/json" \

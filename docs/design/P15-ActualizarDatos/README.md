@@ -2,9 +2,18 @@
 
 | Módulo | RF | Frame de referencia |
 | --- | --- | --- |
-| Perfil | RF-14 | `frames/15. perfil_actualizar_datos.jpeg` |
+| Perfil | RF-14 | En diseño ([prompt.md](prompt.md)) · frame original `frames/15. perfil_actualizar_datos.jpeg` |
 
 ![Pantalla](screen.jpeg)
+
+## Frames planeados
+
+| Frame | Vista |
+| --- | --- |
+| 15-A | Datos de la pasajera, documento registrado, sin asistencia |
+| 15-B | Primer registro del documento y asistencia declarada |
+| 15-C | Errores de validación |
+| 15-D | Modal: quitar asistencia |
 
 ## Contenido
 

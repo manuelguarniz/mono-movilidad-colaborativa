@@ -20,3 +20,11 @@ Manda el README raíz (sección 11).
 - Agregar el saldo con acceso a la billetera y la calificación.
 - El cambio de modo usa un modal de confirmación (RN-48).
 - La estadística se llama «Cumplimiento» (RN-28).
+
+## Implementación (2026-11-21)
+
+- Misma pantalla que P14 ([ProfilePage.tsx](../../../app-utp-movilidad-colaborativa/src/features/profile/pages/ProfilePage.tsx)) en modo pasajero, y hojas en [ModeChangeSheet.tsx](../../../app-utp-movilidad-colaborativa/src/features/profile/components/ModeChangeSheet.tsx).
+- Asistencia de movilidad en solo lectura (decisión del usuario, 2026-11-21): `GET /users/me` devuelve `mobilityAssistance`; el enlace «Declarar en Actualizar datos» queda deshabilitado («próximamente») hasta que P15 tenga la sección.
+- Textos neutros: «Como pasajero reservas plazas en viajes de la comunidad UTP. Para usar el modo conductor necesitas registrar un vehículo.» y «Registra tu vehículo y su SOAT para publicar viajes.».
+- Al registrar el primer vehículo desde el perfil, la app cambia a modo conductor (`PATCH /users/me/mode`) y abre el dashboard; si hay un viaje en curso, vuelve al perfil.
+

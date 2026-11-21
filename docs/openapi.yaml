@@ -46,8 +46,8 @@ info:
     | `scope` | Lo emite | Sirve para |
     | --- | --- | --- |
     | `REGISTRATION` | `POST /auth/register` | `POST /files`, `POST /auth/complete-profile` y `POST /vehicles` |
-    | `PRE_AUTH` | `POST /auth/login` | `POST /auth/verify-code` y `POST /auth/resend-code` |
-    | `SESSION` | `POST /auth/verify-code` | Todos los endpoints protegidos |
+    | `PRE_AUTH` | `POST /auth/login` (primer login de la cuenta) | `POST /auth/verify-code` y `POST /auth/resend-code` |
+    | `SESSION` | `POST /auth/verify-code` y `POST /auth/login` (logins siguientes) | Todos los endpoints protegidos |
 
     Un token con un `scope` que el endpoint no admite recibe `403 FORBIDDEN_SCOPE`. Las
     respuestas incluyen `expiresIn` (segundos), así que el frontend no necesita conocer
@@ -194,12 +194,17 @@ paths:
     post:
       tags: [Auth]
       operationId: login
-      summary: Iniciar sesión (paso 1, credenciales)
+      summary: Iniciar sesión (credenciales)
       description: |
-        Valida correo y contraseña, genera un código OTP de 6 dígitos, lo envía al correo
-        y devuelve un token `PRE_AUTH`. Ese token todavía no da acceso a la aplicación:
-        solo permite verificar o reenviar el código. Solo se admiten correos del dominio
-        `utp.edu.pe` (RN-01).
+        Valida correo y contraseña. Solo se admiten correos del dominio `utp.edu.pe` (RN-01).
+        El código OTP se pide solo en el primer login de la cuenta (RN-35), según
+        `usuarios.ultima_conexion`:
+
+        - **Primer login** (`ultima_conexion` vacía): genera un código OTP de 6 dígitos, lo
+          envía al correo y devuelve un token `PRE_AUTH` con `otp`. Ese token todavía no da
+          acceso a la aplicación: solo permite verificar o reenviar el código.
+        - **Logins siguientes:** actualiza `ultima_conexion` y devuelve directamente el token
+          `SESSION` con `user`, sin OTP.
       security: []
       requestBody:
         required: true
@@ -209,7 +214,9 @@ paths:
               $ref: "#/components/schemas/LoginRequest"
       responses:
         "200":
-          description: Credenciales válidas; código OTP enviado.
+          description: |
+            Credenciales válidas. Con `scope` `PRE_AUTH` (primer login) trae `otp`; con
+            `scope` `SESSION` (logins siguientes) trae `user`.
           content:
             application/json:
               schema:
@@ -249,7 +256,8 @@ paths:
       summary: Iniciar sesión (paso 2, código OTP)
       description: |
         Verifica el código OTP del usuario del token `PRE_AUTH`. Si es correcto, elimina
-        el código y devuelve el token `SESSION`. El código expira a los 5 minutos y admite
+        el código, registra `ultima_conexion` (desde entonces el login ya no pide OTP, RN-35)
+        y devuelve el token `SESSION`. El código expira a los 5 minutos y admite
         3 intentos (RF-03, RNF-03).
       requestBody:
         required: true
@@ -1962,11 +1970,16 @@ components:
       allOf:
         - $ref: "#/components/schemas/AuthToken"
         - type: object
-          required: [otp]
           properties:
             otp:
               $ref: "#/components/schemas/OtpInfo"
-      description: Token con `scope` `PRE_AUTH`.
+              description: Solo con `scope` `PRE_AUTH` (primer login de la cuenta).
+            user:
+              $ref: "#/components/schemas/SessionUser"
+              description: Solo con `scope` `SESSION` (logins siguientes, sin OTP).
+      description: |
+        Token `PRE_AUTH` con `otp` en el primer login de la cuenta, o token `SESSION` con
+        `user` en los siguientes (RN-35).
 
     VerifyCodeRequest:
       type: object
@@ -2194,6 +2207,13 @@ components:
             Solo en `GET /users/me`. `null` si el usuario no tiene vehículo o no superó el
             límite de cancelaciones (RN-30). «Publicar viaje» lo usa para bloquearse desde la
             entrada (P11, frame 11-C).
+        mobilityAssistance:
+          oneOf:
+            - $ref: "#/components/schemas/MobilityAssistance"
+            - type: "null"
+          description: |
+            Solo en el perfil propio. `null` si no la declaró. Todavía no se edita: `PUT /users/me`
+            no la recibe hasta que P15 tenga la sección (RF-14).
         tripInProgress:
           oneOf:
             - $ref: "#/components/schemas/TripInProgress"
@@ -2223,6 +2243,48 @@ components:
           type: [string, "null"]
           format: date-time
           description: Hora real de inicio («Salió 14:20»).
+        driver:
+          description: Copia del conductor en el viaje (13-E muestra «Carlos M. · Toyota Yaris blanco»).
+          oneOf:
+            - type: object
+              required: [name, photoUrl]
+              properties:
+                name:
+                  type: string
+                  example: Carlos M.
+                photoUrl:
+                  type: [string, "null"]
+            - type: "null"
+        vehicle:
+          oneOf:
+            - type: object
+              required: [brand, model, color]
+              properties:
+                brand:
+                  type: string
+                  example: Toyota
+                model:
+                  type: string
+                  example: Yaris
+                color:
+                  type: string
+                  example: Blanco
+            - type: "null"
+
+    MobilityAssistance:
+      type: object
+      description: |
+        Necesidad de asistencia de movilidad (RN-17). Dato sensible: solo se devuelve en el
+        perfil propio y nunca lleva la fecha de consentimiento (RN-22, RNF-13).
+      required: [type, note]
+      properties:
+        type:
+          type: string
+          enum: [WHEELCHAIR, CRUTCHES_OR_WALKER, OTHER]
+          description: «Silla de ruedas», «Muletas o andador» u «Otra».
+        note:
+          type: [string, "null"]
+          maxLength: 120
 
     ModeChangeRequest:
       type: object

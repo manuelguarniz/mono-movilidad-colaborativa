@@ -39,6 +39,8 @@ public class Usuario {
 	private ReferenciaNombre distrito;
 	private SedeUsuario sede;
 	private DireccionResidencia direccionResidencia;
+	/** RN-17: null si el usuario no declaró ninguna necesidad (también en las cuentas anteriores al campo). */
+	private AsistenciaMovilidad asistenciaMovilidad;
 	private List<Rol> roles;
 	private Rol modoActivo;
 	private EstadoUsuario estado;
@@ -51,6 +53,11 @@ public class Usuario {
 	private Integer creditosRetenidos;
 	private Foto foto;
 	private Instant fechaAceptacionTerminos;
+	/**
+	 * RN-35: fecha del último inicio de sesión exitoso. null si el usuario nunca completó un login
+	 * (también en las cuentas anteriores al campo): entonces el login pide el código OTP.
+	 */
+	private Instant ultimaConexion;
 	private Instant fechaCreacion;
 	private Instant fechaActualizacion;
 }

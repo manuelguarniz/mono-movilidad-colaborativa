@@ -8,7 +8,7 @@ import {
   type ModeChangeStep,
 } from "@/features/profile/components/ModeChangeSheet";
 import { profileService } from "@/features/profile/services/profileService";
-import type { Role, UserProfile } from "@/features/profile/types";
+import type { MobilityAssistance, Role } from "@/features/profile/types";
 import {
   formatSoatDate,
   formatSoatDayMonth,
@@ -20,6 +20,7 @@ import { walletService } from "@/features/wallet/services/walletService";
 import type { Wallet } from "@/features/wallet/types";
 import { ApiError } from "@/shared/api/apiClient";
 import { GoldCoinIcon } from "@/shared/icons";
+import { formatLimaTime, getLimaDayLabel } from "@/shared/utils/limaTime";
 import AccessibleIcon from "@/assets/images/icons/accessible.svg?react";
 import AlertIcon from "@/assets/images/icons/alert-circle.svg?react";
 import BuildingIcon from "@/assets/images/icons/building.svg?react";
@@ -30,13 +31,16 @@ import HomeIcon from "@/assets/images/icons/home.svg?react";
 import IdCardIcon from "@/assets/images/icons/id-card.svg?react";
 import InfoIcon from "@/assets/images/icons/info.svg?react";
 import LeafIcon from "@/assets/images/icons/leaf.svg?react";
+import LockIcon from "@/assets/images/icons/lock.svg?react";
 import LogoutIcon from "@/assets/images/icons/logout.svg?react";
 import MailIcon from "@/assets/images/icons/mail.svg?react";
 import MapPinIcon from "@/assets/images/icons/map-pin.svg?react";
 import PaletteIcon from "@/assets/images/icons/palette.svg?react";
 import PencilIcon from "@/assets/images/icons/pencil.svg?react";
+import PlusIcon from "@/assets/images/icons/plus.svg?react";
 import SeatsIcon from "@/assets/images/icons/passengers.svg?react";
 import ShieldCheckIcon from "@/assets/images/icons/shield-check.svg?react";
+import StarIcon from "@/assets/images/icons/star.svg?react";
 import TuneIcon from "@/assets/images/icons/tune.svg?react";
 import UserIcon from "@/assets/images/icons/user.svg?react";
 
@@ -56,11 +60,19 @@ const MODES: Array<{ value: Role; label: string }> = [
   { value: "DRIVER", label: "Conductor" },
 ];
 
-const MODE_HELP: Record<Role, string> = {
-  PASSENGER:
-    "Como pasajero reservas viajes y pagas con créditos. Al cambiar de modo te pediremos confirmar.",
+// Textos neutros: el perfil no guarda el género (ajuste 4 de P13).
+const MODE_HELP = {
   DRIVER:
     "Como conductor publicas viajes y cobras créditos por cada plaza. Al cambiar de modo te pediremos confirmar.",
+  PASSENGER: "Como pasajero reservas plazas en viajes de la comunidad UTP.",
+  PASSENGER_WITH_VEHICLE: "Al cambiar de modo te pediremos confirmar.",
+  PASSENGER_WITHOUT_VEHICLE: "Para usar el modo conductor necesitas registrar un vehículo.",
+};
+
+const ASSISTANCE_LABELS: Record<MobilityAssistance["type"], string> = {
+  WHEELCHAIR: "Silla de ruedas",
+  CRUTCHES_OR_WALKER: "Muletas o andador",
+  OTHER: "Otra",
 };
 
 const SOAT_BANNER_ID = "profile-soat-banner";
@@ -105,14 +117,38 @@ function SoatBanner({ state, endDate }: { state: SoatState; endDate: string }) {
 }
 
 /** Tarjeta «BILLETERA»: toda la tarjeta lleva a P21 (ajuste 1 de la decisión). */
+function heldDetail(wallet: Wallet) {
+  const credits = `${wallet.held} ${wallet.held === 1 ? "crédito retenido" : "créditos retenidos"}`;
+  const booking = wallet.heldBooking;
+  if (!booking) {
+    return credits;
+  }
+  const departure = new Date(booking.departureTime);
+  return `${credits} en tu reserva de ${getLimaDayLabel(departure)}, ${formatLimaTime(departure)}`;
+}
+
+/**
+ * Con el rol conductor muestra lo retirable (P14); sin él, lo retenido en la reserva (13-A) o,
+ * sin saldo, la invitación a recargar (13-B).
+ */
+function walletDetail(wallet: Wallet, hasDriverRole: boolean) {
+  if (hasDriverRole) {
+    return {
+      locked: false,
+      text: `${wallet.withdrawable} ${wallet.withdrawable === 1 ? "crédito retirable" : "créditos retirables"} a Yape`,
+    };
+  }
+  if (wallet.held > 0) {
+    return { locked: true, text: heldDetail(wallet) };
+  }
+  if (wallet.available === 0) {
+    return { locked: false, text: "Recarga con Yape para reservar tu primer viaje." };
+  }
+  return null;
+}
+
 function WalletCard({ wallet, isDriver }: { wallet: Wallet | undefined; isDriver: boolean }) {
-  const detail = !wallet
-    ? null
-    : isDriver
-      ? `${wallet.withdrawable} ${wallet.withdrawable === 1 ? "crédito retirable" : "créditos retirables"} a Yape`
-      : wallet.held > 0
-        ? `${wallet.held} ${wallet.held === 1 ? "crédito retenido" : "créditos retenidos"} en tu reserva`
-        : null;
+  const detail = wallet ? walletDetail(wallet, isDriver) : null;
 
   return (
     <Link to="/billetera" className="profile-card block transition active:scale-[0.995]">
@@ -130,9 +166,51 @@ function WalletCard({ wallet, isDriver }: { wallet: Wallet | undefined; isDriver
         <ChevronRightIcon className="h-5 w-5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
       </div>
       {detail ? (
-        <p className="mt-2 text-[0.8125rem] tabular-nums text-[var(--text-muted)]">{detail}</p>
+        <p className="mt-2 flex items-start gap-1.5 text-[0.8125rem] tabular-nums text-[var(--text-muted)]">
+          {detail.locked ? <LockIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
+          {detail.text}
+        </p>
       ) : null}
     </Link>
+  );
+}
+
+/**
+ * «ASISTENCIA DE MOVILIDAD» (13-A): solo se ve en el perfil propio (RN-22). Se edita en P15,
+ * que todavía no tiene la sección: el enlace queda deshabilitado.
+ */
+function AssistanceCard({ assistance }: { assistance: MobilityAssistance | null }) {
+  return (
+    <section className="profile-card">
+      <div className="flex items-center gap-2.5">
+        <span className="profile-card-icon h-9 w-9 bg-[var(--surface-muted)] text-[var(--text-brown)]">
+          <AccessibleIcon className="h-5 w-5" />
+        </span>
+        <p className="profile-card-label min-w-0 flex-1 whitespace-nowrap text-[0.6875rem] tracking-normal">
+          Asistencia de movilidad
+        </p>
+        <span
+          className={`profile-chip px-2.5 ${assistance ? "bg-[#e6f4ea] text-[#1b7f3b]" : "bg-[var(--surface-muted)] text-[var(--text-brown)]"}`}
+        >
+          {assistance ? ASSISTANCE_LABELS[assistance.type] : "No declarada"}
+        </span>
+      </div>
+      {assistance?.note ? (
+        <p className="mt-3 text-[0.9375rem] text-[var(--text-primary)]">{assistance.note}</p>
+      ) : null}
+      <p className="mt-3 flex items-start gap-1.5 text-[0.8125rem] text-[var(--text-muted)]">
+        <LockIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        Es opcional. Si la declaras, solo la verán los conductores de los viajes que reserves.
+      </p>
+      {assistance ? null : (
+        <p
+          className="mt-3 text-sm font-semibold text-[var(--text-muted)]"
+          aria-disabled="true"
+        >
+          Declarar en Actualizar datos (próximamente)
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -192,7 +270,7 @@ export function ProfilePage() {
   const { vehicle, stats, campus, homeAddress, rating } = profile;
   const isDriver = profile.activeMode === "DRIVER";
   const hasDriverRole = profile.roles.includes("DRIVER");
-  const soat = isDriver && vehicle?.soat ? vehicle.soat : null;
+  const soat = vehicle?.soat ?? null;
   const soatState = soat ? getSoatState(soat) : null;
   const soatNeedsAction = soatState != null && soatState.kind !== "valid";
 
@@ -255,7 +333,9 @@ export function ProfilePage() {
         </h1>
       </div>
 
-      {soat && soatNeedsAction ? <SoatBanner state={soatState} endDate={soat.endDate} /> : null}
+      {isDriver && soat && soatNeedsAction ? (
+        <SoatBanner state={soatState} endDate={soat.endDate} />
+      ) : null}
 
       {saved && SAVED_MESSAGES[saved] ? (
         <p className="dashboard-message" role="status">
@@ -281,7 +361,12 @@ export function ProfilePage() {
                 </span>{" "}
                 ({rating.count} {rating.count === 1 ? "calificación" : "calificaciones"})
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-0.5 flex items-center gap-1 text-sm text-[var(--text-muted)]">
+                <StarIcon className="h-4 w-4" aria-hidden="true" />
+                Sin calificaciones aún
+              </p>
+            )}
             <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[var(--text-brown)]">
               <MailIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="truncate">{profile.email}</span>
@@ -307,6 +392,12 @@ export function ProfilePage() {
             label="Ahorro CO₂"
           />
         </div>
+        {stats.trips === 0 ? (
+          <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--text-muted)]">
+            <InfoIcon className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            Tu cumplimiento aparecerá cuando completes tu primer viaje.
+          </p>
+        ) : null}
 
         <Link to="/perfil/datos" className="profile-action">
           <PencilIcon className="h-4 w-4" />
@@ -341,13 +432,38 @@ export function ProfilePage() {
           })}
         </div>
         <p className="mt-3 text-[0.8125rem] text-[var(--text-muted)]">
-          {MODE_HELP[profile.activeMode]}
+          {isDriver
+            ? MODE_HELP.DRIVER
+            : `${MODE_HELP.PASSENGER} ${vehicle ? MODE_HELP.PASSENGER_WITH_VEHICLE : MODE_HELP.PASSENGER_WITHOUT_VEHICLE}`}
         </p>
       </section>
 
       <WalletCard wallet={wallet} isDriver={hasDriverRole} />
 
-      {isDriver && vehicle ? (
+      {!isDriver ? <AssistanceCard assistance={profile.mobilityAssistance} /> : null}
+
+      {!vehicle ? (
+        <section className="profile-card">
+          <div className="flex items-center gap-3">
+            <span className="profile-card-icon bg-[var(--brand-soft)] text-[var(--brand-red)]">
+              <CarIcon className="h-6 w-6" />
+            </span>
+            <div className="min-w-0">
+              <p className="profile-card-label">¿Tienes vehículo?</p>
+              <p className="text-lg font-semibold text-[var(--text-primary)]">Comparte tus viajes</p>
+            </div>
+          </div>
+          <p className="mt-3 text-[0.9375rem] text-[var(--text-brown)]">
+            Registra tu vehículo y su SOAT para publicar viajes.
+          </p>
+          <Link to="/perfil/vehiculo" className="profile-action profile-action-soft">
+            <PlusIcon className="h-4 w-4" />
+            Registrar vehículo
+          </Link>
+        </section>
+      ) : null}
+
+      {vehicle ? (
         <section className="profile-card">
           <div className="flex items-center gap-3">
             <span className="profile-card-icon bg-[var(--brand-soft)] text-[var(--brand-red)]">
@@ -441,7 +557,7 @@ export function ProfilePage() {
           <Link
             to="/perfil/vehiculo"
             className={soatNeedsAction ? "profile-action profile-action-primary" : "profile-action"}
-            aria-describedby={soatNeedsAction ? SOAT_BANNER_ID : undefined}
+            aria-describedby={isDriver && soatNeedsAction ? SOAT_BANNER_ID : undefined}
           >
             <TuneIcon className="h-4 w-4" />
             Actualizar vehículo

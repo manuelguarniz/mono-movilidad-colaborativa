@@ -64,6 +64,11 @@ export type MockUser = {
   department: NamedRef | null;
   district: NamedRef | null;
   campus: (NamedRef & { address: string }) | null;
+  // RN-17: `null` o ausente si no declaró asistencia de movilidad. Nunca se copia en viajes.
+  mobilityAssistance?: {
+    type: "WHEELCHAIR" | "CRUTCHES_OR_WALKER" | "OTHER";
+    note: string | null;
+  } | null;
   homeAddress: Place | null;
   roles: Role[];
   activeMode: Role | null;
@@ -74,6 +79,8 @@ export type MockUser = {
   // Billetera (RN-39). Opcionales: un usuario recién registrado empieza en 0.
   credits?: number;
   heldCredits?: number;
+  // RN-35: último login exitoso. `null` o ausente ⇒ el próximo login pide OTP.
+  lastLoginAt?: string | null;
   createdAt: string;
 };
 
@@ -713,7 +720,7 @@ function seed(): Database {
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
 // El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
-const STORAGE_KEY = "colaboracar_mock_db_v7";
+const STORAGE_KEY = "colaboracar_mock_db_v8";
 
 function load(): Database {
   try {

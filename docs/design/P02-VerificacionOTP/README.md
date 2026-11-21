@@ -14,4 +14,4 @@ Código de 6 dígitos enviado al correo, máximo 3 intentos y reenvío con tempo
 
 Manda el README raíz (sección 11).
 
-- Solo se muestra la primera vez en cada dispositivo (RN-35), no en cada login.
+- Solo se muestra en el primer login de la cuenta, cuando `usuarios.ultima_conexion` está vacía (RN-35, decisión del 2026-11-21). Los logins siguientes van directo al dashboard.

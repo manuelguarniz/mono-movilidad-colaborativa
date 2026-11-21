@@ -1,11 +1,13 @@
-# Iniciar sesión (paso 1)
+# Iniciar sesión
 # POST /auth/login
 #
-# Público. Valida credenciales, envía el OTP y devuelve un token PRE_AUTH.
+# Público. Valida credenciales. El OTP se pide solo en el primer login de la cuenta
+# (RN-35, usuarios.ultima_conexion vacía): envía el código y devuelve un token PRE_AUTH.
+# En los logins siguientes actualiza ultima_conexion y devuelve el token SESSION sin OTP.
 
 @baseUrl = http://localhost:8080/api
 
-### 200 · Credenciales válidas, OTP enviado
+### 200 · Primer login de la cuenta: OTP enviado
 # Respuesta 200 OK
 # {
 #   "token": "<jwt>",
@@ -15,6 +17,31 @@
 #     "expiresIn": 300,
 #     "resendAfter": 45,
 #     "attemptsLeft": 3
+#   }
+# }
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "ana.torres@utp.edu.pe",
+    "password": "Clave123.."
+}
+
+### 200 · Login siguiente (ultima_conexion registrada): sesión directa, sin OTP
+# Respuesta 200 OK
+# {
+#   "token": "<jwt>",
+#   "scope": "SESSION",
+#   "expiresIn": 28800,
+#   "user": {
+#     "id": "6650a1b2c3d4e5f601234567",
+#     "email": "ana.torres@utp.edu.pe",
+#     "firstName": "Ana",
+#     "lastName": "Torres",
+#     "photoUrl": null,
+#     "roles": ["PASSENGER"],
+#     "activeMode": "PASSENGER",
+#     "status": "ACTIVE"
 #   }
 # }
 POST {{baseUrl}}/auth/login

@@ -19,6 +19,8 @@ export type UserProfile = {
   district: { id: string; name: string } | null;
   campus: { id: string; name: string; address: string } | null;
   homeAddress: { label: string; address?: string | null } | null;
+  // RN-17: solo en el perfil propio; `null` si no la declaró. P15 todavía no permite editarla.
+  mobilityAssistance: MobilityAssistance | null;
   roles: Role[];
   activeMode: Role;
   status: "PROFILE_PENDING" | "ACTIVE" | "BLOCKED";
@@ -36,6 +38,14 @@ export type TripInProgress = {
   origin: string | null;
   destination: string | null;
   startedAt: string | null;
+  // Copias del viaje, para que el pasajero vea con quién viaja (13-E).
+  driver: { name: string; photoUrl: string | null } | null;
+  vehicle: { brand: string; model: string; color: string } | null;
+};
+
+export type MobilityAssistance = {
+  type: "WHEELCHAIR" | "CRUTCHES_OR_WALKER" | "OTHER";
+  note: string | null;
 };
 
 // `UserUpdateRequest` (PUT /users/me). El documento solo se envía mientras el usuario no

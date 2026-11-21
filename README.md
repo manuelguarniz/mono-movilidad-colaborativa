@@ -15,7 +15,7 @@ ColaboraCar es una aplicación de movilidad colaborativa para la comunidad de la
 | Base de datos | MongoDB Atlas (NoSQL orientada a documentos, clúster administrado en la nube). Los parámetros de negocio configurables están en la colección `app` (RN-31). |
 | Módulos | Autenticación, registro, viajes (búsqueda, reserva, publicación, ejecución y cancelación), historial y calificaciones, billetera, notificaciones y perfil. |
 
-Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación con OTP en cada login, el registro, los catálogos, los vehículos, la publicación, el listado por sede, la reserva, Mis viajes y el perfil sobre MongoDB Atlas: 23 de los 24 endpoints del contrato (`docs/openapi.yaml`). Solo falta la carga de imágenes. El frontend implementa las 16 pantallas de `frames/`. En desarrollo puede usar el backend real o una API simulada con MSW (`VITE_USE_MOCKS`). Todo lo demás de este documento todavía no está implementado (sección 10). El detalle está en la sección 4.1.
+Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la autenticación (OTP solo en el primer login de la cuenta, RN-35), el registro, los catálogos, los vehículos, la publicación, el listado por sede, la reserva, Mis viajes y el perfil sobre MongoDB Atlas: 23 de los 24 endpoints del contrato (`docs/openapi.yaml`). Solo falta la carga de imágenes. El frontend implementa las 16 pantallas de `frames/`. En desarrollo puede usar el backend real o una API simulada con MSW (`VITE_USE_MOCKS`). Todo lo demás de este documento todavía no está implementado (sección 10). El detalle está en la sección 4.1.
 
 ### 1.1 Fuera del alcance
 
@@ -29,12 +29,12 @@ Estado actual: el backend (`app-movilidad-colaborativa-api/`) ya implementa la a
 - **Botón de emergencia, reporte de incidencias y compartir el viaje con un contacto.**
 - **Reseñas visibles para otros usuarios:** las calificaciones solo sirven para calcular el promedio de estrellas del perfil de cada usuario (RF-10). No hay pantalla para leer los comentarios recibidos o de otras personas; el comentario se guarda, pero solo su autor lo ve al enviarlo (P20) y en su historial nunca aparece el de otros.
 - **Mapas avanzados:** trazado de rutas por calles, búsqueda de direcciones, tráfico en tiempo real, búsqueda por cercanía y seguimiento del vehículo en vivo.
-- **Recuperación y cambio de contraseña**, gestión de los dispositivos confiables y edición de un viaje ya publicado (se cancela y se publica de nuevo).
+- **Recuperación y cambio de contraseña**, verificación OTP por dispositivo (ver la decisión del 2026-11-21) y edición de un viaje ya publicado (se cancela y se publica de nuevo).
 - **«Cambiar sede» y «Modificar casa»** de los frames 13 y 14, y los distintivos «A/C activo» y «Conductor frecuente» del frame 09: se quitan del prototipo.
 
 ### 1.2 Supuestos y restricciones
 
-- Todos los usuarios son estudiantes UTP con correo `@utp.edu.pe`. La verificación de pertenencia es el OTP enviado a ese correo la primera vez que el usuario entra desde cada dispositivo.
+- Todos los usuarios son estudiantes UTP con correo `@utp.edu.pe`. La verificación de pertenencia es el OTP enviado a ese correo en el primer login de la cuenta (RN-35).
 - La hora de referencia es la de Perú (UTC−5) para todas las reglas de horario.
 - 1 sol = 1 crédito. Los créditos son enteros y no vencen.
 - El dato de movilidad reducida es un dato de salud y por eso es **dato sensible** según la Ley 29733 de Protección de Datos Personales. Se guarda solo con consentimiento expreso (RN-17). El número de Yape de un retiro solo lo ven su dueño y el operador.
@@ -47,7 +47,7 @@ Son 14 requerimientos, uno por objetivo de usuario, para que cada uno tenga su s
 
 | ID | Módulo | Requerimiento | Actor | Pantalla | Antes |
 | --- | --- | --- | --- | --- | --- |
-| RF-01 | Autenticación | El usuario inicia sesión con correo institucional y contraseña. El sistema le pide un código OTP solo la primera vez que entra desde un dispositivo. También puede cerrar sesión. | Ambos | 01, 02, 13, 14 | RF-01 |
+| RF-01 | Autenticación | El usuario inicia sesión con correo institucional y contraseña. El sistema le pide un código OTP solo la primera vez que inicia sesión con su cuenta. También puede cerrar sesión. | Ambos | 01, 02, 13, 14 | RF-01 |
 | RF-02 | Registro | El usuario crea su cuenta y completa su perfil, incluida su necesidad de asistencia si la tiene. Si tiene vehículo, lo registra con su accesibilidad y su SOAT, y queda habilitado como conductor. | Ambos | 03, 04, 05 | RF-02 a RF-04 |
 | RF-03 | Viajes | El pasajero busca los viajes publicados de todas las sedes, cada uno con la etiqueta de su ciudad, y los filtra. También consulta el detalle de un viaje con su ruta, condiciones, vehículo, accesibilidad y conductor. | Pasajero | 06, 07, 09 | RF-05, RF-06 |
 | RF-04 | Viajes | El pasajero reserva plazas en un viaje pagando con créditos, que quedan retenidos hasta que el viaje termina. Solo puede tener una reserva activa a la vez. | Pasajero | 08, 10 | RF-07 |
@@ -68,10 +68,10 @@ Los mensajes entre comillas son literales: los devuelve la API (`app-movilidad-c
 
 - **RF-01 — Acceder y cerrar sesión.**
   - **Credenciales.** El correo es `@utp.edu.pe` (RN-01). Con credenciales inválidas: «Correo o contraseña incorrectos», sin revelar si el correo existe. Con una cuenta `BLOQUEADO`: «Tu cuenta está bloqueada. Comunícate con soporte.».
-  - **Dispositivo confiable** (RN-35). El frontend envía un identificador de dispositivo que genera la primera vez y guarda en el WebView. Si ese dispositivo ya es confiable para la cuenta y no venció, el login entrega el token `SESSION` (8 h) y abre el dashboard sin pedir OTP.
-  - **Dispositivo nuevo o vencido.** Se envía el OTP al correo y se entrega un token `PRE_AUTH` (10 min), que solo sirve para verificar o reenviar el código. El OTP expira a los 5 min y admite 3 intentos: «Código inválido. Te quedan N intentos.» y luego «Agotaste los intentos. Solicita un nuevo código.». Se puede reenviar a los 45 s; antes de eso: «Podrás reenviar el código en N segundos». Con el código correcto, el dispositivo queda como confiable por `dias_dispositivo_confiable` (90) y se entrega `SESSION`.
+  - **Logins siguientes** (RN-35). Si la cuenta ya tiene `ultima_conexion`, el login la actualiza, entrega el token `SESSION` (8 h) y abre el dashboard sin pedir OTP.
+  - **Primer login de la cuenta.** Si `ultima_conexion` está vacía, se envía el OTP al correo y se entrega un token `PRE_AUTH` (10 min), que solo sirve para verificar o reenviar el código. El OTP expira a los 5 min y admite 3 intentos: «Código inválido. Te quedan N intentos.» y luego «Agotaste los intentos. Solicita un nuevo código.». Se puede reenviar a los 45 s; antes de eso: «Podrás reenviar el código en N segundos». Con el código correcto se registra `ultima_conexion` y se entrega `SESSION`. Si el usuario abandona la verificación, el siguiente login vuelve a pedir OTP.
   - **Perfil incompleto.** Si la cuenta está en `PERFIL_PENDIENTE`, después del login se abre «Completar perfil» (RF-02, casuística D).
-  - **Cerrar sesión.** Se hace desde el menú o desde el perfil: se descarta el token y se vuelve a la pantalla 01. El dispositivo sigue siendo confiable.
+  - **Cerrar sesión.** Se hace desde el menú o desde el perfil: se descarta el token y se vuelve a la pantalla 01. `ultima_conexion` se conserva, así que el siguiente login no pide OTP.
 - **RF-02 — Registro.** Es un solo flujo en tres pasos: cuenta (03), perfil (04) y vehículo (05). Casuísticas:
   - **A. Pasajero.** Correo `@utp.edu.pe` (RN-02) y no registrado; si ya existe: «El correo ya está en uso». Contraseña según RN-03 e igual a su confirmación, y check de términos obligatorio. Esto crea el usuario en `PERFIL_PENDIENTE` con rol `PASAJERO` y entrega un token `REGISTRATION` (15 min). En el perfil, los campos van según RN-04 y RN-05, y departamento, distrito y sede se eligen en cascada (un distrito ajeno da «El distrito no pertenece al departamento»). Al guardar, la cuenta pasa a `ACTIVO` con saldo 0, el dispositivo queda como confiable y se abre el dashboard en modo pasajero.
   - **B. Pasajero con movilidad reducida.** Es igual que A, más la sección opcional «Necesito asistencia de movilidad»: tipo (`Silla de ruedas`, `Muletas o andador`, `Otra`), nota de hasta 120 caracteres y check de consentimiento, obligatorio si se marca la sección (RN-17).
@@ -194,7 +194,7 @@ Son 50 reglas. Las RN-01 a RN-34 conservan su ID de la versión anterior; alguna
 | RN-32 | 18 — Notificaciones | Toda operación que genera una notificación (RF-13) la crea en la misma transacción que el cambio de estado: si la operación falla, no queda ninguna notificación. | Aplicación (transacción) |
 | RN-33 | 18 — Notificaciones | Cada viaje genera como máximo un recordatorio por destinatario, y no lo genera si el viaje fue cancelado. | Aplicación + BD (marca `recordatorio_enviado`) |
 | RN-34 | 18 — Notificaciones | Un usuario solo ve y marca sus propias notificaciones. Las notificaciones se eliminan solas a los 30 días. | Aplicación + BD (índice TTL) |
-| RN-35 | 01 y 02 — Login | El OTP se pide solo si el dispositivo no es confiable para esa cuenta o si su confianza venció (`dias_dispositivo_confiable`, 90). Validar el OTP marca el dispositivo como confiable. Cada login exitoso desde un dispositivo confiable actualiza su último uso, pero no extiende el vencimiento. Si la cuenta pasa a `BLOQUEADO`, se eliminan todos sus dispositivos confiables. | Aplicación + BD (índice TTL) |
+| RN-35 | 01 y 02 — Login | El OTP se pide solo en el primer login de la cuenta, el que todavía no tiene `usuarios.ultima_conexion`. Validar el OTP registra `ultima_conexion`; desde entonces, cada login con credenciales válidas la actualiza y entrega la sesión sin OTP, desde cualquier dispositivo. Un OTP fallido, expirado o abandonado no la registra. Una cuenta `BLOQUEADO` no entra aunque tenga `ultima_conexion`. (Decisión del 2026-11-21: reemplaza la confianza por dispositivo.) | Aplicación |
 | RN-36 | 05 y 16 — Vehículo | El SOAT es obligatorio para registrar o actualizar el vehículo: aseguradora (de la lista o «Otra»), número de póliza (6 a 20 caracteres alfanuméricos o guiones), fecha de inicio ≤ hoy ≤ fecha de fin, vigencia de 366 días como máximo y foto del certificado (JPG o PNG de hasta 5 MB). Es una declaración del conductor: la app no la verifica con terceros, y lo indica con la leyenda «SOAT declarado por el conductor» en el detalle del viaje. | Aplicación |
 | RN-37 | 11 — Publicar viaje | Solo se publica un viaje si el SOAT del vehículo sigue vigente en la fecha de salida. | Aplicación |
 | RN-38 | 06, 08, 09 y 10 — Reserva | Un pasajero no puede reservar si en los últimos `ventana_cancelaciones_dias` (30) acumuló `max_cancelaciones_pasajero` (5) o más entre reservas canceladas por él y reservas `NO_SE_PRESENTO`. Mensaje: «Cancelaste o no te presentaste a N viajes en los últimos 30 días. Podrás reservar de nuevo desde el DD/MM.». El bloqueo se levanta solo. | Aplicación |
@@ -303,7 +303,7 @@ La recarga (`pagos`) nace `APROBADO` porque es simulada (RN-41), así que no tie
 | # | Pantalla | RF |
 | --- | --- | --- |
 | 01 | Iniciar sesión | RF-01 |
-| 02 | Verificación OTP (solo dispositivo nuevo) | RF-01 |
+| 02 | Verificación OTP (solo en el primer login de la cuenta) | RF-01 |
 | 03 | Registro | RF-02 |
 | 04 | Completar perfil | RF-02 |
 | 05 | Datos del vehículo y SOAT | RF-02, RF-14 |
@@ -334,7 +334,7 @@ Son 18 requerimientos, cada uno con una métrica y una forma de verificarlo. Los
 | --- | --- | --- | --- |
 | RNF-01 | Seguridad | Las contraseñas se almacenan cifradas con BCrypt; nunca en texto plano. | Revisar un documento de `usuarios` en Atlas: `contrasena_hash` empieza con `$2a$`. Ninguna respuesta de la API incluye el campo. |
 | RNF-02 | Seguridad | Los endpoints protegidos exigen un token JWT válido del alcance correcto; la comunicación usa HTTPS. | Colección de Postman: cada endpoint protegido responde 401 sin token y 403 con un token de otro alcance. |
-| RNF-03 | Seguridad | El código OTP expira a los 5 minutos y se invalida tras 3 intentos fallidos. El identificador de dispositivo confiable se guarda solo como hash SHA-256 y vence a los 90 días. | Un código usado a los 5 min 1 s responde `OTP_EXPIRED` y el 4.º intento responde `OTP_ATTEMPTS_EXCEEDED`. En `dispositivos_confiables` no aparece el identificador en claro. Un dispositivo con la confianza vencida vuelve a recibir OTP. |
+| RNF-03 | Seguridad | El código OTP expira a los 5 minutos y se invalida tras 3 intentos fallidos. Se guarda solo como hash. | Un código usado a los 5 min 1 s responde `OTP_EXPIRED` y el 4.º intento responde `OTP_ATTEMPTS_EXCEEDED`. En `codigos_otp` no aparece el código en claro. |
 | RNF-04 | Rendimiento | El 95 % de las peticiones a la API responde en menos de 2 segundos con 50 usuarios concurrentes y 1 000 viajes publicados. | Prueba de carga (k6 o JMeter) sobre `GET /rides` y `POST /rides/{id}/reserve` con 50 usuarios virtuales durante 5 min; p95 < 2 s. |
 | RNF-05 | Usabilidad | La interfaz es responsiva para pantallas móviles desde 360 px de ancho y respeta las áreas seguras del WebView. | Revisar las 21 pantallas en Chrome DevTools a 360 × 640 px: sin scroll horizontal ni contenido tapado por la barra de estado. |
 | RNF-06 | Usabilidad | Los formularios validan los datos en el cliente y muestran mensajes de error en español, junto al campo. | Enviar cada formulario vacío: cada campo obligatorio muestra su mensaje en español. |
@@ -361,7 +361,7 @@ flowchart TB
     direction LR
     pages["<b>Páginas y componentes</b><br/>features: auth, dashboard, viajes,<br/>mis viajes, historial, billetera,<br/>notificaciones y perfil"]
     services["<b>Servicios y estado</b><br/>authService, rideService, walletService<br/>TanStack Query (caché y sondeo de 60 s)"]
-    http["<b>Cliente HTTP</b><br/>apiClient (Axios)<br/>adjunta el token JWT y el id de dispositivo"]
+    http["<b>Cliente HTTP</b><br/>apiClient (Axios)<br/>adjunta el token JWT"]
     pages --> services --> http
   end
 
@@ -386,7 +386,7 @@ flowchart TB
     viajes[viajes]
     reservas[reservas]
     billetera["pagos · movimientos_creditos · retiros"]
-    otras["calificaciones · notificaciones<br/>dispositivos_confiables · app"]
+    otras["calificaciones · notificaciones<br/>app"]
     catalogos[catálogos]
   end
 
@@ -410,10 +410,10 @@ El backend implementa 30 de los 31 endpoints del contrato actual. Lo nuevo de es
 
 | Módulo | Estado |
 | --- | --- |
-| Autenticación (login, OTP, cierre de sesión) | Implementado con OTP en cada login; falta el dispositivo confiable (RF-01) |
+| Autenticación (login, OTP, cierre de sesión) | Implementado: OTP solo en el primer login de la cuenta, con `usuarios.ultima_conexion` (RF-01, RN-35) |
 | Registro (cuenta y completar perfil) | Implementado; falta la asistencia de movilidad. La foto de perfil es opcional hasta que exista la carga de imágenes |
 | Catálogos (departamentos, distritos, sedes) | Implementado. La ciudad de una sede (RN-49) es el nombre de su distrito (`sedes.distrito.nombre`) |
-| Perfil (consultar y actualizar datos) | Implementado: P14 con calificación, saldo (de `GET /wallet`), SOAT con aviso a ≤ 15 días y cambio de modo con modal por `PATCH /users/me/mode` (RN-48, `TRIP_IN_PROGRESS`). P13 usa la misma pantalla en modo pasajero mientras no tenga diseño aprobado |
+| Perfil (consultar y actualizar datos) | Implementado: P14 con calificación, saldo (de `GET /wallet`), SOAT con aviso a ≤ 15 días y cambio de modo con modal por `PATCH /users/me/mode` (RN-48, `TRIP_IN_PROGRESS`). P13 implementado con la misma pantalla en modo pasajero: asistencia de movilidad en solo lectura (`mobilityAssistance`; se editará en P15), «¿Tienes vehículo?» y los modales 13-C a 13-E |
 | Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional hasta que P05 y P16 lo pidan, y las fotos hasta que exista la carga de imágenes |
 | Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/{rideId}` trae además la reserva del usuario en ese viaje (`myBooking`, con la hora límite para cancelar de RN-25), su reserva activa en otro viaje (RN-23) y su bloqueo (RN-38), para la barra inferior de P09. Reservar retiene el total del saldo disponible y, sin saldo, responde `INSUFFICIENT_CREDITS` con el botón «Recargar» (RN-39) |
 | Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Cancelar reembolsa el 100 % y finalizar paga al conductor (RN-40). Sin notificaciones. Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
@@ -427,11 +427,11 @@ Tres decisiones definen cómo se comporta la API:
 
 - **Validación:** el formato de los datos se valida en el DTO de la solicitud con Spring Validation, antes de llegar al servicio; las reglas que dependen del estado se quedan en la capa application.
 - **Errores:** toda respuesta de error tiene la forma `{ code, message, errors?, details? }`. El cliente decide por `code`; con `VALIDATION_ERROR` el mensaje general es fijo y el detalle por campo va en `errors`.
-- **Tokens:** la API es stateless con JWT. Cada token tiene un único alcance (`REGISTRATION`, `PRE_AUTH` o `SESSION`) y cada ruta exige uno, por lo que el token del login no sirve como token de sesión. El identificador de dispositivo viaja en la cabecera `X-Device-Id` del login y de la verificación del OTP.
+- **Tokens:** la API es stateless con JWT. Cada token tiene un único alcance (`REGISTRATION`, `PRE_AUTH` o `SESSION`) y cada ruta exige uno, por lo que el token `PRE_AUTH` del primer login no sirve como token de sesión. Desde el segundo login, `POST /auth/login` entrega directamente `SESSION` (RN-35).
 
 ## 5. Modelo de datos
 
-El modelo tiene 16 colecciones en MongoDB Atlas: 15 se implementan en el alcance actual y 1 (`mensajes`, para el chat) queda definida para el próximo alcance. `usuarios` es el centro del modelo: casi todas las demás colecciones lo referencian.
+El modelo tiene 15 colecciones en MongoDB Atlas: 14 se implementan en el alcance actual y 1 (`mensajes`, para el chat) queda definida para el próximo alcance. `usuarios` es el centro del modelo: casi todas las demás colecciones lo referencian.
 
 ```mermaid
 flowchart TB
@@ -444,10 +444,9 @@ flowchart TB
 
   subgraph AUTH["Acceso"]
     codigos_otp["<b>codigos_otp</b><br/>usuario_id, codigo_hash<br/>proposito, intentos<br/>fecha_expiracion (TTL)"]
-    dispositivos["<b>dispositivos_confiables</b><br/>usuario_id, dispositivo_hash<br/>nombre, fecha_ultimo_uso<br/>fecha_expiracion (TTL)"]
   end
 
-  usuarios["<b>usuarios</b><br/>correo (único), contrasena_hash<br/>nombres, apellidos, telefono, documento<br/>departamento, distrito, sede (copias)<br/>vehiculo embebido: placa única,<br/>accesibilidad, soat<br/>asistencia_movilidad, roles, modo_activo<br/>estadisticas, calificacion<br/>saldo_creditos, creditos_retenidos<br/>estado, foto"]
+  usuarios["<b>usuarios</b><br/>correo (único), contrasena_hash<br/>nombres, apellidos, telefono, documento<br/>departamento, distrito, sede (copias)<br/>vehiculo embebido: placa única,<br/>accesibilidad, soat<br/>asistencia_movilidad, roles, modo_activo<br/>estadisticas, calificacion<br/>saldo_creditos, creditos_retenidos<br/>estado, foto, ultima_conexion"]
 
   subgraph VIAJES["Viajes"]
     viajes["<b>viajes</b><br/>conductor, vehiculo, sede con ciudad (copias)<br/>sentido, fecha_salida, ruta y paradas<br/>precio_por_plaza, plazas, condiciones<br/>estado, fecha_inicio, fecha_fin<br/>cancelado_por, finalizado_por"]
@@ -488,13 +487,13 @@ flowchart TB
   style NEXT stroke-dasharray: 5 4
 ```
 
-*Modelo de datos · 16 colecciones y sus referencias: 15 del alcance actual y 1 reservada para el próximo alcance. Flecha = referencia por id. Los catálogos no se consultan: `usuarios` y `viajes` copian su id y nombre, y `viajes` también la ciudad de la sede. `app` no tiene referencias.*
+*Modelo de datos · 15 colecciones y sus referencias: 14 del alcance actual y 1 reservada para el próximo alcance. Flecha = referencia por id. Los catálogos no se consultan: `usuarios` y `viajes` copian su id y nombre, y `viajes` también la ciudad de la sede. `app` no tiene referencias.*
 
 El modelo prioriza la lectura: cada pantalla se resuelve con un solo documento, que embebe lo que es suyo y copia el `id` y el `nombre` de lo que muestra de otras colecciones. Por eso `usuarios` no depende de los catálogos y lleva embebido su vehículo, y `viajes` lleva copiados al conductor, el vehículo y la sede. El dinero es la excepción: cada operación de créditos queda en su propio libro de movimientos (`movimientos_creditos`), y `usuarios` guarda solo el saldo resultante.
 
 ### 5.1 Colecciones del alcance actual
 
-Son 15 colecciones: 11 de negocio, 1 de configuración (`app`) y 3 catálogos. Cada una se muestra con un documento de ejemplo. Los nombres de colecciones y campos van en español, en snake\_case y sin tildes ni ñ. En los ejemplos, `_id` y los campos `id` o terminados en `_id` son ObjectId, y las fechas son Date. Solo quedan en inglés `_id`, que lo exige MongoDB, y `type` y `coordinates` dentro de `ubicacion`, que son obligatorios en el formato GeoJSON.
+Son 14 colecciones: 10 de negocio, 1 de configuración (`app`) y 3 catálogos. Cada una se muestra con un documento de ejemplo. Los nombres de colecciones y campos van en español, en snake\_case y sin tildes ni ñ. En los ejemplos, `_id` y los campos `id` o terminados en `_id` son ObjectId, y las fechas son Date. Solo quedan en inglés `_id`, que lo exige MongoDB, y `type` y `coordinates` dentro de `ubicacion`, que son obligatorios en el formato GeoJSON.
 
 **`usuarios`** — un documento por cuenta. El perfil se lee con una sola consulta: departamento, distrito y sede van copiados, y el vehículo del conductor va embebido completo.
 
@@ -554,34 +553,19 @@ Son 15 colecciones: 11 de negocio, 1 de configuración (`app`) y 3 catálogos. C
   "creditos_retenidos": 0,
   "foto": { "archivo_id": "6705a1f0c3d4e5f600000903", "url": "/uploads/perfiles/6705a1f0c3d4e5f600000903.jpg" },
   "fecha_aceptacion_terminos": "2026-10-01T15:04:00Z",
+  "ultima_conexion": "2026-10-29T08:10:00Z",
   "fecha_creacion": "2026-10-01T15:04:00Z",
   "fecha_actualizacion": "2026-10-08T09:30:00Z"
 }
 ```
 
-`correo` es único y se guarda en minúsculas. `roles` admite `PASAJERO` y `CONDUCTOR`; `modo_activo` es uno de los dos y solo cambia con confirmación (RN-48). `estado` es `PERFIL_PENDIENTE`, `ACTIVO` o `BLOQUEADO`. `contrasena_hash` nunca se devuelve en las respuestas de la API. `tipo_documento` es `DNI` o `CE`; junto con `numero_documento` y `telefono` queda vacío hasta que el usuario los registra en «Actualizar datos».
+`correo` es único y se guarda en minúsculas. `roles` admite `PASAJERO` y `CONDUCTOR`; `modo_activo` es uno de los dos y solo cambia con confirmación (RN-48). `estado` es `PERFIL_PENDIENTE`, `ACTIVO` o `BLOQUEADO`. `contrasena_hash` nunca se devuelve en las respuestas de la API. `ultima_conexion` es la fecha del último login exitoso; vacía (o ausente en las cuentas anteriores al campo) significa que la cuenta nunca completó un login, y entonces el login pide OTP (RN-35). `tipo_documento` es `DNI` o `CE`; junto con `numero_documento` y `telefono` queda vacío hasta que el usuario los registra en «Actualizar datos».
 
 `vehiculo` solo existe si el usuario es conductor; no hay colección de vehículos. `vehiculo.placa` es única y se guarda en mayúsculas. `vehiculo.tipo` es `SEDAN`, `HATCHBACK`, `SUV`, `VAN` o `MOTO`, y `vehiculo.estado` es `ACTIVO` o `INACTIVO`. `vehiculo.soat` es la declaración de RN-36. `aseguradora` sale de una lista fija en el frontend (Rímac, Pacífico, La Positiva, Mapfre, Interseguro, Protecta) o es el texto de «Otra». Las fechas se guardan al inicio del día en hora de Perú.
 
 `asistencia_movilidad` es `null` si el usuario no declaró ninguna necesidad. Si la declaró, es `{ "tipo": "SILLA_RUEDAS" | "MULETAS_ANDADOR" | "OTRA", "nota": "…", "fecha_consentimiento": Date }`, con `nota` de hasta 120 caracteres (RN-17). Es un dato sensible: nunca se copia en `viajes` ni se escribe en los logs (RN-22, RNF-13). `vehiculo.accesibilidad` guarda los dos checks de RN-18; ambos son `false` en una `MOTO`.
 
 `saldo_creditos` es el saldo disponible y `creditos_retenidos`, lo apartado en reservas sin liquidar. Los dos son enteros ≥ 0 y solo cambian junto con un movimiento (RNF-17). `estadisticas` la recalcula el job (RN-28) y `calificacion` se recalcula con cada calificación nueva (RN-47); la API solo las lee.
-
-**`dispositivos_confiables`** — un dispositivo desde el que el usuario ya validó un OTP (RN-35).
-
-```json
-{
-  "_id": "6705a1f0c3d4e5f600000711",
-  "usuario_id": "6705a1f0c3d4e5f600000002",
-  "dispositivo_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
-  "nombre": "Android 14 · WebView",
-  "fecha_ultimo_uso": "2026-10-29T08:10:00Z",
-  "fecha_expiracion": "2027-01-27T08:00:00Z",
-  "fecha_creacion": "2026-10-29T08:00:00Z"
-}
-```
-
-`dispositivo_hash` es el SHA-256 del identificador que genera el frontend; el identificador en claro no se guarda (RNF-03). El par `usuario_id` + `dispositivo_hash` es único. El índice TTL sobre `fecha_expiracion` elimina el documento al vencer, y entonces el siguiente login vuelve a pedir OTP.
 
 **`viajes`** — un viaje publicado. El listado del dashboard se arma solo con este documento: conductor, vehículo y sede (con su ciudad) van copiados.
 
@@ -776,7 +760,7 @@ Insertar el movimiento y actualizar los saldos de `usuarios` se ejecutan en una 
 }
 ```
 
-`fecha_expiracion` tiene un índice TTL: MongoDB elimina el documento al expirar. `intentos` llega como máximo a 3. `proposito` es `INICIO_SESION`; `RECUPERAR_CONTRASENA` queda reservado para la recuperación de contraseña. En este alcance solo se crea un código cuando el dispositivo no es confiable (RN-35).
+`fecha_expiracion` tiene un índice TTL: MongoDB elimina el documento al expirar. `intentos` llega como máximo a 3. `proposito` es `INICIO_SESION`; `RECUPERAR_CONTRASENA` queda reservado para la recuperación de contraseña. En este alcance solo se crea un código en el primer login de la cuenta (RN-35).
 
 **`archivos`** — imagen cargada. El archivo se guarda en un directorio del servidor del backend y se expone por URL. El frontend la sube con `POST /api/files` (JPG o PNG de hasta 5 MB) y envía el `id` que recibe en el formulario de perfil, vehículo o SOAT.
 
@@ -826,7 +810,6 @@ Insertar el movimiento y actualizar los saldos de `usuarios` se ejecutan en una 
   "minutos_tolerancia_inicio": 30,
   "minutos_cierre_automatico": 15,
   "minutos_recordatorio": 30,
-  "dias_dispositivo_confiable": 90,
   "dias_para_calificar": 1,
   "recarga_minima": 5,
   "recarga_maxima": 200,
@@ -897,7 +880,7 @@ La regla es modelar según cómo se lee: se embebe o se copia lo que una pantall
 | El saldo se guarda en `usuarios` y cada cambio, en `movimientos_creditos`. | Leer el saldo es una sola consulta, y el libro de solo inserción permite auditarlo y reconstruirlo (RNF-17). |
 | La retención se modela con `creditos_retenidos` y el flag `reservas.liquidada`, no con una colección aparte. | Cada reserva retiene una sola vez y se liquida una sola vez. El flag hace idempotente la liquidación del job. |
 | Los retiros se resuelven editando `retiros` en Atlas, y el job aplica la reversión. | No hay administrador en este alcance. El operador solo cambia el estado, y la lógica de dinero queda en el backend. |
-| El dispositivo confiable se guarda en `dispositivos_confiables`, con TTL. | Un usuario tiene varios dispositivos, cada uno con su propio vencimiento, y la base los borra sola. |
+| El OTP se controla con `usuarios.ultima_conexion` y no con una colección de dispositivos. | La regla es por cuenta, no por dispositivo (RN-35): basta un campo en el documento que el login ya lee. |
 | Los procesos programados son un job `@Scheduled` del backend. | El tier de Atlas del proyecto no admite Scheduled Triggers. Para no depender de una sola instancia (RNF-10), cada cambio es un update condicionado al estado actual, y las estadísticas se recalculan en lugar de sumarse: si dos instancias corren el job a la vez, el resultado es el mismo. |
 | Los parámetros de negocio viven en la colección `app` y no en `application.yml`. | Se pueden cambiar sin desplegar de nuevo el backend (RN-31). |
 | `notificaciones` es una colección aparte, con `mensaje` ya armado. | Crece sin límite, se lee por usuario y caduca sola con TTL. Guardar el texto final evita reconstruirlo y conserva lo que se avisó en ese momento. |
@@ -911,8 +894,6 @@ Cada índice responde a una consulta concreta.
 | --- | --- | --- |
 | `usuarios` | `correo` único | Login y validación de correo duplicado. |
 | `usuarios` | `vehiculo.placa` único parcial (solo usuarios con vehículo) | Placa irrepetible entre conductores. |
-| `dispositivos_confiables` | `usuario_id` + `dispositivo_hash` único | Saber si el dispositivo es confiable en el login (RN-35). |
-| `dispositivos_confiables` | `fecha_expiracion` TTL | Vencimiento automático de la confianza. |
 | `viajes` | `estado` + `fecha_salida` | Listado del dashboard de todas las sedes y tareas del job (RF-03, RF-08). |
 | `viajes` | `conductor.id` + `estado` | Mis viajes del conductor, un solo viaje en curso y actualización de copias. |
 | `viajes` | `conductor.id` + `estado` + `fecha_cancelacion` | Cancelaciones recientes del conductor (RN-30). |
@@ -951,14 +932,14 @@ El modelo se revisó contra 12 antipatrones de modelado en MongoDB: 9 tenían ha
 | Escrituras relacionadas sin atomicidad | Corregido | Reserva, plaza, retención y notificación; cierre del viaje y liquidación; y movimiento y saldo se ejecutan en transacciones. |
 | Texto de presentación guardado como dato | Corregido | `reservas.viaje.ruta` guardaba «A → B» en una sola cadena. Ahora son los campos `origen` y `destino`. El `mensaje` de las notificaciones es la excepción deliberada: conserva lo que se avisó. |
 | Documentos inflados | Sin hallazgos | Ningún documento supera unos pocos KB. `contrasena_hash` se excluye de las respuestas. |
-| Demasiadas colecciones | Sin hallazgos | Son 16 colecciones, cada una con un patrón de acceso propio. |
-| Datos temporales sin expiración | Sin hallazgos | `codigos_otp`, `dispositivos_confiables` y `notificaciones` se eliminan solas con índices TTL. |
+| Demasiadas colecciones | Sin hallazgos | Son 15 colecciones, cada una con un patrón de acceso propio. |
+| Datos temporales sin expiración | Sin hallazgos | `codigos_otp` y `notificaciones` se eliminan solas con índices TTL. |
 
 Riesgo aceptado: `viajes` copia la calificación del conductor y `reservas` la del pasajero, y cambian con cada calificación nueva. Se mantiene porque la tarjeta del dashboard y Mis viajes las muestran, y el costo es bajo: solo se actualizan los viajes activos del calificado y sus reservas activas.
 
 ## 6. Secuencia: inicio de sesión
 
-El login valida las credenciales y, solo si el dispositivo no es confiable, pide el código OTP (RF-01, RN-35). Desde un dispositivo confiable, el login entrega directamente el token `SESSION`. Desde uno nuevo, entrega un token `PRE_AUTH`, que solo sirve para verificar o reenviar el código, y la verificación entrega `SESSION` (sección 4.1).
+El login valida las credenciales y pide el código OTP solo en el primer login de la cuenta, el que todavía no tiene `ultima_conexion` (RF-01, RN-35). Desde el segundo login entrega directamente el token `SESSION`. En el primero entrega un token `PRE_AUTH`, que solo sirve para verificar o reenviar el código, y la verificación entrega `SESSION` (sección 4.1).
 
 ```mermaid
 sequenceDiagram
@@ -970,7 +951,7 @@ sequenceDiagram
     participant MAIL as Servicio de correo
 
     U->>FE: Ingresa correo y contraseña
-    FE->>API: POST /api/auth/login (cabecera X-Device-Id)
+    FE->>API: POST /api/auth/login
     API->>DB: Buscar usuario por correo (usuarios)
     DB-->>API: Usuario
     API->>API: Comparar contraseña con hash BCrypt
@@ -978,22 +959,21 @@ sequenceDiagram
         API-->>FE: 401 INVALID_CREDENTIALS o 403 ACCOUNT_BLOCKED
         FE-->>U: Muestra mensaje de error
     else Credenciales válidas
-        API->>DB: Buscar hash del dispositivo vigente (dispositivos_confiables)
-        alt Dispositivo confiable
-            API->>DB: Actualizar fecha_ultimo_uso
+        alt Ya tiene ultima_conexion
+            API->>DB: Actualizar ultima_conexion (usuarios)
             API-->>FE: 200 Token SESSION y datos del usuario
             FE-->>U: Redirige al dashboard (o a «Completar perfil»)
-        else Dispositivo nuevo o vencido
+        else Primer login (sin ultima_conexion)
             API->>DB: Guardar OTP con expiración (codigos_otp)
             API->>MAIL: Enviar código de 6 dígitos
             API-->>FE: 200 Token PRE_AUTH
             FE-->>U: Muestra pantalla de verificación
             U->>FE: Ingresa el código de 6 dígitos
-            FE->>API: POST /api/auth/verify-code (X-Device-Id)
+            FE->>API: POST /api/auth/verify-code
             API->>DB: Buscar OTP vigente del usuario
             alt Código correcto
                 API->>DB: Eliminar OTP usado
-                API->>DB: Registrar dispositivo confiable por 90 días
+                API->>DB: Registrar ultima_conexion (usuarios)
                 API-->>FE: 200 Token SESSION y datos del usuario
                 FE-->>U: Redirige al dashboard
             else Código incorrecto o expirado
@@ -1043,10 +1023,9 @@ sequenceDiagram
     end
     FE->>API: POST /api/files (foto de perfil)
     API-->>FE: 201 Id de la imagen
-    FE->>API: POST /api/auth/complete-profile (token REGISTRATION, X-Device-Id)
+    FE->>API: POST /api/auth/complete-profile (token REGISTRATION)
     API->>DB: Validar departamento, distrito y sede (catálogos)
     API->>DB: Actualizar usuario ACTIVO, rol PASAJERO, saldo 0
-    API->>DB: Registrar dispositivo confiable
     API-->>FE: 200 Perfil completado y token SESSION
 
     alt No marcó «Tengo vehículo» (pasajero)
@@ -1308,7 +1287,7 @@ sequenceDiagram
     opt Cerrar sesión
         U->>FE: Pulsa «Cerrar sesión»
         FE->>API: POST /api/auth/logout
-        FE->>FE: Eliminar cookies de sesión (el dispositivo sigue confiable)
+        FE->>FE: Eliminar cookies de sesión (ultima_conexion se conserva)
         FE-->>U: Redirige a iniciar sesión
     end
 ```
@@ -1373,7 +1352,7 @@ El plan propone 11 fases en 16 semanas. Primero se levantó el backend para las 
 | 4. Viajes y reserva | 4 y 5 | Listado con filtros, condiciones, detalle con mapa (Leaflet) y reserva con confirmación. | RF-03, RF-04 | Un pasajero reserva un viaje publicado. |
 | 5. Publicación | 6 | Pantalla «Publicar viaje» con mapa (Leaflet), confirmación y endpoint de creación de viajes. | RF-05 | Un conductor publica un viaje visible en el dashboard. |
 | 6. Perfil y cierre | 7 y 8 | Perfil de pasajero y conductor, actualización de datos y vehículo, cierre de sesión, pruebas y documentación. | RF-01, RF-14 | Versión con pruebas de los flujos principales. |
-| 7. Accesos y registro v3 | 9 | Dispositivo confiable, asistencia de movilidad, accesibilidad y SOAT del vehículo, campo `ciudad` en sedes, colección `app` y modal de cambio de modo. | RF-01, RF-02, RF-14 | Un usuario vuelve a entrar sin OTP desde su dispositivo, y un conductor registra su SOAT. |
+| 7. Accesos y registro v3 | 9 | OTP solo en el primer login (`ultima_conexion`), asistencia de movilidad, accesibilidad y SOAT del vehículo, campo `ciudad` en sedes, colección `app` y modal de cambio de modo. | RF-01, RF-02, RF-14 | Un usuario vuelve a entrar sin OTP desde su segundo login, y un conductor registra su SOAT. |
 | 8. Billetera | 10 y 11 | Recarga simulada con Yape, libro de movimientos, retiros y script de conciliación. | RF-11, RF-12 | Un pasajero recarga y un conductor solicita un retiro que el operador paga. |
 | 9. Reserva y Mis viajes | 12 y 13 | Listado de todas las sedes, una reserva activa, retención de créditos, Mis viajes (17), cancelaciones con límites y bandeja de notificaciones (18). | RF-03, RF-04, RF-05, RF-06, RF-13 | Un pasajero reserva con créditos y cancela con reembolso; el conductor recibe los avisos. |
 | 10. Ejecución del viaje | 14 | Iniciar con presentes, finalizar, job `@Scheduled` (no iniciados, cierre, recordatorios, reversión de retiros y estadísticas) y liquidación. | RF-07, RF-08 | Un viaje completo, desde la reserva hasta el cobro del conductor, también cuando lo cierra el job. |
@@ -1392,8 +1371,8 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 01 | [01. login.jpeg](<frames/01. login.jpeg>) | Iniciar sesión | Autenticación | Implementada |
 | 02 | [02. login_verificacion.jpeg](<frames/02. login_verificacion.jpeg>) | Verificación OTP | Autenticación | Implementada |
 | 03 | [03. registro.jpeg](<frames/03. registro.jpeg>) | Registro | Registro | Implementada |
-| 04 | [04. registro_datos_personales.jpeg](<frames/04. registro_datos_personales.jpeg>) | Completar perfil | Registro | Implementada |
-| 05 | [05. registro_vehiculo.jpeg](<frames/05. registro_vehiculo.jpeg>) | Datos del vehículo | Registro | Implementada (sin SOAT) |
+| 04 | [04. registro_datos_personales.jpeg](<frames/04. registro_datos_personales.jpeg>) | Completar perfil | Registro | Implementada (sin asistencia) · rediseño en diseño ([prompt](<docs/design/P04-CompletarPerfil/prompt.md>)) |
+| 05 | [05. registro_vehiculo.jpeg](<frames/05. registro_vehiculo.jpeg>) | Datos del vehículo | Registro | Implementada (sin SOAT) · rediseño en diseño ([prompt](<docs/design/P05-DatosVehiculo/prompt.md>)) |
 | 06 | [P06-Dashboard/v3.2.png](<docs/design/P06-Dashboard/v3.2.png>) | Dashboard / viajes | Viajes | Implementada · rediseño aprobado |
 | 07 | [07. dashboard_condiciones_viaje.jpeg](<frames/07. dashboard_condiciones_viaje.jpeg>) | Condiciones del viaje | Viajes | Implementada |
 | 08 | [08. dashboard_confirm_viaje.jpeg](<frames/08. dashboard_confirm_viaje.jpeg>) | Confirmar reserva (dashboard) | Viajes | Implementada |
@@ -1403,13 +1382,13 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 12 | [12. confirm_publicar_viaje.jpeg](<frames/12. confirm_publicar_viaje.jpeg>) | Confirmar publicación | Viajes | Implementada |
 | 13 | [P13-PerfilPasajero/v1.1.png](<docs/design/P13-PerfilPasajero/v1.1.png>) | Perfil — pasajero | Perfil | Implementada · rediseño aprobado |
 | 14 | [P14-PerfilConductor/v1.1.png](<docs/design/P14-PerfilConductor/v1.1.png>) | Perfil — conductor | Perfil | Implementada · rediseño aprobado |
-| 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada |
+| 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada (sin asistencia) · rediseño en diseño ([prompt](<docs/design/P15-ActualizarDatos/prompt.md>)) |
 | 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada (sin SOAT) · rediseño aprobado |
-| 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Diseño aprobado |
-| 18 | — | Notificaciones | Notificaciones | Pendiente de diseño |
+| 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Implementada · diseño aprobado |
+| 18 | [P18-Notificaciones/prompt.md](<docs/design/P18-Notificaciones/prompt.md>) | Notificaciones | Notificaciones | En diseño |
 | 19 | [P19-Historial/v3.1.png](<docs/design/P19-Historial/v3.1.png>) | Historial | Historial | Implementada |
 | 20 | [P20-Calificar/v1.1.png](<docs/design/P20-Calificar/v1.1.png>) | Calificar | Calificaciones | Implementada |
-| 21 | [P21-Billetera/v1.1.png](<docs/design/P21-Billetera/v1.1.png>) | Billetera | Billetera | Diseño aprobado |
+| 21 | [P21-Billetera/v1.1.png](<docs/design/P21-Billetera/v1.1.png>) | Billetera | Billetera | Implementada · diseño aprobado |
 
 Los frames son una referencia visual y difieren de este documento en los puntos de la tabla. En todos ellos manda este documento.
 
@@ -1421,8 +1400,9 @@ Los frames son una referencia visual y difieren de este documento en los puntos 
 | 05, 16 | El registro no pide marca, modelo ni color; la actualización no pide color. Ninguno pide SOAT. | Ambos formularios piden marca, modelo, color, accesibilidad y la sección SOAT (RF-02, RF-14, RN-36). |
 | 06 | La salida es un rango (14:15 – 14:25). | El viaje tiene una sola hora de salida (`fecha_salida`). |
 | 06 | El listado no muestra ciudad, y no tiene campana ni filtro de accesibilidad. | Cada tarjeta lleva la etiqueta de ciudad (RN-49), y el encabezado, la campana (RF-13). Se agrega el filtro «Solo vehículos accesibles» (RN-19). |
+| 06, 13, 14, 17, 21 | El encabezado tiene un menú hamburguesa a la izquierda (también los rediseños aprobados de P06 y P17). | Se quita. El encabezado lleva el logotipo a la izquierda, y la campana y el avatar a la derecha. La navegación es la barra inferior, y «Mi perfil» y «Cerrar sesión» están en el menú del avatar (RF-01). |
 | 01, 03, 14 | Correos de ejemplo de otros dominios (`name@company.com`, `carlos.mendoza@sharecar.pe`). | Solo se admiten correos `utp.edu.pe` (RN-01, RN-02). |
-| 02 | Se muestra en cada login. | Solo se muestra la primera vez en cada dispositivo (RN-35). |
+| 02 | Se muestra en cada login. | Solo se muestra en el primer login de la cuenta (RN-35). |
 | 15 | El documento de identidad aparece bloqueado y sin tipo de documento. | El usuario elige el tipo (DNI o CE) e ingresa el número una sola vez; luego queda bloqueado (RN-14). |
 | 15 | La modalidad se cambia en el formulario «Actualizar datos». | Se cambia con el selector del perfil (13, 14), con un modal de confirmación (RN-48). |
 | Varios | La marca aparece como «ShareCar». | El nombre del producto es ColaboraCar. |
@@ -1591,7 +1571,7 @@ Cada fila cita los IDs de RF vigentes en su fecha. Las decisiones que una poster
 | 2026-10-29 | ¿Cómo se recargan créditos? | Recarga simulada: el usuario ingresa el código de operación de Yape como referencia, que debe ser único, y se aprueba al instante (RN-41). | Demuestra el flujo sin integrar una pasarela. |
 | 2026-10-29 | ¿Qué hace el conductor con lo que gana? | Solicita un retiro a su Yape, solo de lo ganado como conductor. Un operador lo paga o lo rechaza en la base de datos (RF-12, RN-42). | No hay administrador; se evita retirar dinero recargado. |
 | 2026-10-29 | ¿Cuándo se cobra? | Al reservar, los créditos se retienen; al cerrar el viaje, se pagan al conductor; si se cancela, se devuelven al 100 % (RN-39, RN-40). | El conductor cobra solo viajes realizados y el pasajero no pierde dinero por cancelaciones del conductor. |
-| 2026-10-29 | ¿«OTP solo la primera vez» de qué? | Por dispositivo, con confianza de 90 días (RN-35). | Es más seguro si roban la contraseña. |
+| 2026-10-29 | ¿«OTP solo la primera vez» de qué? | Por dispositivo, con confianza de 90 días (RN-35). Reemplazada el 2026-11-21. | Es más seguro si roban la contraseña. |
 | 2026-10-29 | ¿Se busca por sede? | No: el listado muestra todas las sedes y una etiqueta discreta con la ciudad (RN-49). | Pedido del equipo. |
 | 2026-10-29 | ¿Cuántas reservas puede tener un pasajero? | Una activa a la vez. Puede ver otros viajes, pero solo reservarlos si cancela la activa. Con 5 cancelaciones o ausencias en 30 días no puede reservar (RN-23, RN-38). | Pedido del equipo; evita acaparar plazas. |
 | 2026-10-29 | ¿Hasta cuándo se cancela? | Hasta 30 min antes de la salida, para pasajero y conductor (RN-25, RN-26). | Pedido del equipo. |
@@ -1600,10 +1580,12 @@ Cada fila cita los IDs de RF vigentes en su fecha. Las decisiones que una poster
 | 2026-10-29 | ¿Cuándo se cierra un viaje que nadie finaliza? | A los 15 min de la llegada estimada (`fecha_salida + duracion_min`) (RN-27). | Pedido del equipo. |
 | 2026-10-29 | ¿Cómo se califica? | Mutua y opcional, de 1 a 5 estrellas con comentario, hasta 7 días después del viaje (RN-47). *Reemplazada el 2026-11-21: 24 horas.* | Da confianza sin bloquear el uso de la app. |
 | 2026-10-29 | ¿Cómo se cambia de modo? | Con el selector del perfil y un modal de confirmación; no durante un viaje en curso (RN-48). | Pedido del equipo. |
+| 2026-11-21 | ¿Hace falta el menú hamburguesa del encabezado? | No: se quita del frontend y de los prompts de diseño. | Ningún RF lo pide y todos sus destinos ya tienen otro acceso: la barra inferior, la campana (RF-13) y el menú del avatar (RF-01). Además, era un botón sin acción, que un lector de pantalla anunciaba como «Abrir menú» (RNF de accesibilidad, WCAG 2.1 AA). |
 | 2026-11-21 | ¿Hasta cuándo se califica? | Hasta 24 horas después de `fecha_fin` (RF-10, RN-47). `dias_para_calificar` pasa de 7 a 1 en `app` y sigue siendo configurable. Reemplaza el plazo de 7 días. | Decisión del usuario al diseñar P19 Historial. |
 | 2026-11-21 | ¿Quién ve los comentarios de las calificaciones? | Nadie más que su autor. Las calificaciones solo alimentan el promedio de estrellas del perfil; leer reseñas queda fuera del alcance (sección 1.1). | Decisión del usuario al diseñar P20 Calificar; no hay pantalla de reseñas. |
 | 2026-11-21 | ¿Qué pasa con las reservas creadas antes de la billetera, que no retuvieron créditos? | No se liquidan: solo se reembolsan o cobran las reservas con `liquidada = false`. Al cancelarlas, el mensaje es «Reserva cancelada.» sin monto. | Reembolsarlas o cobrarlas crearía créditos que nadie pagó. |
 | 2026-11-21 | ¿Quién puede solicitar un retiro? | Quien tiene el rol `CONDUCTOR`, aunque esté en modo pasajero; la pantalla solo muestra «Retirar» en modo conductor. Si no: `DRIVER_ROLE_REQUIRED`, «Solo los conductores pueden retirar créditos». | RF-12 lo limita al conductor, y el saldo retirable ya excluye lo que no se ganó conduciendo. |
+| 2026-11-21 | ¿Cuándo se pide el OTP? | Solo en el primer login de la cuenta. Se controla con el campo `ultima_conexion` de `usuarios`: vacío ⇒ OTP; con fecha ⇒ sesión directa, y cada login la actualiza (RN-35). Reemplaza la confianza por dispositivo del 2026-10-29: se quitan `dispositivos_confiables`, `X-Device-Id` y `dias_dispositivo_confiable`. | Decisión del equipo: simplifica el acceso. El OTP queda como verificación del correo institucional, no como segundo factor. |
 
 ### 12.2 Preguntas abiertas
 

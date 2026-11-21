@@ -5,7 +5,6 @@ import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import { dashboardService } from "@/features/dashboard/services/dashboardService";
 import { authService } from "@/features/auth/services/authService";
 import BellIcon from "@/assets/images/icons/bell.svg?react";
-import MenuIcon from "@/assets/images/icons/menu.svg?react";
 
 export function DashboardHeader() {
   const navigate = useNavigate();
@@ -63,14 +62,7 @@ export function DashboardHeader() {
 
   return (
     <header className="dashboard-header">
-      <button
-        type="button"
-        className="dashboard-icon-button"
-        aria-label="Abrir menú"
-      >
-        <MenuIcon className="h-6 w-6" />
-      </button>
-
+      {/* Sin menú hamburguesa: la navegación es la barra inferior y el menú del avatar (README, sección 12.1). */}
       <h1 className="dashboard-header-title">ColaboraCar</h1>
 
       <div className="flex items-center justify-self-end gap-1">

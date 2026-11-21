@@ -111,7 +111,7 @@ Igual que el modo A, pero:
 
 - **Formato móvil:** 390 px de ancho, una columna, sin marco de teléfono, sin espacio vacío a la derecha ni contenedor centrado. Stitch suele generar escritorio en **cada pasada con contexto común** (frame A y cualquier frame que no se duplique, como 06-F), no solo en la primera: recordar el modo **App** antes de esas pasadas. Si pasa, la corrección pide el ancho de 390 px como primer punto.
 - **Marca e idioma:** «ColaboraCar» (nunca «ShareCar»), español de Perú, «créditos» con moneda dorada (nunca soles ni S/ salvo en el monto de recarga de Yape).
-- **Encabezado:** hamburguesa, logotipo rojo centrado, campana con punto rojo, avatar.
+- **Encabezado:** sin menú hamburguesa; logotipo rojo a la izquierda, campana con punto rojo y avatar a la derecha. Si Stitch agrega la hamburguesa, pedir que la quite.
 - **Barra inferior:** 5 pestañas (Viajes, Mis viajes, Historial, Billetera, Perfil) y la activa correcta como píldora roja. Pantallas de flujo (formularios de registro, modales, P18 desde la campana, P20) pueden ir sin barra o sin pestaña activa: decidirlo y anotarlo.
 - **Etiquetas de estado** exactamente como en la sección 2.3 del README.
 - **Reglas visibles:** una hora de salida, sede/ciudad en cada viaje, precio de 1 a 10 créditos, cancelación hasta 30 min antes, dato de movilidad reducida solo visible para el conductor del viaje y para el propio usuario (RN-17, RN-22).

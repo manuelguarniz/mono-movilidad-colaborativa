@@ -58,8 +58,14 @@ export const authService = {
       throw new Error(getErrorMessage(data, "Credenciales inválidas"));
     }
 
-    session.startPreAuth(data.token, data.expiresIn);
-    return data;
+    // RN-35: solo el primer login de la cuenta pide OTP (token PRE_AUTH);
+    // los siguientes entregan directamente el token SESSION.
+    if (data.scope === "SESSION") {
+      session.startSession(data.token, data.expiresIn);
+    } else {
+      session.startPreAuth(data.token, data.expiresIn);
+    }
+    return data as { scope: "PRE_AUTH" | "SESSION" };
   },
   register: async (payload: { email: string; password: string }) => {
     const response = await fetch(`${API_BASE_URL}/auth/register`, {

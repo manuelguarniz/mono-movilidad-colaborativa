@@ -2,6 +2,10 @@ package pe.edu.utp.app_movilidadcolaborativa.auth.application;
 
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto.LoginRequest;
@@ -19,7 +23,12 @@ import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
 
-/** Inicio de sesión en dos pasos: credenciales y código OTP (RF-01 a RF-04). */
+import java.time.Instant;
+
+/**
+ * Inicio de sesión (RF-01). El código OTP se pide solo en el primer login de la cuenta, el que
+ * todavía no tiene ultima_conexion (RN-35); los siguientes logins entregan el token SESSION directo.
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -28,8 +37,12 @@ public class AuthService {
 	private final PasswordEncoder passwordEncoder;
 	private final OtpService otpService;
 	private final JwtService jwtService;
+	private final MongoTemplate mongoTemplate;
 
-	/** Paso 1: valida las credenciales, envía el OTP y devuelve un token PRE_AUTH. */
+	/**
+	 * Valida las credenciales. Si la cuenta ya inició sesión antes, registra la conexión y devuelve
+	 * el token SESSION; si es su primer login, envía el OTP y devuelve un token PRE_AUTH.
+	 */
 	public LoginResponse iniciarSesion(LoginRequest solicitud) {
 		Usuario usuario = usuarioRepository.findByCorreo(solicitud.email())
 				.filter(encontrado -> passwordEncoder.matches(solicitud.password(), encontrado.getContrasenaHash()))
@@ -40,14 +53,23 @@ public class AuthService {
 					"Tu cuenta está bloqueada. Comunícate con soporte.");
 		}
 
+		if (usuario.getUltimaConexion() != null) {
+			registrarConexion(usuario.getId());
+			return LoginResponse.conSesion(jwtService.emitir(usuario.getId(), AlcanceToken.SESSION),
+					UsuarioSesionDto.desde(usuario));
+		}
 		OtpInfoDto otp = otpService.emitir(usuario);
-		return LoginResponse.de(jwtService.emitir(usuario.getId(), AlcanceToken.PRE_AUTH), otp);
+		return LoginResponse.conOtp(jwtService.emitir(usuario.getId(), AlcanceToken.PRE_AUTH), otp);
 	}
 
-	/** Paso 2: verifica el OTP del usuario del token PRE_AUTH y devuelve el token SESSION. */
+	/**
+	 * Segundo paso del primer login: verifica el OTP del usuario del token PRE_AUTH, registra la
+	 * conexión (desde entonces ya no se pide OTP) y devuelve el token SESSION.
+	 */
 	public TokenUsuarioResponse verificarCodigo(ObjectId usuarioId, VerificarCodigoRequest solicitud) {
 		Usuario usuario = buscarUsuario(usuarioId);
 		otpService.verificar(usuarioId, solicitud.code());
+		registrarConexion(usuarioId);
 		return TokenUsuarioResponse.de(jwtService.emitir(usuarioId, AlcanceToken.SESSION),
 				UsuarioSesionDto.desde(usuario));
 	}
@@ -55,6 +77,12 @@ public class AuthService {
 	public ReenviarCodigoResponse reenviarCodigo(ObjectId usuarioId) {
 		OtpInfoDto otp = otpService.reenviar(buscarUsuario(usuarioId));
 		return new ReenviarCodigoResponse("Código reenviado correctamente", otp);
+	}
+
+	// $set y no save(): Usuario no declara todos los campos del documento.
+	private void registrarConexion(ObjectId usuarioId) {
+		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(usuarioId)),
+				new Update().set("ultima_conexion", Instant.now()), Usuario.class);
 	}
 
 	// El token puede seguir vigente aunque la cuenta ya no exista o haya sido bloqueada.

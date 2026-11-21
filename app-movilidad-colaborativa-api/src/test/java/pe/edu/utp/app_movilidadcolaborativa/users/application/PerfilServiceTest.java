@@ -25,7 +25,9 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.ActualizarPerfilRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.CambiarModoRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.AsistenciaMovilidad;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.DireccionResidencia;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.TipoAsistencia;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoVehiculo;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Foto;
@@ -272,7 +274,8 @@ class PerfilServiceTest {
 		verify(mongoTemplate, never()).updateFirst(any(Query.class), any(Update.class), eq(Usuario.class));
 
 		assertThat(servicio.consultar(usuarioId).tripInProgress()).isEqualTo(new PerfilUsuarioDto.ViajeEnCursoDto(
-				viaje.id().toHexString(), "DRIVER", "Campus UTP Trujillo", "Urb. El Golf, Víctor Larco", inicio));
+				viaje.id().toHexString(), "DRIVER", "Campus UTP Trujillo", "Urb. El Golf, Víctor Larco", inicio, null,
+				null));
 	}
 
 	@Test
@@ -282,13 +285,29 @@ class PerfilServiceTest {
 		Instant salida = Instant.parse("2026-11-21T12:00:00Z");
 		when(mongoTemplate.findOne(any(Query.class), eq(Reserva.class))).thenReturn(Reserva.builder()
 				.viajeId(viajeId).estado(EstadoReserva.EN_VIAJE)
-				.viaje(new Reserva.ResumenViaje("Real Plaza", "Campus UTP Trujillo", salida, "Andrea P.", null))
+				.viaje(new Reserva.ResumenViaje("Real Plaza", "Campus UTP Trujillo", salida, "Andrea P.",
+						new Reserva.VehiculoResumen("Chevrolet", "Spark", "Rojo")))
 				.build());
 
 		assertThatThrownBy(() -> servicio.actualizar(usuarioId, solicitud(null, null, "DRIVER")))
 				.isInstanceOfSatisfying(ApiException.class,
 						ex -> assertThat(ex.getCodigo()).isEqualTo(CodigoError.TRIP_IN_PROGRESS));
-		assertThat(servicio.consultar(usuarioId).tripInProgress().role()).isEqualTo("PASSENGER");
+		PerfilUsuarioDto.ViajeEnCursoDto enViaje = servicio.consultar(usuarioId).tripInProgress();
+		assertThat(enViaje.role()).isEqualTo("PASSENGER");
+		assertThat(enViaje.driver().name()).isEqualTo("Andrea P.");
+		assertThat(enViaje.vehicle()).isEqualTo(new PerfilUsuarioDto.VehiculoResumenDto("Chevrolet", "Spark", "Rojo"));
+	}
+
+	@Test
+	void laAsistenciaDeMovilidadSeDevuelveSinLaFechaDeConsentimiento() {
+		existe(pasajero().asistenciaMovilidad(new AsistenciaMovilidad(TipoAsistencia.SILLA_RUEDAS,
+				"Silla plegable", Instant.parse("2026-10-01T15:04:00Z"))).build());
+
+		assertThat(servicio.consultar(usuarioId).mobilityAssistance())
+				.isEqualTo(new PerfilUsuarioDto.AsistenciaDto("WHEELCHAIR", "Silla plegable"));
+
+		existe(pasajero().build());
+		assertThat(servicio.consultar(usuarioId).mobilityAssistance()).isNull();
 	}
 
 	@Test

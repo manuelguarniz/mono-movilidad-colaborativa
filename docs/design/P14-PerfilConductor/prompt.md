@@ -10,7 +10,7 @@ Fuentes: README raíz (RF-14, escenarios Consultar, Vehículo y Cambiar de modo;
 
 | Frame actual                                                        | Cambio                                                                                                     | Regla                                                      |
 | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| «ShareCar» y avatar con foto                                      | Encabezado común: hamburguesa, «ColaboraCar», campana con contador «3» y avatar «CM»                | Sección 11; RF-13; P06                                    |
+| «ShareCar» y avatar con foto                                      | Encabezado común: «ColaboraCar», campana con contador «3» y avatar «CM» (sin hamburguesa)            | Sección 11; RF-13; P06                                    |
 | Barra de 4 pestañas en inglés (Ride, History, Wallet, Profile)    | 5 pestañas: Viajes, Mis viajes, Historial, Billetera, Perfil (activa)                                     | Contexto común                                            |
 | «Mi Perfil»                                                       | «Mi perfil» (solo la primera letra en mayúscula)                                                        | —                                                         |
 | Chip «Pro» y «Conductor verificado»                             | Se quitan; no son datos del README                                                                         | Sección 5.1                                               |
@@ -53,8 +53,8 @@ Sistema visual (respetar exactamente, es el de las pantallas ya diseñadas):
   nunca en fuente monoespaciada.
 - Iconos de línea (Material Symbols Outlined), estrellas de calificación en ámbar.
 - Avatares: círculos grises #EEEEEE con las iniciales en #5B403D, nunca fotos ni imágenes.
-- Encabezado: menú hamburguesa a la izquierda, logotipo "ColaboraCar" en rojo #BD0016
-  bold centrado (solo el texto, sin punto ni adornos), campana de notificaciones con un
+- Encabezado (sin menú hamburguesa): logotipo "ColaboraCar" en rojo #BD0016 a la izquierda,
+  bold (solo el texto, sin punto ni adornos), campana de notificaciones con un
   contador rojo "3" y avatar "CM" a la derecha.
 - Barra de navegación inferior blanca, fija abajo a todo el ancho, con 5 pestañas: Viajes,
   Mis viajes, Historial, Billetera, Perfil. La pestaña activa es una píldora roja #BD0016

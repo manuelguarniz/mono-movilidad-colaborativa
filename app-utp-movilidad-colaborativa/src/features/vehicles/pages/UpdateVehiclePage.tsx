@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthStepLayout } from "@/features/auth/components/AuthStepLayout";
 import { VehicleFields } from "@/features/vehicles/components/VehicleFields";
 import { VehiclePhotoPicker } from "@/features/vehicles/components/VehiclePhotoPicker";
+import { profileService } from "@/features/profile/services/profileService";
 import { vehicleService } from "@/features/vehicles/services/vehicleService";
 import {
   EMPTY_VEHICLE_FORM,
@@ -102,13 +103,30 @@ export function UpdateVehiclePage() {
         photoFileId,
       });
 
+      // RF-02, casuística C (13-C): quien registra su primer vehículo desde el perfil entra
+      // al dashboard en modo conductor. Si no se puede (RN-48, viaje en curso), vuelve al perfil.
+      let switchedToDriver = false;
+      if (isNew && returnTo === "/perfil") {
+        try {
+          await profileService.changeMode("DRIVER");
+          switchedToDriver = true;
+        } catch {
+          // El vehículo ya quedó registrado; el perfil explica por qué no cambió el modo.
+        }
+      }
+
       // El vehículo también se muestra en el perfil y se copia en los viajes del conductor.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["vehicles"] }),
         queryClient.invalidateQueries({ queryKey: ["users", "me"] }),
         queryClient.invalidateQueries({ queryKey: ["rides"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet"] }),
       ]);
-      navigate(returnTo, { replace: true, state: { saved: "vehicle" } });
+      if (switchedToDriver) {
+        navigate("/dashboard", { replace: true });
+      } else {
+        navigate(returnTo, { replace: true, state: { saved: "vehicle" } });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el vehículo");
     } finally {
