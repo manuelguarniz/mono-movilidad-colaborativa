@@ -12,12 +12,13 @@ import java.util.List;
 /**
  * Colección viajes. Conductor, vehículo y sede van copiados: el listado y el detalle salen de un solo documento.
  * El primer índice sirve al listado del dashboard; el segundo, a la actualización de las copias del conductor y a
- * Mis viajes. Los datos de cancelación, inicio y fin son null mientras el viaje no llega a ese estado.
+ * Mis viajes; el tercero, al historial del conductor (RF-09). Los datos de cancelación, inicio y fin son null mientras el viaje no llega a ese estado.
  */
 @Builder
 @Document("viajes")
 @CompoundIndex(def = "{ 'estado': 1, 'sede.id': 1, 'fecha_salida': 1 }")
 @CompoundIndex(def = "{ 'conductor.id': 1, 'estado': 1 }")
+@CompoundIndex(def = "{ 'conductor.id': 1, 'fecha_salida': -1 }")
 public record Viaje(
 		@Id ObjectId id,
 		ConductorViaje conductor,

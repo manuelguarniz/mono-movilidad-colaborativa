@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import { CancelRideSheet } from "@/features/my-rides/components/CancelRideSheet";
@@ -218,6 +218,7 @@ function sectionLabel(departure: Date, isFirst: boolean) {
 /** Mis viajes en modo conductor (frames 17-B, 17-D, 17-E, 17-F y 17-G). */
 export function DriverMyRides({ onToast }: DriverMyRidesProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [action, setAction] = useState<Action | null>(null);
 
   const ridesQuery = useQuery({
@@ -237,8 +238,14 @@ export function DriverMyRides({ onToast }: DriverMyRidesProps) {
           return myRidesService.finishRide(rideId);
       }
     },
-    onSuccess: (response) => {
+    onSuccess: (response, payload) => {
       setAction(null);
+      // P17-F → P20: al finalizar, el conductor califica a los pasajeros que subieron.
+      const { type, item } = payload.action;
+      if (type === "finish" && item.passengers.some((passenger) => passenger.status === "IN_RIDE")) {
+        navigate(`/calificar/${item.ride.id}?origen=mis-viajes`);
+        return;
+      }
       onToast(response.message);
     },
     onSettled: () => {

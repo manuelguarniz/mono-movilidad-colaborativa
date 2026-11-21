@@ -41,7 +41,7 @@ El resto de pruebas no usa la base de datos: `ValidacionSolicitudesTest` comprue
 
 ## 2. Estado y estructura
 
-El contrato define 28 endpoints y el backend implementa 27. Toda la API cuelga de `/api`.
+El contrato define 31 endpoints y el backend implementa 30. Toda la API cuelga de `/api`.
 
 | Módulo | Endpoints | Estado |
 | --- | --- | --- |
@@ -54,6 +54,8 @@ El contrato define 28 endpoints y el backend implementa 27. Toda la API cuelga d
 | Mis viajes | `GET /rides/mine`, `POST /rides/{rideId}/cancel`, `/start`, `/finish`, `GET /bookings/mine`, `POST /bookings/{bookingId}/cancel` | Implementado, con reembolso al cancelar y cobro al finalizar (RN-40). Sin notificaciones: no hay avisos al otro participante. El job que cancela o cierra los viajes vencidos (RF-08) está pendiente |
 | Billetera | `GET /wallet`, `GET /wallet/movements`, `POST /wallet/top-ups`, `POST /wallet/withdrawals` | Implementado: saldo, retenido y retirable, movimientos, recarga simulada (RN-41) y retiro (RN-42). El job `ReversionRetirosJob` devuelve cada minuto los retiros que el operador marca `RECHAZADO` |
 | Perfil | `GET` y `PUT /users/me` | Implementado; la foto es opcional hasta que exista `POST /files` |
+| Historial | `GET /history?role&page` | Implementado (RF-09, RN-50): como pasajero o como conductor, 20 por página, con lo que falta calificar en cada viaje completado |
+| Calificaciones | `GET /ratings/rides/{rideId}`, `POST /ratings` | Implementado (RF-10, RN-47): plazo de 24 h desde `fecha_fin` (`dias_para_calificar`), una por reserva y persona, promedio recalculado en una transacción y copiado en los viajes activos. Sin la notificación «Viaje completado» |
 
 El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módulo. Cada módulo tiene tres capas: `application` (casos de uso), `domain` (model, dto, validation) e `infrastructure` (web, persistence, security, mail).
 
@@ -64,6 +66,7 @@ El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módu
 | `users` | Modelo `Usuario`, con su vehículo embebido, y sus reglas (`ReglasUsuario`, RN-01 a RN-05 y RN-14); consulta y actualización del perfil. |
 | `vehicles` | Registro, consulta y actualización del vehículo, que se guarda embebido en `Usuario`; sus reglas (`ReglasVehiculo`, RN-07 a RN-09). |
 | `rides` | Listado, detalle y publicación de viajes (`ViajeService`) y reserva de plazas (`ReservaService`); modelos `Viaje` y `Reserva` y sus reglas (`ReglasViaje`, RN-11 a RN-13). |
+| `ratings` | Calificaciones (`CalificacionService`): contexto para calificar, registro y promedio del calificado; modelo `CalificacionViaje` (colección `calificaciones`). El historial (`HistorialService`) vive en `rides`. |
 | `wallet` | Billetera (`BilleteraService`), libro de créditos (`LibroCreditos`: cada cambio de saldo con su movimiento, retención, reembolso y liquidación) y el job de reversión de retiros; modelos `Pago`, `MovimientoCredito` y `Retiro`. |
 | `files` | Modelo `Archivo` y su repositorio. |
 | `shared` | Lo transversal: errores (`CodigoError`, `ApiException`, `ManejadorErrores`), validaciones comunes, alcances del token, seguridad, CORS y configuración. |
@@ -175,6 +178,9 @@ Están centralizados, con su estado HTTP, en el enum `CodigoError`. Los cuatro p
 | `OPERATION_CODE_ALREADY_USED` | 409 | Este código de operación ya fue registrado (RN-41) |
 | `WITHDRAWAL_PENDING` | 409 | Ya tienes un retiro pendiente (RN-42) |
 | `DRIVER_ROLE_REQUIRED` | 403 | Solo los conductores pueden retirar créditos (RF-12) |
+| `RATING_NOT_ALLOWED` | 403 | Solo pueden calificar quienes hicieron el viaje (RN-47) |
+| `RATING_WINDOW_CLOSED` | 409 | El plazo para calificar este viaje terminó (RN-47) |
+| `ALREADY_RATED` | 409 | Ya calificaste a esta persona en este viaje (RN-47) |
 | `OTP_INVALID` | 400 | Código inválido. Te quedan N intentos. (`details.attemptsLeft`) |
 | `OTP_EXPIRED` | 400 | El código expiró. Solicita uno nuevo. |
 | `OTP_ATTEMPTS_EXCEEDED` | 429 | Agotaste los intentos. Solicita un nuevo código. |
@@ -506,6 +512,24 @@ Negocio: 409 `PROFILE_INCOMPLETE` («Completa tu perfil antes de recargar crédi
 | `yapePhone` | Obligatorio; 9 dígitos que empiezan con 9 | Ingresa un celular de 9 dígitos que empiece con 9. |
 
 Negocio, en orden: 403 `DRIVER_ROLE_REQUIRED` («Solo los conductores pueden retirar créditos»), 400 el mínimo, 409 `WITHDRAWAL_PENDING` («Ya tienes un retiro pendiente»; también lo da el índice único parcial de `retiros`) y 400 el tope retirable. En una transacción se crea el retiro `PENDIENTE` y el movimiento `RETIRO`, que descuenta el saldo. Responde 201 con `{ id, credits, phoneLast3, status, requestedAt, balance }`.
+
+**`GET /history?role=PASSENGER|DRIVER&page=N`** (RF-09, RN-50)
+
+`role` es obligatorio: otro valor responde 400 `VALIDATION_ERROR` en `role` («El rol debe ser PASSENGER o DRIVER»). `{ data, page, hasMore }`, 20 por página, del más reciente al más antiguo por hora de salida. Como pasajero lista sus reservas `COMPLETADA`, `CANCELADA` y `NO_SE_PRESENTO` con el viaje (sede, conductor, vehículo); `credits` es `total_creditos` (0 si la reserva es anterior a la billetera). Como conductor lista sus viajes `COMPLETADO` y `CANCELADO` con los pasajeros que subieron, `noShows`, `refundedBookings` y `credits` (lo cobrado de las reservas `COMPLETADA` y `NO_SE_PRESENTO` liquidadas). En los completados, `rating` trae `deadline` (`fecha_fin` + `dias_para_calificar`), `open`, `pending` y `given` (nombre y puntaje, sin comentario). Nunca expone la asistencia de movilidad (RN-22).
+
+**`GET /ratings/rides/{rideId}`** (RF-10)
+
+404 `RIDE_NOT_FOUND`; 403 `RATING_NOT_ALLOWED` («Solo pueden calificar quienes hicieron el viaje») si el viaje no está `COMPLETADO` o el usuario no es su conductor ni un pasajero `COMPLETADA`. Devuelve `{ ride, role, deadline, open, targets }`: el pasajero recibe a su conductor (con el vehículo) y el conductor, a cada pasajero `COMPLETADA`; `rated` marca a quien ya calificó. Con el plazo vencido responde 200 con `open: false`.
+
+**`POST /ratings`** (RN-47)
+
+| Campo | Regla | Mensaje |
+| --- | --- | --- |
+| `bookingId` | Obligatorio; ObjectId | Indica la reserva que calificas / El identificador no es válido |
+| `score` | Obligatorio; entero de 1 a 5 | Toca una estrella para calificar / Elige de 1 a 5 estrellas |
+| `comment` | Opcional; hasta 200 caracteres (en blanco se guarda `null`) | El comentario admite hasta 200 caracteres |
+
+Negocio, en orden: 403 `RATING_NOT_ALLOWED` (reserva inexistente o no `COMPLETADA`, viaje no `COMPLETADO`, o el autor no es el pasajero de la reserva ni el conductor del viaje), 409 `RATING_WINDOW_CLOSED` («El plazo para calificar este viaje terminó»: pasaron `dias_para_calificar` días desde `fecha_fin`) y 409 `ALREADY_RATED` («Ya calificaste a esta persona en este viaje»; también lo da el índice único `reserva_id` + `autor.id` + `usuario_calificado_id` ante dos envíos simultáneos). En una transacción se inserta la calificación y se recalcula `usuarios.calificacion` del calificado con una agregación (promedio a un decimal y cantidad); después se copia en `conductor.calificacion` de sus viajes `PUBLICADO` y `EN_CURSO`. Responde 201 con `{ id, rideId, bookingId, ratedUserId, ratedRole, score, comment, createdAt }`. El comentario solo se devuelve aquí, a su autor.
 
 El operador resuelve el retiro en Atlas: `estado = PAGADO` con `codigo_operacion` y `fecha_resolucion`, o `estado = RECHAZADO` con `motivo_rechazo`. `ReversionRetirosJob` (cada 60 s, configurable con `app.jobs.reversion-retiros`) devuelve los rechazados con `reversion_aplicada` distinto de `true`: inserta `REVERSION_RETIRO`, sube el saldo y marca `reversion_aplicada = true`, en una transacción.
 

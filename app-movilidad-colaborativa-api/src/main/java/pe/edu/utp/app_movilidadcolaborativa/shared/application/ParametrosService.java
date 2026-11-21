@@ -21,9 +21,10 @@ public class ParametrosService {
 
 	public record Parametros(int maxCancelacionesConductor, int maxCancelacionesPasajero,
 			int ventanaCancelacionesDias, int minutosLimiteCancelacion, int minutosInicioAnticipado,
-			int minutosToleranciaInicio, int recargaMinima, int recargaMaxima, int retiroMinimo) {
+			int minutosToleranciaInicio, int recargaMinima, int recargaMaxima, int retiroMinimo,
+			int diasParaCalificar) {
 
-		public static final Parametros POR_DEFECTO = new Parametros(10, 5, 30, 30, 15, 30, 5, 200, 10);
+		public static final Parametros POR_DEFECTO = new Parametros(10, 5, 30, 30, 15, 30, 5, 200, 10, 1);
 	}
 
 	public Parametros leer() {
@@ -40,7 +41,8 @@ public class ParametrosService {
 				entero(config, "minutos_tolerancia_inicio", Parametros.POR_DEFECTO.minutosToleranciaInicio()),
 				entero(config, "recarga_minima", Parametros.POR_DEFECTO.recargaMinima()),
 				entero(config, "recarga_maxima", Parametros.POR_DEFECTO.recargaMaxima()),
-				entero(config, "retiro_minimo", Parametros.POR_DEFECTO.retiroMinimo()));
+				entero(config, "retiro_minimo", Parametros.POR_DEFECTO.retiroMinimo()),
+				entero(config, "dias_para_calificar", Parametros.POR_DEFECTO.diasParaCalificar()));
 	}
 
 	private static int entero(Document config, String campo, int porDefecto) {

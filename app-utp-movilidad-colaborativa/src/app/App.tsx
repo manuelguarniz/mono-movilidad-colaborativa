@@ -2,11 +2,13 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/app/layouts/AppLayout";
 import { CompleteProfilePage } from "@/features/auth/pages/CompleteProfilePage";
 import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
+import { HistoryPage } from "@/features/history/pages/HistoryPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { MyRidesPage } from "@/features/my-rides/pages/MyRidesPage";
 import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 import { UpdateProfilePage } from "@/features/profile/pages/UpdateProfilePage";
 import { PublishRidePage } from "@/features/rides/pages/PublishRidePage";
+import { RatePage } from "@/features/ratings/pages/RatePage";
 import { RideDetailPage } from "@/features/rides/pages/RideDetailPage";
 import { RegisterPage } from "@/features/auth/pages/RegisterPage";
 import { RegisterVehiclePage } from "@/features/vehicles/pages/RegisterVehiclePage";
@@ -45,6 +47,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/mis-viajes" element={<MyRidesPage />} />
+            <Route path="/historial" element={<HistoryPage />} />
             <Route path="/billetera" element={<WalletPage />} />
             <Route path="/perfil" element={<ProfilePage />} />
           </Route>
@@ -52,6 +55,7 @@ export default function App() {
           <Route path="/perfil/vehiculo" element={<UpdateVehiclePage />} />
           <Route path="/viajes/publicar" element={<PublishRidePage />} />
           <Route path="/viajes/:rideId" element={<RideDetailPage />} />
+          <Route path="/calificar/:rideId" element={<RatePage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/auth/login" replace />} />

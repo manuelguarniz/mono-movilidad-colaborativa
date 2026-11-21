@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { dashboardService } from "@/features/dashboard/services/dashboardService";
 import { DriverMyRides } from "@/features/my-rides/components/DriverMyRides";
@@ -13,13 +14,25 @@ const TOAST_MS = 3000;
  * los viajes del conductor (17-B). El modo solo se indica; se cambia desde el perfil (RN-48).
  */
 export function MyRidesPage() {
-  const [toast, setToast] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Aviso que deja otra pantalla al volver aquí (P20 tras «Finalizar viaje»: «Viaje finalizado»).
+  const [toast, setToast] = useState<string | null>(
+    () => (location.state as { toast?: string } | null)?.toast ?? null,
+  );
   const userQuery = useQuery({
     queryKey: ["users", "me"],
     queryFn: dashboardService.getCurrentUser,
   });
   const user = userQuery.data;
   const isDriver = user?.activeMode === "DRIVER";
+
+  // El aviso se muestra una vez: se quita del historial para que recargar no lo repita.
+  useEffect(() => {
+    if ((location.state as { toast?: string } | null)?.toast) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
     if (!toast) {

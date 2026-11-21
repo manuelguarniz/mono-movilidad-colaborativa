@@ -2,7 +2,7 @@
 
 | Módulo | RF | Frame de referencia |
 | --- | --- | --- |
-| Perfil | RF-01, RF-14 | `frames/13. perfil_pasajero.jpeg` |
+| Perfil | RF-01, RF-14 | `frames/13. perfil_pasajero.jpeg` · Rediseño en diseño ([prompt.md](prompt.md)) |
 
 ![Pantalla](screen.jpeg)
 

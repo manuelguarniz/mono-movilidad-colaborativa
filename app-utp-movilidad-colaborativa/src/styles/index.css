@@ -959,4 +959,92 @@ body {
   .wallet-help {
     @apply mt-1.5 text-sm text-[var(--text-muted)];
   }
+
+  /* Historial (frames 19-A a 19-C). */
+  .history-tabs {
+    @apply grid grid-cols-2 gap-1 rounded-xl bg-[var(--surface-muted)] p-1;
+  }
+
+  .history-tab {
+    @apply rounded-lg px-2 py-2.5 text-[0.9375rem] font-medium text-[var(--text-muted)] transition;
+  }
+
+  .history-tab[aria-selected="true"] {
+    @apply bg-white font-semibold text-[var(--text-primary)] shadow-sm;
+  }
+
+  .history-card {
+    @apply rounded-2xl border border-[var(--border-neutral)] bg-white p-4 shadow-sm;
+  }
+
+  /* Cancelados y ausencias: contenido atenuado (19-A, 19-B). */
+  .history-card-muted > * {
+    @apply opacity-70;
+  }
+
+  .history-chip {
+    @apply inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  /* Ajuste 1 de P19: los avatares se superponen 4 px (8 px como máximo) para que se lean las iniciales. */
+  .history-avatar {
+    @apply flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--surface-muted)] text-[0.625rem] font-semibold text-[var(--text-brown)] ring-2 ring-white;
+  }
+
+  .history-avatar + .history-avatar {
+    @apply -ml-1;
+  }
+
+  /* Ajuste 2 de P19: el mismo espacio entre la ruta (o las personas) y la línea divisoria. */
+  .history-divider {
+    @apply mt-3 border-t border-[var(--border-neutral)] pt-3;
+  }
+
+  .history-rating-box {
+    @apply mt-3 flex items-center justify-between gap-3 rounded-xl bg-[#f6f6f6] px-3 py-2.5 text-sm text-[var(--text-brown)];
+  }
+
+  .history-rate-button {
+    @apply mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-soft)] px-4 text-[0.9375rem] font-semibold text-[var(--brand-red)] transition active:scale-[0.99];
+  }
+
+  /* Calificar (frames 20-A a 20-D). */
+  .rate-trip-box {
+    @apply rounded-xl bg-[var(--surface-muted)] px-4 py-3;
+  }
+
+  .rate-person-card {
+    @apply rounded-2xl border border-[var(--border-neutral)] bg-white px-4 py-5 text-center shadow-sm;
+  }
+
+  .rate-avatar {
+    @apply mx-auto flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded-full bg-[var(--surface-muted)] text-2xl font-semibold text-[var(--text-brown)];
+  }
+
+  /* Área táctil de 48 px (RNF de accesibilidad) con estrellas de 40 px. */
+  .rate-star {
+    @apply flex h-12 w-12 items-center justify-center rounded-full text-[#c9c9c9] transition active:scale-95 disabled:active:scale-100;
+  }
+
+  .rate-star[aria-checked="true"],
+  .rate-star-filled {
+    @apply text-[#f59e0b];
+  }
+
+  .rate-textarea {
+    @apply w-full resize-none rounded-xl border border-[var(--border-neutral)] bg-white px-4 pb-8 pt-3 text-[0.9375rem] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-placeholder)] focus:border-[var(--brand-red)] disabled:bg-[var(--surface-muted)];
+  }
+
+  .rate-progress {
+    @apply mt-2 grid gap-2;
+  }
+
+  .rate-progress-segment {
+    @apply h-1.5 rounded-full bg-[var(--surface-muted)];
+  }
+
+  .rate-footer {
+    @apply sticky bottom-0 mt-auto border-t border-[var(--border-neutral)] bg-[var(--webview-bg)] px-[var(--webview-px)] pt-3;
+    padding-bottom: max(0.75rem, var(--safe-bottom));
+  }
 }

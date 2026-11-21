@@ -173,6 +173,20 @@ export type MockFile = {
   sizeBytes: number;
 };
 
+/** Calificación de `calificaciones` (RN-47). El comentario solo se devuelve a su autor. */
+export type MockRating = {
+  id: string;
+  rideId: string;
+  bookingId: string;
+  authorId: string;
+  authorName: string;
+  ratedUserId: string;
+  ratedRole: Role;
+  score: number;
+  comment: string | null;
+  createdAt: string;
+};
+
 type Database = {
   users: MockUser[];
   rides: MockRide[];
@@ -181,6 +195,7 @@ type Database = {
   files: MockFile[];
   movements: MockMovement[];
   withdrawals: MockWithdrawal[];
+  ratings: MockRating[];
 };
 
 // Los id siguen la numeración de `docs/seed.js` y de los ejemplos del README:
@@ -643,7 +658,7 @@ function seed(): Database {
   const reservation = (
     n: number,
     rideId: string,
-    who: ReturnType<typeof passenger>,
+    who: MockReservation["passenger"],
     seats: number,
     price: number,
     extra: Partial<MockReservation> = {},
@@ -677,6 +692,10 @@ function seed(): Database {
   ];
   rides.find((ride) => ride.id === oid(503))!.availableSeats = 2;
 
+  const history = seedHistory({ valeria, carlos, andrea, buildRide, reservation, passenger, campusPlace, golf });
+  rides.push(...history.rides);
+  reservations.push(...history.reservations);
+
   const wallet = seedWallets(valeria, carlos, andrea, minutesFromNow);
 
   return {
@@ -686,6 +705,7 @@ function seed(): Database {
     otps: {},
     files: [],
     ...wallet,
+    ratings: history.ratings,
   };
 }
 
@@ -693,7 +713,7 @@ function seed(): Database {
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
 // El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
-const STORAGE_KEY = "colaboracar_mock_db_v5";
+const STORAGE_KEY = "colaboracar_mock_db_v6";
 
 function load(): Database {
   try {
@@ -836,4 +856,150 @@ function seedWallets(
   });
 
   return { movements, withdrawals };
+}
+
+type SeedHelpers = {
+  valeria: MockUser;
+  carlos: MockUser;
+  andrea: MockUser;
+  buildRide: (
+    n: number,
+    driver: MockUser,
+    data: Pick<
+      MockRide,
+      | "direction"
+      | "departureTime"
+      | "pricePerSeat"
+      | "availableSeats"
+      | "conditions"
+      | "origin"
+      | "destination"
+      | "stops"
+    >,
+  ) => MockRide;
+  reservation: (
+    n: number,
+    rideId: string,
+    who: { name: string; photoUrl: string | null; rating: Rating | null },
+    seats: number,
+    price: number,
+    extra?: Partial<MockReservation>,
+  ) => MockReservation;
+  passenger: (name: string, average: number) => { name: string; photoUrl: null; rating: Rating };
+  campusPlace: Place;
+  golf: Place;
+};
+
+/**
+ * Viajes terminados de los frames de P19 y P20 (ids ...051x y ...061x). Valeria hace el papel
+ * de Lucía R. en 19-A: el viaje de hace 3 h con Carlos se puede calificar (24 h desde el fin),
+ * el de hace 3 días ya venció y el de Andrea ya está calificado. Carlos (19-B) tiene dos viajes
+ * de hoy por calificar, uno calificado, dos cancelados y uno con calificación completa.
+ */
+function seedHistory({ valeria, carlos, andrea, buildRide, reservation, passenger, campusPlace, golf }: SeedHelpers) {
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+  const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+  const huanchaco: Place = {
+    label: "Huanchaco",
+    address: "Huanchaco, Trujillo",
+    location: { lat: -8.0783, lng: -79.1213 },
+  };
+  const california: Place = {
+    label: "Urb. California",
+    address: "Víctor Larco",
+    location: { lat: -8.1162, lng: -79.0365 },
+  };
+  const valeriaCopy = { name: "Valeria R.", photoUrl: null, rating: { average: 4.8, count: 15 } };
+
+  const finished = (
+    n: number,
+    driver: MockUser,
+    departedAgo: number,
+    price: number,
+    origin: Place,
+    destination: Place,
+    status: "COMPLETED" | "CANCELLED" = "COMPLETED",
+    cancelledBy: Actor | null = null,
+  ): MockRide => {
+    const ride = buildRide(n, driver, {
+      direction: origin === campusPlace ? "TO_HOME" : "TO_CAMPUS",
+      departureTime: at(departedAgo),
+      pricePerSeat: price,
+      availableSeats: 0,
+      conditions: [],
+      origin,
+      destination,
+      stops: [],
+    });
+    return status === "COMPLETED"
+      ? { ...ride, status, startedAt: at(departedAgo), finishedAt: at(departedAgo - 30 * 60 * 1000) }
+      : { ...ride, status, cancelledBy, cancelledAt: at(departedAgo + HOUR) };
+  };
+
+  const rides = [
+    finished(511, carlos, 3 * HOUR, 6, campusPlace, golf),
+    finished(512, carlos, 4 * HOUR, 9, california, campusPlace),
+    finished(513, carlos, 3 * DAY, 6, campusPlace, golf),
+    finished(514, carlos, 5 * DAY, 6, golf, campusPlace, "CANCELLED", "DRIVER"),
+    finished(515, carlos, 8 * DAY, 6, golf, campusPlace, "CANCELLED", "SYSTEM"),
+    finished(516, carlos, 9 * DAY, 6, golf, campusPlace),
+    finished(517, andrea, 7 * DAY, 4, huanchaco, campusPlace),
+    finished(518, carlos, 14 * DAY, 6, campusPlace, golf),
+    finished(519, carlos, 17 * DAY, 6, campusPlace, golf),
+  ];
+  const settled = { settled: true };
+  const own = (r: MockReservation) => ({ ...r, passengerId: valeria.id, passenger: valeriaCopy });
+  const cancelled = (by: Actor, ago: number) => ({
+    status: "CANCELLED" as const,
+    cancelledBy: by,
+    cancelledAt: at(ago),
+    settled: true,
+  });
+
+  const reservations: MockReservation[] = [
+    own(reservation(611, oid(511), valeriaCopy, 2, 6, { status: "COMPLETED", ...settled })),
+    reservation(612, oid(511), passenger("Jorge P.", 4.6), 1, 6, { status: "NO_SHOW", ...settled }),
+    reservation(613, oid(512), passenger("Mateo R.", 4.7), 1, 9, { status: "COMPLETED", ...settled }),
+    reservation(614, oid(512), passenger("Sofía A.", 4.9), 1, 9, { status: "COMPLETED", ...settled }),
+    own(reservation(615, oid(513), valeriaCopy, 2, 6, { status: "COMPLETED", ...settled })),
+    reservation(616, oid(514), passenger("Diego C.", 4.7), 1, 6, cancelled("DRIVER", 5 * DAY + HOUR)),
+    reservation(617, oid(514), passenger("Ana V.", 4.5), 1, 6, cancelled("DRIVER", 5 * DAY + HOUR)),
+    reservation(618, oid(515), passenger("Mateo R.", 4.7), 1, 6, cancelled("SYSTEM", 8 * DAY - HOUR)),
+    reservation(619, oid(516), passenger("Diego C.", 4.7), 1, 6, { status: "COMPLETED", ...settled }),
+    reservation(620, oid(516), passenger("Ana V.", 4.5), 2, 6, { status: "COMPLETED", ...settled }),
+    own(reservation(621, oid(516), valeriaCopy, 1, 6, { status: "NO_SHOW", ...settled })),
+    own(reservation(622, oid(517), valeriaCopy, 1, 4, { status: "COMPLETED", ...settled })),
+    own(reservation(623, oid(518), valeriaCopy, 1, 6, { status: "COMPLETED", ...settled })),
+    own(reservation(624, oid(519), valeriaCopy, 1, 6, cancelled("PASSENGER", 18 * DAY))),
+  ];
+
+  const rating = (
+    n: number,
+    bookingId: string,
+    rideId: string,
+    author: MockUser,
+    authorName: string,
+    ratedUserId: string,
+    ratedRole: Role,
+    score: number,
+  ): MockRating => ({
+    id: oid(n),
+    rideId,
+    bookingId,
+    authorId: author.id,
+    authorName,
+    ratedUserId,
+    ratedRole,
+    score,
+    comment: null,
+    createdAt: at(2 * DAY),
+  });
+  const ratings = [
+    rating(1001, oid(615), oid(513), carlos, "Carlos M.", valeria.id, "PASSENGER", 5),
+    rating(1002, oid(619), oid(516), carlos, "Carlos M.", oid(719), "PASSENGER", 5),
+    rating(1003, oid(620), oid(516), carlos, "Carlos M.", oid(720), "PASSENGER", 5),
+    rating(1004, oid(622), oid(517), valeria, "Valeria R.", andrea.id, "DRIVER", 5),
+  ];
+  return { rides, reservations, ratings };
 }

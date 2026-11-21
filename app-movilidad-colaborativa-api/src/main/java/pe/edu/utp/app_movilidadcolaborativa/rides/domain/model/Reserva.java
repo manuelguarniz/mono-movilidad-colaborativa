@@ -12,12 +12,13 @@ import java.time.Instant;
 /**
  * Colección reservas. El índice único parcial impide dos reservas CONFIRMADA del mismo pasajero
  * en un viaje y permite volver a reservar después de cancelar. canceladaPor y fechaCancelacion son null salvo en
- * CANCELADA.
+ * CANCELADA. El segundo índice sirve al historial del pasajero (RF-09).
  */
 @Builder
 @Document("reservas")
 @CompoundIndex(def = "{ 'viaje_id': 1, 'pasajero.id': 1 }", unique = true,
 		partialFilter = "{ 'estado': 'CONFIRMADA' }")
+@CompoundIndex(def = "{ 'pasajero.id': 1, 'viaje.fecha_salida': -1 }")
 public record Reserva(
 		@Id ObjectId id,
 		ObjectId viajeId,

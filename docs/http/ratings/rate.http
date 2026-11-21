@@ -1,0 +1,59 @@
+# Calificar (RF-10, RN-47)
+# GET /ratings/rides/{rideId} · POST /ratings
+#
+# Requiere token SESSION. Plazo: 24 h desde el fin del viaje (dias_para_calificar = 1).
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+@rideId = 6705a1f0c3d4e5f600000501
+@bookingId = 6705a1f0c3d4e5f600000601
+
+### 200 · Contexto del pasajero (20-A): califica a su conductor
+# {
+#   "ride": { "id": "…", "departureTime": "…", "finishedAt": "…",
+#             "campus": { "id": "…", "name": "UTP Sede Trujillo", "city": "Trujillo" },
+#             "origin": { "label": "Campus UTP Trujillo", "address": null },
+#             "destination": { "label": "Urb. El Golf", "address": "Víctor Larco" } },
+#   "role": "PASSENGER", "deadline": "2026-10-30T19:50:00Z", "open": true,
+#   "targets": [ { "bookingId": "…0601", "userId": "…", "name": "Carlos M.", "photoUrl": null,
+#                  "role": "DRIVER", "seats": null,
+#                  "vehicle": { "brand": "Toyota", "model": "Yaris", "color": "Blanco", "plate": "ABC-123" },
+#                  "rated": false } ]
+# }
+# Con el plazo vencido: 200 con "open": false (20-D).
+GET {{baseUrl}}/ratings/rides/{{rideId}}
+Authorization: Bearer {{sessionToken}}
+
+### 201 · Calificación registrada
+# { "id": "…", "rideId": "…", "bookingId": "…0601", "ratedUserId": "…", "ratedRole": "DRIVER",
+#   "score": 4, "comment": "Puntual y manejó con cuidado.", "createdAt": "…" }
+POST {{baseUrl}}/ratings
+Authorization: Bearer {{sessionToken}}
+Content-Type: application/json
+
+{ "bookingId": "{{bookingId}}", "score": 4, "comment": "Puntual y manejó con cuidado." }
+
+### 400 · Sin estrellas y comentario largo
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [ { "field": "comment", "message": "El comentario admite hasta 200 caracteres" },
+#               { "field": "score", "message": "Toca una estrella para calificar" } ] }
+POST {{baseUrl}}/ratings
+Authorization: Bearer {{sessionToken}}
+Content-Type: application/json
+
+{ "bookingId": "{{bookingId}}", "comment": "…más de 200 caracteres…" }
+
+### 403 · No hizo el viaje (o la reserva no quedó COMPLETADA)
+# { "code": "RATING_NOT_ALLOWED", "message": "Solo pueden calificar quienes hicieron el viaje" }
+
+### 409 · Pasaron 24 h desde el fin del viaje
+# { "code": "RATING_WINDOW_CLOSED", "message": "El plazo para calificar este viaje terminó" }
+
+### 409 · Ya la calificó
+# { "code": "ALREADY_RATED", "message": "Ya calificaste a esta persona en este viaje" }
+POST {{baseUrl}}/ratings
+Authorization: Bearer {{sessionToken}}
+Content-Type: application/json
+
+{ "bookingId": "{{bookingId}}", "score": 5 }

@@ -10,7 +10,7 @@ type NavItem = {
   id: string;
   label: string;
   icon: ReactNode;
-  // Sin ruta: la sección todavía no está implementada (P19).
+  // Sin ruta: la sección todavía no está implementada.
   to?: string;
 };
 
@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
   {
     id: "history",
     label: "Historial",
+    to: "/historial",
     icon: <HistoryIcon className="h-6 w-6" />,
   },
   {

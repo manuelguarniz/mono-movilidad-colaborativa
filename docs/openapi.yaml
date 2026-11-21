@@ -78,6 +78,10 @@ tags:
     description: Perfil del usuario autenticado (RF-19 a RF-21, RN-14).
   - name: Wallet
     description: Billetera, recarga simulada con Yape y retiro del conductor (RF-11, RF-12).
+  - name: History
+    description: Historial de viajes terminados, como pasajero y como conductor (RF-09).
+  - name: Ratings
+    description: Calificaciones entre participantes de un viaje completado (RF-10, RN-47).
 
 security:
   - bearerAuth: []
@@ -1432,6 +1436,131 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /history:
+    get:
+      tags: [History]
+      operationId: getHistory
+      summary: Mi historial de viajes
+      description: |
+        RF-09 (P19), RN-50. Como pasajero (`role=PASSENGER`), las reservas `COMPLETADA`,
+        `CANCELADA` y `NO_SE_PRESENTO`; como conductor (`role=DRIVER`), los viajes `COMPLETADO`
+        y `CANCELADO`. Del más reciente al más antiguo por hora de salida, 20 por página, sin
+        límite de antigüedad. `role` es un filtro, no el modo activo (RN-48). Nunca incluye la
+        asistencia de movilidad (RN-22) ni comentarios de calificaciones.
+      parameters:
+        - name: role
+          in: query
+          required: true
+          schema: { type: string, enum: [PASSENGER, DRIVER] }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+      responses:
+        "200":
+          description: Página del historial.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryPage"
+        "400":
+          description: "`VALIDATION_ERROR` en `role` («El rol debe ser PASSENGER o DRIVER»)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /ratings/rides/{rideId}:
+    get:
+      tags: [Ratings]
+      operationId: getRatingContext
+      summary: Qué puedo calificar en un viaje
+      description: |
+        RF-10 (P20). El resumen del viaje, el rol del usuario en él, el plazo (`deadline` =
+        `fecha_fin` + `dias_para_calificar`, 24 h) y las personas que califica: el pasajero
+        con reserva `COMPLETADA`, a su conductor; el conductor, a cada pasajero `COMPLETADA`.
+        `rated` marca a quien ya calificó. Con el plazo vencido responde 200 con `open: false`
+        (frame 20-D). No incluye la calificación actual de las personas.
+      parameters:
+        - $ref: "#/components/parameters/RideId"
+      responses:
+        "200":
+          description: Contexto para calificar.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RatingContext"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            El viaje no está completado o el usuario no lo hizo (`RATING_NOT_ALLOWED`: «Solo
+            pueden calificar quienes hicieron el viaje»), o el token no es de sesión
+            (`FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/RideNotFound"
+
+  /ratings:
+    post:
+      tags: [Ratings]
+      operationId: createRating
+      summary: Calificar a una persona del viaje
+      description: |
+        RF-10, RN-47 (secuencia 8.4). Una calificación por petición. `bookingId` es la reserva
+        del pasajero: si el autor es ese pasajero califica al conductor; si es el conductor,
+        califica a ese pasajero. En una transacción se inserta la calificación y se recalcula
+        `usuarios.calificacion` del calificado (promedio a un decimal y cantidad); después se
+        copia en sus viajes activos. No se edita ni se borra. El comentario solo se devuelve
+        a su autor.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RatingRequest"
+      responses:
+        "201":
+          description: Calificación registrada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RideRating"
+        "400":
+          description: |
+            `VALIDATION_ERROR` en `score` («Toca una estrella para calificar» o «Elige de 1 a 5
+            estrellas»), `comment` («El comentario admite hasta 200 caracteres») o `bookingId`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            La reserva no existe, no es `COMPLETADA`, el viaje no está `COMPLETADO` o el usuario
+            no es su pasajero ni su conductor (`RATING_NOT_ALLOWED`: «Solo pueden calificar
+            quienes hicieron el viaje»).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            Pasaron 24 h desde el fin del viaje (`RATING_WINDOW_CLOSED`: «El plazo para
+            calificar este viaje terminó») o ya calificó a esa persona en este viaje
+            (`ALREADY_RATED`: «Ya calificaste a esta persona en este viaje»).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1519,7 +1648,8 @@ components:
             `PASSENGER_CANCELLATION_LIMIT`, `OWN_RIDE`, `BOOKING_NOT_FOUND`,
             `INVALID_STATUS`, `CANCELLATION_DEADLINE_PASSED`, `START_WINDOW_CLOSED`,
             `RIDE_IN_PROGRESS_EXISTS`, `INSUFFICIENT_CREDITS`, `OPERATION_CODE_ALREADY_USED`,
-            `WITHDRAWAL_PENDING`, `DRIVER_ROLE_REQUIRED`, `INTERNAL_ERROR`.
+            `WITHDRAWAL_PENDING`, `DRIVER_ROLE_REQUIRED`, `RATING_NOT_ALLOWED`,
+            `RATING_WINDOW_CLOSED`, `ALREADY_RATED`, `INTERNAL_ERROR`.
 
             Una ruta o un método que no existe responde con el nombre del estado HTTP
             (`NOT_FOUND`, `METHOD_NOT_ALLOWED`) y el mensaje `La solicitud no es válida`.
@@ -1599,8 +1729,8 @@ components:
     Rating:
       type: object
       description: |
-        Calificación del usuario. Las calificaciones son del próximo alcance: por ahora
-        el backend devuelve el valor guardado, sin forma de modificarlo.
+        Promedio de estrellas recibidas (a un decimal) y cantidad. Se recalcula con cada
+        calificación (RN-47); sin calificaciones es `null` y la app muestra «Nuevo».
       required: [average, count]
       properties:
         average:
@@ -2941,3 +3071,162 @@ components:
           type: integer
           description: Saldo disponible después del descuento.
           example: 46
+
+    # --------------------------------------------------------------- Historial
+    HistoryPage:
+      type: object
+      required: [data, page, hasMore]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/HistoryEntry" }
+        page: { type: integer }
+        hasMore: { type: boolean }
+
+    HistoryEntry:
+      type: object
+      description: |
+        Viaje terminado. Como pasajero, `id` es la reserva y `status` sale de ella; como
+        conductor, `id` es el viaje. `credits`: como pasajero, lo que pagó (`COMPLETED`), le
+        devolvieron (`CANCELLED`) o se pagó al conductor (`NO_SHOW`), 0 en reservas anteriores
+        a la billetera; como conductor, lo cobrado de los que subieron y de los ausentes.
+        `seats` y `driver` solo como pasajero; `passengers`, `noShows` y `refundedBookings`
+        solo como conductor. `rating` solo en viajes completados que se califican.
+      required: [id, rideId, role, status, departureTime, origin, destination, credits]
+      properties:
+        id: { $ref: "#/components/schemas/ObjectId" }
+        rideId: { $ref: "#/components/schemas/ObjectId" }
+        role: { type: string, enum: [PASSENGER, DRIVER] }
+        status: { type: string, enum: [COMPLETED, CANCELLED, NO_SHOW] }
+        cancelledBy: { type: [string, "null"], enum: [PASSENGER, DRIVER, SYSTEM, null] }
+        departureTime: { type: string, format: date-time }
+        finishedAt: { type: [string, "null"], format: date-time }
+        campus: { $ref: "#/components/schemas/RideCampus" }
+        origin: { $ref: "#/components/schemas/PlaceSummary" }
+        destination: { $ref: "#/components/schemas/PlaceSummary" }
+        seats: { type: [integer, "null"] }
+        credits: { type: integer, example: 12 }
+        driver:
+          oneOf:
+            - $ref: "#/components/schemas/RideDriver"
+            - type: "null"
+        vehicle:
+          oneOf:
+            - $ref: "#/components/schemas/RatingVehicle"
+            - type: "null"
+        passengers:
+          type: [array, "null"]
+          description: Pasajeros que subieron (reservas `COMPLETADA`).
+          items:
+            type: object
+            required: [bookingId, id, name, seats]
+            properties:
+              bookingId: { $ref: "#/components/schemas/ObjectId" }
+              id: { $ref: "#/components/schemas/ObjectId" }
+              name: { type: string, example: Lucía R. }
+              photoUrl: { type: [string, "null"] }
+              seats: { type: integer, example: 2 }
+        noShows: { type: [integer, "null"], description: "Pasajeros que no se presentaron." }
+        refundedBookings:
+          type: [integer, "null"]
+          description: Reservas reembolsadas al cancelarse el viaje (por el conductor o el sistema).
+        rating:
+          oneOf:
+            - $ref: "#/components/schemas/HistoryRating"
+            - type: "null"
+
+    HistoryRating:
+      type: object
+      description: |
+        `deadline` = `fecha_fin` + `dias_para_calificar` (24 h); `open` es `false` si ya venció.
+        `pending` es a cuántas personas falta calificar y `given`, las ya calificadas con su
+        puntaje, sin comentario.
+      required: [deadline, open, pending, given]
+      properties:
+        deadline: { type: [string, "null"], format: date-time }
+        open: { type: boolean }
+        pending: { type: integer, minimum: 0 }
+        given:
+          type: array
+          items:
+            type: object
+            required: [userId, name, score]
+            properties:
+              userId: { $ref: "#/components/schemas/ObjectId" }
+              name: { type: string, example: Carlos M. }
+              score: { type: integer, minimum: 1, maximum: 5 }
+
+    # ---------------------------------------------------------- Calificaciones
+    RatingVehicle:
+      type: object
+      required: [brand, model, color, plate]
+      properties:
+        brand: { type: string, example: Toyota }
+        model: { type: string, example: Yaris }
+        color: { type: string, example: Blanco }
+        plate: { type: string, example: ABC-123 }
+
+    RatingContext:
+      type: object
+      required: [ride, role, deadline, open, targets]
+      properties:
+        ride:
+          type: object
+          required: [id, departureTime, origin, destination]
+          properties:
+            id: { $ref: "#/components/schemas/ObjectId" }
+            departureTime: { type: string, format: date-time }
+            finishedAt: { type: [string, "null"], format: date-time }
+            campus: { $ref: "#/components/schemas/RideCampus" }
+            origin: { $ref: "#/components/schemas/PlaceSummary" }
+            destination: { $ref: "#/components/schemas/PlaceSummary" }
+        role:
+          type: string
+          enum: [PASSENGER, DRIVER]
+          description: Rol del usuario autenticado en el viaje.
+        deadline: { type: [string, "null"], format: date-time }
+        open: { type: boolean }
+        targets:
+          type: array
+          items:
+            type: object
+            required: [bookingId, userId, name, role, rated]
+            properties:
+              bookingId:
+                $ref: "#/components/schemas/ObjectId"
+              userId: { $ref: "#/components/schemas/ObjectId" }
+              name: { type: string, example: Carlos M. }
+              photoUrl: { type: [string, "null"] }
+              role: { type: string, enum: [DRIVER, PASSENGER] }
+              seats: { type: [integer, "null"], description: Solo en pasajeros. }
+              vehicle:
+                description: Solo en el conductor.
+                oneOf:
+                  - $ref: "#/components/schemas/RatingVehicle"
+                  - type: "null"
+              rated: { type: boolean }
+
+    RatingRequest:
+      type: object
+      required: [bookingId, score]
+      properties:
+        bookingId: { $ref: "#/components/schemas/ObjectId" }
+        score: { type: integer, minimum: 1, maximum: 5, example: 4 }
+        comment:
+          type: [string, "null"]
+          maxLength: 200
+          description: Opcional; en blanco se guarda como `null`. Solo lo ve su autor.
+          example: Puntual y manejó con cuidado.
+
+    RideRating:
+      type: object
+      required: [id, rideId, bookingId, ratedUserId, ratedRole, score, createdAt]
+      properties:
+        id: { $ref: "#/components/schemas/ObjectId" }
+        rideId: { $ref: "#/components/schemas/ObjectId" }
+        bookingId: { $ref: "#/components/schemas/ObjectId" }
+        ratedUserId: { $ref: "#/components/schemas/ObjectId" }
+        ratedRole: { type: string, enum: [DRIVER, PASSENGER] }
+        score: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }

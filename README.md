@@ -406,7 +406,7 @@ El detalle de las colecciones está en la sección 5.
 
 El detalle para ejecutar, probar y extender el backend está en su propio documento, [app-movilidad-colaborativa-api/README.md](app-movilidad-colaborativa-api/README.md): variables de entorno, tokens, formato de errores, mensajes de validación por endpoint y ejemplos con curl. El contrato de la API es [docs/openapi.yaml](docs/openapi.yaml), y [docs/http/](docs/http/) tiene una solicitud de ejemplo por endpoint, con la respuesta esperada. Aquí solo va el resumen.
 
-El backend implementa 27 de los 28 endpoints del contrato actual. Lo nuevo de este documento que todavía no tiene endpoints figura como pendiente:
+El backend implementa 30 de los 31 endpoints del contrato actual. Lo nuevo de este documento que todavía no tiene endpoints figura como pendiente:
 
 | Módulo | Estado |
 | --- | --- |
@@ -419,7 +419,9 @@ El backend implementa 27 de los 28 endpoints del contrato actual. Lo nuevo de es
 | Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Cancelar reembolsa el 100 % y finalizar paga al conductor (RN-40). Sin notificaciones. Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
 | Archivos (carga de imágenes) | Pendiente |
 | Billetera (consultar, movimientos, recarga simulada y retiro) | Implementado (RF-11, RF-12, RN-41, RN-42), con el job que devuelve los retiros rechazados por el operador. Las reservas creadas antes de la billetera no retuvieron créditos (`reservas.liquidada` ausente) y no se reembolsan ni se cobran |
-| Historial, calificaciones, notificaciones y el resto del job programado | Pendiente |
+| Historial (consultar) | Implementado: `GET /history?role&page`, como pasajero o como conductor, 20 por página (RF-09, RN-50), con lo que falta calificar en cada viaje completado |
+| Calificaciones (consultar y calificar) | Implementado: `GET /ratings/rides/{rideId}` y `POST /ratings` (RF-10, RN-47), con plazo de 24 h desde `fecha_fin`, una por reserva y persona, y promedio del calificado recalculado en una transacción y copiado en sus viajes activos. Sin la notificación «Viaje completado» |
+| Notificaciones y el resto del job programado | Pendiente |
 
 Tres decisiones definen cómo se comporta la API:
 
@@ -1400,13 +1402,13 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 11 | [P11-PublicarViaje/v2.3.png](<docs/design/P11-PublicarViaje/v2.3.png>) | Publicar viaje | Viajes | Implementada · rediseño aprobado |
 | 12 | [12. confirm_publicar_viaje.jpeg](<frames/12. confirm_publicar_viaje.jpeg>) | Confirmar publicación | Viajes | Implementada |
 | 13 | [13. perfil_pasajero.jpeg](<frames/13. perfil_pasajero.jpeg>) | Perfil — pasajero | Perfil | Implementada |
-| 14 | [14. perfil_conductor.jpeg](<frames/14. perfil_conductor.jpeg>) | Perfil — conductor | Perfil | Implementada |
+| 14 | [P14-PerfilConductor/v1.1.png](<docs/design/P14-PerfilConductor/v1.1.png>) | Perfil — conductor | Perfil | Implementada · rediseño aprobado |
 | 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada |
 | 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada (sin SOAT) · rediseño aprobado |
 | 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Diseño aprobado |
 | 18 | — | Notificaciones | Notificaciones | Pendiente de diseño |
-| 19 | [P19-Historial/v3.1.png](<docs/design/P19-Historial/v3.1.png>) | Historial | Historial | Diseño aprobado |
-| 20 | [P20-Calificar/v1.1.png](<docs/design/P20-Calificar/v1.1.png>) | Calificar | Calificaciones | Diseño aprobado |
+| 19 | [P19-Historial/v3.1.png](<docs/design/P19-Historial/v3.1.png>) | Historial | Historial | Implementada |
+| 20 | [P20-Calificar/v1.1.png](<docs/design/P20-Calificar/v1.1.png>) | Calificar | Calificaciones | Implementada |
 | 21 | [P21-Billetera/v1.1.png](<docs/design/P21-Billetera/v1.1.png>) | Billetera | Billetera | Diseño aprobado |
 
 Los frames son una referencia visual y difieren de este documento en los puntos de la tabla. En todos ellos manda este documento.

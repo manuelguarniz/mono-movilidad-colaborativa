@@ -21,6 +21,10 @@ import pe.edu.utp.app_movilidadcolaborativa.auth.infrastructure.web.AuthControll
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.application.CatalogoService;
 import pe.edu.utp.app_movilidadcolaborativa.catalogs.infrastructure.web.CatalogoController;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.MisViajesService;
+import pe.edu.utp.app_movilidadcolaborativa.ratings.application.CalificacionService;
+import pe.edu.utp.app_movilidadcolaborativa.ratings.infrastructure.web.CalificacionController;
+import pe.edu.utp.app_movilidadcolaborativa.rides.application.HistorialService;
+import pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.web.HistorialController;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.application.BilleteraService;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.infrastructure.web.BilleteraController;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.ReservaService;
@@ -75,6 +79,8 @@ class ValidacionSolicitudesTest {
 	private final ReservaService reservaService = mock(ReservaService.class);
 	private final MisViajesService misViajesService = mock(MisViajesService.class);
 	private final BilleteraService billeteraService = mock(BilleteraService.class);
+	private final HistorialService historialService = mock(HistorialService.class);
+	private final CalificacionService calificacionService = mock(CalificacionService.class);
 	private MockMvc mvc;
 
 	@BeforeEach
@@ -86,7 +92,8 @@ class ValidacionSolicitudesTest {
 						new CatalogoController(catalogoService), new UsuarioController(perfilService),
 							new VehiculoController(vehiculoService),
 							new ViajeController(viajeService, reservaService, misViajesService),
-							new ReservaController(misViajesService), new BilleteraController(billeteraService))
+							new ReservaController(misViajesService), new BilleteraController(billeteraService),
+							new HistorialController(historialService), new CalificacionController(calificacionService))
 				.setControllerAdvice(new ManejadorErrores())
 				.setValidator(validador)
 				.setCustomArgumentResolvers(jwtDelUsuario())
@@ -479,5 +486,29 @@ class ValidacionSolicitudesTest {
 				.andExpect(jsonPath("$.errors[0].field").value("yapePhone"))
 				.andExpect(jsonPath("$.errors[0].message").value("Ingresa un celular de 9 dígitos que empiece con 9."));
 		verifyNoInteractions(billeteraService);
+	}
+
+	@Test
+	void laCalificacionExigeEstrellasDe1A5YUnComentarioCorto() throws Exception {
+		mvc.perform(post("/ratings").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"bookingId\":\"6705a1f0c3d4e5f600000601\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("score"))
+				.andExpect(jsonPath("$.errors[0].message").value("Toca una estrella para calificar"));
+		mvc.perform(post("/ratings").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"bookingId\":\"6705a1f0c3d4e5f600000601\",\"score\":6,\"comment\":\"" + "a".repeat(201) + "\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors", hasSize(2)))
+				.andExpect(jsonPath("$.errors[0].message").value("El comentario admite hasta 200 caracteres"))
+				.andExpect(jsonPath("$.errors[1].message").value("Elige de 1 a 5 estrellas"));
+		verifyNoInteractions(calificacionService);
+	}
+
+	@Test
+	void elHistorialExigeUnRolValido() throws Exception {
+		mvc.perform(get("/history").param("role", "ADMIN"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("role"));
+		verifyNoInteractions(historialService);
 	}
 }

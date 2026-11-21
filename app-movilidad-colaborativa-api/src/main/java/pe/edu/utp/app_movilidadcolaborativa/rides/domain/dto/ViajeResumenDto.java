@@ -37,14 +37,14 @@ public record ViajeResumenDto(
 	/** city es la etiqueta del dashboard (RN-49); null en los viajes publicados antes de copiarla. */
 	public record Sede(String id, String name, String city) {
 
-		static Sede desde(SedeViaje sede) {
+		public static Sede desde(SedeViaje sede) {
 			return sede == null ? null : new Sede(sede.id().toHexString(), sede.nombre(), sede.ciudad());
 		}
 	}
 
 	public record Conductor(String id, String name, String photoUrl, CalificacionDto rating) {
 
-		static Conductor desde(ConductorViaje conductor) {
+		public static Conductor desde(ConductorViaje conductor) {
 			return new Conductor(conductor.id().toHexString(), conductor.nombre(), conductor.fotoUrl(),
 					CalificacionDto.desde(conductor.calificacion()));
 		}
@@ -63,7 +63,7 @@ public record ViajeResumenDto(
 
 	public record LugarResumen(String label, String address) {
 
-		static LugarResumen desde(Lugar lugar) {
+		public static LugarResumen desde(Lugar lugar) {
 			return new LugarResumen(lugar.etiqueta(), lugar.direccion());
 		}
 	}

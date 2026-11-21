@@ -77,8 +77,13 @@ class ReglasViajeTest {
 
 		assertThat(indicesDe(indices, Viaje.class)).extracting(IndexDefinition::getIndexKeys).containsExactlyInAnyOrder(
 				new Document("estado", 1).append("sede.id", 1).append("fecha_salida", 1),
-				new Document("conductor.id", 1).append("estado", 1));
-		assertThat(indicesDe(indices, Reserva.class)).singleElement().satisfies(indice -> {
+				new Document("conductor.id", 1).append("estado", 1),
+				new Document("conductor.id", 1).append("fecha_salida", -1));
+		// El historial del pasajero (RF-09).
+		assertThat(indicesDe(indices, Reserva.class)).extracting(IndexDefinition::getIndexKeys)
+				.contains(new Document("pasajero.id", 1).append("viaje.fecha_salida", -1));
+		assertThat(indicesDe(indices, Reserva.class)).filteredOn(indice -> indice.getIndexOptions()
+				.containsKey("unique")).singleElement().satisfies(indice -> {
 			assertThat(indice.getIndexKeys()).isEqualTo(new Document("viaje_id", 1).append("pasajero.id", 1));
 			assertThat(indice.getIndexOptions()).containsEntry("unique", true)
 					.containsEntry("partialFilterExpression", new Document("estado", "CONFIRMADA"));

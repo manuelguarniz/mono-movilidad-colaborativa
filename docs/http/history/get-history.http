@@ -1,0 +1,44 @@
+# Mi historial (RF-09, RN-50)
+# GET /history?role=PASSENGER|DRIVER&page=N
+#
+# Requiere token SESSION. 20 viajes terminados por página, del más reciente al más antiguo.
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+
+### 200 · Como pasajero (19-A): completado por calificar, cancelado por el conductor
+# {
+#   "data": [
+#     { "id": "<reserva>", "rideId": "<viaje>", "role": "PASSENGER", "status": "COMPLETED",
+#       "cancelledBy": null, "departureTime": "2026-10-29T19:20:00Z", "finishedAt": "2026-10-29T19:50:00Z",
+#       "campus": { "id": "…", "name": "UTP Sede Trujillo", "city": "Trujillo" },
+#       "origin": { "label": "Campus UTP Trujillo", "address": null },
+#       "destination": { "label": "Urb. El Golf", "address": "Víctor Larco" },
+#       "seats": 2, "credits": 12,
+#       "driver": { "id": "…", "name": "Carlos M.", "photoUrl": null, "rating": { "average": 4.9, "count": 120 } },
+#       "vehicle": { "brand": "Toyota", "model": "Yaris", "color": "Blanco", "plate": "ABC-123" },
+#       "passengers": null, "noShows": null, "refundedBookings": null,
+#       "rating": { "deadline": "2026-10-30T19:50:00Z", "open": true, "pending": 1, "given": [] } },
+#     { "id": "…", "role": "PASSENGER", "status": "CANCELLED", "cancelledBy": "DRIVER",
+#       "credits": 8, "rating": null, "…": "…" }
+#   ],
+#   "page": 1, "hasMore": false
+# }
+GET {{baseUrl}}/history?role=PASSENGER&page=1
+Authorization: Bearer {{sessionToken}}
+
+### 200 · Como conductor (19-B): pasajeros que subieron, ausentes y calificación parcial
+# { "data": [ { "id": "<viaje>", "role": "DRIVER", "status": "COMPLETED", "credits": 18,
+#   "passengers": [ { "bookingId": "…", "id": "…", "name": "Lucía R.", "photoUrl": null, "seats": 2 } ],
+#   "noShows": 1, "refundedBookings": 0,
+#   "rating": { "deadline": "…", "open": true, "pending": 1, "given": [] }, "…": "…" } ],
+#   "page": 1, "hasMore": false }
+GET {{baseUrl}}/history?role=DRIVER
+Authorization: Bearer {{sessionToken}}
+
+### 400 · Rol inválido
+# { "code": "VALIDATION_ERROR", "message": "Revisa los datos enviados",
+#   "errors": [ { "field": "role", "message": "El rol debe ser PASSENGER o DRIVER" } ] }
+GET {{baseUrl}}/history?role=ADMIN
+Authorization: Bearer {{sessionToken}}
