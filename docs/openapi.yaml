@@ -528,7 +528,7 @@ paths:
         accesibilidad.
 
         `soat` es obligatorio (RN-36; decisión del 2026-11-21): «El SOAT es obligatorio». Debe
-        estar vigente hoy y durar 366 días como máximo.
+        estar vigente hoy y durar como máximo `max_dias_soat` días (366 por defecto, colección `app`).
       requestBody:
         required: true
         content:
@@ -798,8 +798,10 @@ paths:
         "400":
           description: |
             Datos inválidos (`VALIDATION_ERROR`): por ejemplo, `departureTime` en el
-            pasado o fuera del horario de 6:00 a 23:00, `pricePerSeat` fuera del rango de
-            1 a 10, `seats` mayor que las plazas del vehículo o más de 5 paradas.
+            pasado o fuera del horario de salida, `pricePerSeat` fuera del rango permitido,
+            `seats` mayor que las plazas del vehículo o más paradas de las permitidas. Los
+            límites son los de la colección `app` (RN-31; por defecto 6:00 a 23:00, 1 a 10
+            créditos y 5 paradas) y el mensaje de error lleva los valores vigentes.
           content:
             application/json:
               schema:
@@ -2535,8 +2537,8 @@ components:
     SoatRequest:
       type: object
       description: |
-        RN-36. Inicio ≤ hoy ≤ fin (si no: `SOAT_NOT_VALID`) y vigencia de 366 días como
-        máximo. La foto del certificado es opcional hasta que exista la carga de imágenes.
+        RN-36. Inicio ≤ hoy ≤ fin (si no: `SOAT_NOT_VALID`) y vigencia de `max_dias_soat`
+        días como máximo (366 por defecto, colección `app`). La foto del certificado es opcional hasta que exista la carga de imágenes.
       required: [insurer, policyNumber, startDate, endDate]
       properties:
         insurer:
@@ -2681,15 +2683,17 @@ components:
 
     VehicleYear:
       type: integer
-      minimum: 2000
-      description: Año de fabricación; como mínimo 2000 y como máximo el año actual (RN-08).
+      description: |
+        Año de fabricación; como mínimo `anio_minimo_vehiculo` (2000 por defecto, colección `app`, RN-31) y
+        como máximo el año actual (RN-08).
       example: 2021
 
     VehicleSeats:
       type: integer
       minimum: 1
-      maximum: 10
-      description: Plazas que el conductor comparte, sin contar la suya; entre 1 y 10 (RN-09).
+      description: |
+        Plazas que el conductor comparte, sin contar la suya; entre 1 y `max_asientos_vehiculo` (10 por
+        defecto, colección `app`, RN-31) (RN-09).
       example: 3
 
     # ----------------------------------------------------------------- Viajes
@@ -3095,8 +3099,8 @@ components:
           type: string
           format: date-time
           description: |
-            Debe ser una fecha futura, con hora entre las 6:00 y las 23:00 de Perú
-            (RN-12).
+            Debe ser una fecha futura, con hora de Perú entre `hora_minima_salida` y
+            `hora_maxima_salida` (6:00 y 23:00 por defecto, colección `app`, RN-31) (RN-12).
           example: "2026-10-09T12:30:00Z"
         origin:
           $ref: "#/components/schemas/Place"
@@ -3104,16 +3108,17 @@ components:
           $ref: "#/components/schemas/Place"
         stops:
           type: array
-          maxItems: 5
           default: []
-          description: Paradas intermedias, en el orden del recorrido.
+          description: |
+            Paradas intermedias, en el orden del recorrido; como máximo `max_paradas` (5 por defecto,
+            colección `app`, RN-31) (RN-10).
           items:
             $ref: "#/components/schemas/Place"
         pricePerSeat:
           type: integer
-          minimum: 1
-          maximum: 10
-          description: Aporte por plaza, en créditos (1 crédito = 1 sol); entre 1 y 10 (RN-13).
+          description: |
+            Aporte por plaza, en créditos (1 crédito = 1 sol); entre `precio_minimo_plaza` y
+            `precio_maximo_plaza` (1 y 10 por defecto, colección `app`, RN-31) (RN-13).
           example: 5
         seats:
           type: integer
@@ -3122,8 +3127,9 @@ components:
           example: 3
         conditions:
           type: array
-          maxItems: 10
           default: []
+          description: |
+            Como máximo `max_condiciones` (10 por defecto, colección `app`, RN-31) (RN-10).
           items:
             type: string
             minLength: 1

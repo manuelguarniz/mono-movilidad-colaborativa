@@ -13,6 +13,7 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Viaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.validation.ReglasViaje;
 
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.StreamSupport;
@@ -25,17 +26,32 @@ class ReglasViajeTest {
 
 	// Perú está en UTC-5 todo el año.
 	private static final Instant AHORA = Instant.parse("2026-10-09T15:00:00Z");
+	private static final LocalTime SEIS = LocalTime.of(6, 0);
+	private static final LocalTime VEINTITRES = LocalTime.of(23, 0);
 
 	@Test
 	void laSalidaEsFuturaYEstaEntreLasSeisYLasVeintitres() {
-		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-09T15:00:01Z"), AHORA)).isTrue();
-		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T11:00:00Z"), AHORA)).isTrue();
-		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T04:00:00Z"), AHORA)).isTrue();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-09T15:00:01Z"), AHORA, SEIS, VEINTITRES)).isTrue();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T11:00:00Z"), AHORA, SEIS, VEINTITRES)).isTrue();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T04:00:00Z"), AHORA, SEIS, VEINTITRES)).isTrue();
 
-		assertThat(ReglasViaje.esHoraSalidaValida(AHORA, AHORA)).isFalse();
-		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T10:59:00Z"), AHORA)).isFalse();
-		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T04:01:00Z"), AHORA)).isFalse();
-		assertThat(ReglasViaje.esHoraSalidaValida(null, AHORA)).isFalse();
+		assertThat(ReglasViaje.esHoraSalidaValida(AHORA, AHORA, SEIS, VEINTITRES)).isFalse();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T10:59:00Z"), AHORA, SEIS, VEINTITRES)).isFalse();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T04:01:00Z"), AHORA, SEIS, VEINTITRES)).isFalse();
+		assertThat(ReglasViaje.esHoraSalidaValida(null, AHORA, SEIS, VEINTITRES)).isFalse();
+	}
+
+	@Test
+	void elHorarioDeSalidaSeConfigura() {
+		// 2026-10-10T12:00Z es 7:00 en Perú; 2026-10-11T03:30Z es 22:30.
+		LocalTime ocho = LocalTime.of(8, 0);
+		LocalTime veintidos = LocalTime.of(22, 0);
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T12:00:00Z"), AHORA, ocho, veintidos))
+				.isFalse();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-11T03:30:00Z"), AHORA, ocho, veintidos))
+				.isFalse();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-10T13:00:00Z"), AHORA, ocho, veintidos))
+				.isTrue();
 	}
 
 	@Test
@@ -49,8 +65,9 @@ class ReglasViajeTest {
 				.isGreaterThanOrEqualTo(ReglasViaje.distanciaKm(List.of(sede, huaca)));
 		assertThat(ReglasViaje.distanciaKm(List.of(sede, sede))).isZero();
 
-		assertThat(ReglasViaje.duracionMin(8.5)).isEqualTo(15);
-		assertThat(ReglasViaje.duracionMin(0)).isEqualTo(1);
+		assertThat(ReglasViaje.duracionMin(8.5, 35)).isEqualTo(15);
+		assertThat(ReglasViaje.duracionMin(0, 35)).isEqualTo(1);
+		assertThat(ReglasViaje.duracionMin(8.5, 17)).isEqualTo(30);
 	}
 
 	@Test

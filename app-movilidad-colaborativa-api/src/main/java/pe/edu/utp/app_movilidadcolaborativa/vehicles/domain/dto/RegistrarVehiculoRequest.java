@@ -2,8 +2,6 @@ package pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -11,6 +9,7 @@ import jakarta.validation.constraints.Size;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.validation.IdObjeto;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.AccesibilidadDto;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.AnioFabricacion;
+import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.AsientosVehiculo;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.PlacaPeru;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.ReglasVehiculo;
 
@@ -28,9 +27,7 @@ public record RegistrarVehiculoRequest(
 		@NotBlank(message = "El color es obligatorio")
 		@Size(max = 30, message = "El color debe tener como máximo 30 caracteres") String color,
 		@NotNull(message = "El año de fabricación es obligatorio") @AnioFabricacion Integer year,
-		@NotNull(message = "Las plazas son obligatorias")
-		@Min(value = 1, message = "Las plazas deben estar entre 1 y 10")
-		@Max(value = 10, message = "Las plazas deben estar entre 1 y 10") Integer seats,
+		@NotNull(message = "Las plazas son obligatorias") @AsientosVehiculo Integer seats,
 		@NotNull(message = "El DNI del propietario es obligatorio")
 		@Pattern(regexp = "^\\d{8}$", message = "El DNI debe tener 8 dígitos") String ownerDni,
 		Boolean isOwner,

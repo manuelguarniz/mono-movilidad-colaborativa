@@ -167,12 +167,12 @@ Son 50 reglas. Las RN-01 a RN-34 conservan su ID de la versión anterior; alguna
 | RN-05 | 04 — Completar perfil | Los nombres y los apellidos tienen como mínimo una letra. | Aplicación |
 | RN-06 | 05 — Datos del vehículo | Todos los campos son obligatorios, incluido el SOAT, excepto el check «Soy propietario», la foto del vehículo y los checks de accesibilidad. | Aplicación |
 | RN-07 | 05 y 16 — Vehículo | La placa respeta el formato de placas del Perú, es única entre conductores y se guarda en mayúsculas. | Aplicación + BD (índice único) |
-| RN-08 | 05 y 16 — Vehículo | El año de fabricación es como mínimo 2000 y como máximo el año actual + 1. | Aplicación |
-| RN-09 | 05 y 16 — Vehículo | Los asientos son como mínimo 1 y como máximo 10. | Aplicación |
-| RN-10 | 11 — Publicar viaje | Todos los campos son obligatorios; las condiciones son opcionales (máximo 10) y las paradas también (máximo 5). | Aplicación |
+| RN-08 | 05 y 16 — Vehículo | El año de fabricación es como mínimo `anio_minimo_vehiculo` (2000) y como máximo el año actual + 1. | Aplicación |
+| RN-09 | 05 y 16 — Vehículo | Los asientos son como mínimo 1 y como máximo `max_asientos_vehiculo` (10). | Aplicación |
+| RN-10 | 11 — Publicar viaje | Todos los campos son obligatorios; las condiciones son opcionales (máximo `max_condiciones`, 10) y las paradas también (máximo `max_paradas`, 5). | Aplicación |
 | RN-11 | 11 — Publicar viaje | Las plazas disponibles son como mínimo 1 y como máximo las plazas del vehículo. | Aplicación |
-| RN-12 | 11 — Publicar viaje | La salida es futura y su hora está entre las 6:00 y las 23:00. | Aplicación |
-| RN-13 | 11 — Publicar viaje | El monto por plaza es como mínimo 1 y como máximo 10 créditos (1 crédito = S/ 1). | Aplicación |
+| RN-12 | 11 — Publicar viaje | La salida es futura y su hora de Perú está entre `hora_minima_salida` (06:00) y `hora_maxima_salida` (23:00), ambas incluidas. | Aplicación |
+| RN-13 | 11 — Publicar viaje | El monto por plaza es como mínimo `precio_minimo_plaza` (1) y como máximo `precio_maximo_plaza` (10) créditos (1 crédito = S/ 1). | Aplicación |
 | RN-14 | 15 — Actualizar datos | Todos los datos son obligatorios, incluida la foto. El tipo y el número de documento se ingresan una sola vez y luego no se pueden modificar; el teléfono sí. | Aplicación |
 | RN-15 | 16 — Actualizar vehículo | Todos los datos son obligatorios, incluidas la foto y el SOAT. | Aplicación |
 | RN-16 | 16 — Actualizar vehículo | De los checks, solo es obligatorio el de términos y condiciones. | Aplicación |
@@ -195,7 +195,7 @@ Son 50 reglas. Las RN-01 a RN-34 conservan su ID de la versión anterior; alguna
 | RN-33 | 18 — Notificaciones | Cada viaje genera como máximo un recordatorio por destinatario, y no lo genera si el viaje fue cancelado. | Aplicación + BD (marca `recordatorio_enviado`) |
 | RN-34 | 18 — Notificaciones | Un usuario solo ve y marca sus propias notificaciones. Las notificaciones se eliminan solas a los 30 días. | Aplicación + BD (índice TTL) |
 | RN-35 | 01 y 02 — Login | El OTP se pide solo en el primer login de la cuenta, el que todavía no tiene `usuarios.ultima_conexion`. Validar el OTP registra `ultima_conexion`; desde entonces, cada login con credenciales válidas la actualiza y entrega la sesión sin OTP, desde cualquier dispositivo. Un OTP fallido, expirado o abandonado no la registra. Una cuenta `BLOQUEADO` no entra aunque tenga `ultima_conexion`. (Decisión del 2026-11-21: reemplaza la confianza por dispositivo.) | Aplicación |
-| RN-36 | 05 y 16 — Vehículo | El SOAT es obligatorio para registrar o actualizar el vehículo: aseguradora (de la lista o «Otra»), número de póliza (6 a 20 caracteres alfanuméricos o guiones), fecha de inicio ≤ hoy ≤ fecha de fin, vigencia de 366 días como máximo y foto del certificado (JPG o PNG de hasta 5 MB). Es una declaración del conductor: la app no la verifica con terceros, y lo indica con la leyenda «SOAT declarado por el conductor» en el detalle del viaje. | Aplicación |
+| RN-36 | 05 y 16 — Vehículo | El SOAT es obligatorio para registrar o actualizar el vehículo: aseguradora (de la lista o «Otra»), número de póliza (6 a 20 caracteres alfanuméricos o guiones), fecha de inicio ≤ hoy ≤ fecha de fin, vigencia de `max_dias_soat` (366) días como máximo y foto del certificado (JPG o PNG de hasta 5 MB). Es una declaración del conductor: la app no la verifica con terceros, y lo indica con la leyenda «SOAT declarado por el conductor» en el detalle del viaje. | Aplicación |
 | RN-37 | 11 — Publicar viaje | Solo se publica un viaje si el SOAT del vehículo sigue vigente en la fecha de salida. | Aplicación |
 | RN-38 | 06, 08, 09 y 10 — Reserva | Un pasajero no puede reservar si en los últimos `ventana_cancelaciones_dias` (30) acumuló `max_cancelaciones_pasajero` (5) o más entre reservas canceladas por él y reservas `NO_SE_PRESENTO`. Mensaje: «Cancelaste o no te presentaste a N viajes en los últimos 30 días. Podrás reservar de nuevo desde el DD/MM.». El bloqueo se levanta solo. | Aplicación |
 | RN-39 | 08 y 10 — Reserva | Para reservar, el saldo disponible debe ser mayor o igual al total. Al reservar, el total pasa de disponible a retenido. El saldo disponible nunca es negativo. | Aplicación + BD (update condicionado) |
@@ -810,6 +810,16 @@ Insertar el movimiento y actualizar los saldos de `usuarios` se ejecutan en una 
   "minutos_tolerancia_inicio": 30,
   "minutos_cierre_automatico": 15,
   "minutos_recordatorio": 30,
+  "hora_minima_salida": "06:00",
+  "hora_maxima_salida": "23:00",
+  "precio_minimo_plaza": 1,
+  "precio_maximo_plaza": 10,
+  "max_paradas": 5,
+  "max_condiciones": 10,
+  "velocidad_promedio_km_h": 35,
+  "anio_minimo_vehiculo": 2000,
+  "max_asientos_vehiculo": 10,
+  "max_dias_soat": 366,
   "dias_para_calificar": 1,
   "recarga_minima": 5,
   "recarga_maxima": 200,
@@ -819,7 +829,7 @@ Insertar el movimiento y actualizar los saldos de `usuarios` se ejecutan en una 
 }
 ```
 
-El backend lee este documento en cada operación que usa un parámetro, sin caché, así que un cambio rige desde la siguiente operación. Si falta un campo, usa el valor por defecto del ejemplo.
+El backend lee este documento en cada operación que usa un parámetro, sin caché, así que un cambio rige desde la siguiente operación. Si falta un campo o no tiene el tipo esperado, usa el valor por defecto del ejemplo. Las horas son de Perú, como texto `"HH:mm"`. `velocidad_promedio_km_h` estima la duración del viaje a partir de la distancia. `docs/seed.js` crea el documento con estos valores y, si ya existe, solo agrega los campos que falten. Los mensajes de error de la API usan los valores vigentes; el frontend todavía tiene los de por defecto escritos en el código.
 
 **Catálogos** — `departamentos`, `distritos` y `sedes` alimentan los formularios. Los demás documentos copian su `id` y `nombre`; `viajes` copia además la ciudad de la sede.
 

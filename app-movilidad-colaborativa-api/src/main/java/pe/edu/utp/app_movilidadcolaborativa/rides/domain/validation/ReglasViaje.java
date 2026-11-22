@@ -9,17 +9,14 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
-/** Reglas de negocio de la publicación y la búsqueda de viajes (RN-11 a RN-13). */
+/**
+ * Reglas de negocio de la publicación y la búsqueda de viajes (RN-10 a RN-13). Los límites configurables
+ * (horario de salida, velocidad promedio) llegan como argumento desde la colección app (RN-31).
+ */
 public final class ReglasViaje {
 
 	public static final ZoneId ZONA_PERU = ZoneId.of("America/Lima");
-	public static final int MAXIMO_PARADAS = 5;
-	public static final int MAXIMO_CONDICIONES = 10;
-	private static final LocalTime HORA_MINIMA = LocalTime.of(6, 0);
-	private static final LocalTime HORA_MAXIMA = LocalTime.of(23, 0);
 	private static final double RADIO_TIERRA_KM = 6371.0088;
-	// Velocidad media urbana con la que se estima la duración mientras no haya un servicio de rutas.
-	private static final double VELOCIDAD_KM_H = 35;
 	private static final Map<Character, String> VARIANTES = Map.of(
 			'a', "[aáàäâãAÁÀÄÂÃ]",
 			'e', "[eéèëêEÉÈËÊ]",
@@ -31,13 +28,14 @@ public final class ReglasViaje {
 	private ReglasViaje() {
 	}
 
-	/** RN-12: la salida es futura y su hora de Perú está entre las 6:00 y las 23:00. */
-	public static boolean esHoraSalidaValida(Instant salida, Instant ahora) {
+	/** RN-12: la salida es futura y su hora de Perú está entre horaMinima y horaMaxima, ambas incluidas. */
+	public static boolean esHoraSalidaValida(Instant salida, Instant ahora, LocalTime horaMinima,
+			LocalTime horaMaxima) {
 		if (salida == null || !salida.isAfter(ahora)) {
 			return false;
 		}
 		LocalTime hora = salida.atZone(ZONA_PERU).toLocalTime();
-		return !hora.isBefore(HORA_MINIMA) && !hora.isAfter(HORA_MAXIMA);
+		return !hora.isBefore(horaMinima) && !hora.isAfter(horaMaxima);
 	}
 
 	/** Distancia en línea recta entre los puntos consecutivos de la ruta, con un decimal. */
@@ -49,9 +47,12 @@ public final class ReglasViaje {
 		return Math.round(total * 10) / 10.0;
 	}
 
-	/** Duración estimada a partir de la distancia; como mínimo un minuto. */
-	public static int duracionMin(double distanciaKm) {
-		return Math.max(1, (int) Math.ceil(distanciaKm / VELOCIDAD_KM_H * 60));
+	/**
+	 * Duración estimada a partir de la distancia y la velocidad media urbana, mientras no haya un servicio de
+	 * rutas; como mínimo un minuto.
+	 */
+	public static int duracionMin(double distanciaKm, double velocidadKmH) {
+		return Math.max(1, (int) Math.ceil(distanciaKm / velocidadKmH * 60));
 	}
 
 	/** Expresión regular que encuentra el texto sin distinguir tildes; se usa sin distinguir mayúsculas (opción i). */

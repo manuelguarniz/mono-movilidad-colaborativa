@@ -1,5 +1,16 @@
 // Data de prueba de ColaboraCar: usuarios, vehículos, viajes, reservas, calificaciones y billetera.
 //
+//
+//
+// Caso	Correo
+// Conductor frecuente	u25900001 @utp.edu.pe
+// Conductor sancionado(11 cancelaciones en 30 días)	u25900963 @utp.edu.pe
+// Pasajero sancionado(7 cancelaciones o ausencias)	u25901185 @utp.edu.pe
+// Conductor con SOAT por vencer y un viaje en curso	u25900038 @utp.edu.pe
+// Conductor con SOAT vencido	u25906550 @utp.edu.pe
+// Cuenta bloqueada	u25901111 @utp.edu.pe
+//
+//
 // Uso (mongosh, después de seed.js, que carga los catálogos):
 //   mongosh "mongodb+srv://<usuario>:<clave>@<cluster>/db_colabora_car" seed-data.js
 //   SEED_DRY_RUN=1 mongosh "<uri>" seed-data.js   → solo genera y muestra el resumen, no escribe.

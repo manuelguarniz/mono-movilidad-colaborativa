@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.Archivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.PropositoArchivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.infrastructure.persistence.ArchivoRepository;
+import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
@@ -57,7 +58,13 @@ class VehiculoServiceTest {
 	private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
 	private final ArchivoRepository archivoRepository = mock(ArchivoRepository.class);
 	private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
-	private final VehiculoService servicio = new VehiculoService(usuarioRepository, archivoRepository, mongoTemplate);
+	private final ParametrosService parametros = mock(ParametrosService.class);
+	private final VehiculoService servicio =
+			new VehiculoService(usuarioRepository, archivoRepository, mongoTemplate, parametros);
+
+	{
+		when(parametros.leer()).thenReturn(ParametrosService.Parametros.POR_DEFECTO);
+	}
 	private final ObjectId usuarioId = new ObjectId();
 	private final Foto foto = new Foto(new ObjectId(), "/uploads/vehiculos/a.jpg");
 

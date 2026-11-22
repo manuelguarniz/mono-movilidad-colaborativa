@@ -107,8 +107,13 @@ Las reglas propias son anotaciones que delegan en el dominio:
 | `@NombrePersona` | Al menos una letra y máximo 60 caracteres (RN-05). | Válido; lo cubre `@NotBlank`. |
 | `@IdObjeto` | Identificador de MongoDB: 24 caracteres hexadecimales. | Válido; lo cubre `@NotNull`. |
 | `@PlacaPeru` | Tres caracteres, guion opcional y tres o cuatro caracteres más (RN-07). | Válido; lo cubre `@NotBlank`. |
-| `@AnioFabricacion` | Entre 2000 y el año actual en la hora de Perú (RN-08). | Válido; lo cubre `@NotNull`. |
-| `@HoraSalida` | Fecha futura con hora de Perú entre las 6:00 y las 23:00 (RN-12). | Válido; lo cubre `@NotNull`. |
+| `@AnioFabricacion` | Entre `anio_minimo_vehiculo` (2000) y el año actual en la hora de Perú (RN-08). | Válido; lo cubre `@NotNull`. |
+| `@AsientosVehiculo` | Entre 1 y `max_asientos_vehiculo` (10) (RN-09). | Válido; lo cubre `@NotNull`. |
+| `@HoraSalida` | Fecha futura con hora de Perú entre `hora_minima_salida` (06:00) y `hora_maxima_salida` (23:00) (RN-12). | Válido; lo cubre `@NotNull`. |
+| `@PrecioPlaza` | Entre `precio_minimo_plaza` (1) y `precio_maximo_plaza` (10) créditos (RN-13). | Válido; lo cubre `@NotNull`. |
+| `@MaximoParadas` / `@MaximoCondiciones` | Como máximo `max_paradas` (5) paradas y `max_condiciones` (10) condiciones (RN-10). | Válido: la lista queda vacía. |
+
+Las anotaciones con un parámetro entre comillas invertidas extienden `ValidadorParametrizado`: leen el límite del documento `{ _id: "config" }` de la colección `app` (RN-31) en cada solicitud, y el mensaje de error lleva el valor vigente. Entre paréntesis está el valor por defecto, que también se usa si el validador se crea fuera de Spring (por ejemplo, en un test sin contexto).
 
 Esa convención garantiza un solo error por campo. Antes de validar, el correo se pasa a minúsculas sin espacios, los nombres y apellidos se recortan y la placa se pasa a mayúsculas y con guion (`abc123` queda `ABC-123`).
 
@@ -344,9 +349,9 @@ Si cambia el nombre o la foto de un conductor, el servicio actualiza su copia (`
 | `color` | Obligatorio | El color es obligatorio |
 | `color` | Máximo 30 caracteres | El color debe tener como máximo 30 caracteres |
 | `year` | Obligatorio | El año de fabricación es obligatorio |
-| `year` | Entre 2000 y el año actual (RN-08) | El año de fabricación debe estar entre 2000 y el año actual |
+| `year` | Entre `anio_minimo_vehiculo` (2000) y el año actual (RN-08) | El año de fabricación debe estar entre 2000 y el año actual |
 | `seats` | Obligatorias | Las plazas son obligatorias |
-| `seats` | Entre 1 y 10 (RN-09) | Las plazas deben estar entre 1 y 10 |
+| `seats` | Entre 1 y `max_asientos_vehiculo` (10) (RN-09) | Las plazas deben estar entre 1 y 10 |
 | `ownerDni` | Obligatorio en `POST`; opcional en `PUT` | El DNI del propietario es obligatorio |
 | `ownerDni` | Exactamente 8 dígitos | El DNI debe tener 8 dígitos |
 | `acceptedTerms` | Debe ser `true` | Debes aceptar los términos y condiciones |
@@ -358,7 +363,7 @@ Si cambia el nombre o la foto de un conductor, el servicio actualiza su copia (`
 | `soat.startDate` | Obligatoria (`AAAA-MM-DD`) | La fecha de inicio del SOAT es obligatoria |
 | `soat.endDate` | Obligatoria (`AAAA-MM-DD`) | La fecha de fin del SOAT es obligatoria |
 | `soat.endDate` | Posterior a la de inicio; lo valida el servicio | La fecha de fin debe ser posterior a la de inicio |
-| `soat.endDate` | Vigencia de 366 días como máximo; lo valida el servicio | La vigencia del SOAT no puede superar los 366 días |
+| `soat.endDate` | Vigencia de `max_dias_soat` (366) días como máximo; lo valida el servicio | La vigencia del SOAT no puede superar los 366 días |
 | `soat.photoFileId` | Opcional; si llega, identificador válido de propósito `FOTO_SOAT` | La foto del SOAT no es válida |
 | `accessibility` | Una moto no marca ningún check (RN-18); lo valida el servicio | Una moto no puede marcarse como accesible |
 
@@ -407,16 +412,16 @@ Lista 20 viajes `PUBLICADO` de todas las sedes (RN-49) con salida futura y plaza
 | `direction` | Obligatorio | El sentido del viaje es obligatorio |
 | `direction` | `TO_CAMPUS` o `TO_HOME` | El sentido del viaje no es válido |
 | `departureTime` | Obligatoria | La hora de salida es obligatoria |
-| `departureTime` | Futura y entre las 6:00 y las 23:00 de Perú (RN-12) | La hora de salida debe ser futura y estar entre las 6:00 y las 23:00 |
+| `departureTime` | Futura y entre `hora_minima_salida` (06:00) y `hora_maxima_salida` (23:00) de Perú (RN-12) | La hora de salida debe ser futura y estar entre las 6:00 y las 23:00 |
 | `origin` | Obligatorio | El punto de partida es obligatorio |
 | `destination` | Obligatorio | El destino es obligatorio |
-| `stops` | Máximo 5 | Puedes agregar como máximo 5 paradas |
+| `stops` | Máximo `max_paradas` (5) | Puedes agregar como máximo 5 paradas |
 | `pricePerSeat` | Obligatorio | El precio por plaza es obligatorio |
-| `pricePerSeat` | Entre 1 y 10 (RN-13) | El precio por plaza debe estar entre 1 y 10 |
+| `pricePerSeat` | Entre `precio_minimo_plaza` (1) y `precio_maximo_plaza` (10) (RN-13) | El precio por plaza debe estar entre 1 y 10 |
 | `seats` | Obligatorias | Las plazas son obligatorias |
 | `seats` | Al menos 1 | Debes ofrecer al menos 1 plaza |
 | `seats` | Como máximo las del vehículo (RN-11); lo valida el servicio | Las plazas no pueden superar las de tu vehículo |
-| `conditions` | Máximo 10 | Puedes agregar como máximo 10 condiciones |
+| `conditions` | Máximo `max_condiciones` (10) | Puedes agregar como máximo 10 condiciones |
 | `conditions[n]` | De 1 a 120 caracteres | Cada condición debe tener entre 1 y 120 caracteres |
 
 `origin`, `destination` y cada elemento de `stops` son un lugar; sus errores llevan el campo con notación de punto (`origin.location.lat`, `stops[0].label`).
@@ -670,8 +675,7 @@ Los pasos siguen las convenciones de los módulos ya implementados. El ejemplo e
            @NotBlank(message = "La placa es obligatoria")
            @PlacaPeru String plate,
            @NotNull(message = "Las plazas son obligatorias")
-           @Min(value = 1, message = "Las plazas deben estar entre 1 y 10")
-           @Max(value = 10, message = "Las plazas deben estar entre 1 y 10") Integer seats) {
+           @AsientosVehiculo Integer seats) {
 
        public VehiculoRequest {
            plate = plate == null ? null : plate.trim().toUpperCase();

@@ -73,8 +73,9 @@ class ViajeServiceTest {
 	private final ViajeService servicio = new ViajeService(usuarioRepository, viajeRepository, mongoTemplate,
 			cancelaciones, restricciones, sedeRepository, parametros);
 
-	// La ciudad del viaje es el distrito de la sede en el catálogo (RN-49).
+	// La ciudad del viaje es el distrito de la sede en el catálogo (RN-49). Los parámetros son los de por defecto.
 	{
+		when(parametros.leer()).thenReturn(ParametrosService.Parametros.POR_DEFECTO);
 		when(sedeRepository.findById(Viajes.SEDE_ID)).thenReturn(Optional.of(new Sede(Viajes.SEDE_ID,
 				"UTP Sede Trujillo", "UTP", "Av. Nicolás de Piérola",
 				new ReferenciaNombre(new ObjectId(), "Trujillo"), null, true)));

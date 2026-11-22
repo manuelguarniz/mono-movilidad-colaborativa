@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.Archivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.domain.model.PropositoArchivo;
 import pe.edu.utp.app_movilidadcolaborativa.files.infrastructure.persistence.ArchivoRepository;
+import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
@@ -30,7 +31,6 @@ import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.Usu
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.ActualizarVehiculoRequest;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.RegistrarVehiculoRequest;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.SoatRequest;
-import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.ReglasVehiculo;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -52,6 +52,7 @@ public class VehiculoService {
 	private final UsuarioRepository usuarioRepository;
 	private final ArchivoRepository archivoRepository;
 	private final MongoTemplate mongoTemplate;
+	private final ParametrosService parametrosService;
 
 	/** Guarda el vehículo dentro del usuario y le agrega el rol CONDUCTOR. */
 	public VehiculoDto registrar(ObjectId usuarioId, RegistrarVehiculoRequest solicitud) {
@@ -186,7 +187,7 @@ public class VehiculoService {
 	}
 
 	/**
-	 * RN-36: el SOAT está vigente hoy y dura como máximo 366 días. La solicitud lo exige; el caso null solo queda
+	 * RN-36: el SOAT está vigente hoy y dura como máximo max_dias_soat (366) días (RN-31). La solicitud lo exige; el caso null solo queda
 	 * como respaldo y conserva el anterior. Sin foto nueva, se conserva la del SOAT anterior.
 	 */
 	private Soat soat(SoatRequest solicitud, Soat anterior, ObjectId usuarioId, Instant ahora) {
@@ -198,8 +199,10 @@ public class VehiculoService {
 		if (fin.isBefore(inicio)) {
 			throw new ValidacionException("soat.endDate", "La fecha de fin debe ser posterior a la de inicio");
 		}
-		if (ChronoUnit.DAYS.between(inicio, fin) + 1 > ReglasVehiculo.MAXIMO_DIAS_SOAT) {
-			throw new ValidacionException("soat.endDate", "La vigencia del SOAT no puede superar los 366 días");
+		int maximoDias = parametrosService.leer().maxDiasSoat();
+		if (ChronoUnit.DAYS.between(inicio, fin) + 1 > maximoDias) {
+			throw new ValidacionException("soat.endDate",
+					"La vigencia del SOAT no puede superar los %d días".formatted(maximoDias));
 		}
 		LocalDate hoy = Soat.fechaPeru(ahora);
 		if (hoy.isBefore(inicio) || hoy.isAfter(fin)) {

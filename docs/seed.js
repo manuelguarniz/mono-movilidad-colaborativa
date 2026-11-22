@@ -1,10 +1,12 @@
-// Seed de catálogos de ColaboraCar: departamentos, distritos y sedes de la UTP.
+// Seed de catálogos de ColaboraCar: departamentos, distritos y sedes de la UTP, y los parámetros de
+// negocio configurables (colección app, documento { _id: "config" }, RN-31).
 //
 // Uso (mongosh):
 //   mongosh "mongodb+srv://<usuario>:<clave>@<cluster>/db_colabora_car" seed.js
 //
 // Es idempotente: cada documento tiene un _id fijo y se inserta con upsert, así que se
-// puede ejecutar varias veces sin duplicar datos.
+// puede ejecutar varias veces sin duplicar datos. En app/config solo se agregan los parámetros
+// que faltan: un valor que ya se cambió en la base de datos se conserva.
 //
 // Fuentes (consultadas el 2026-10-08):
 //   - Sedes y direcciones: https://www.utp.edu.pe/como-llegar
@@ -161,6 +163,43 @@ const sedes = [
   },
 ];
 
+// Parámetros de negocio (RN-31, README sección 5.1). Son los valores por defecto del backend
+// (ParametrosService): si falta uno en la base de datos, el backend usa el mismo valor. Se editan
+// directamente en la base de datos y rigen desde la siguiente operación, sin reiniciar el backend.
+// Las horas son de Perú y van como texto "HH:mm".
+const parametros = {
+  // Cancelaciones y sanciones (RN-25, RN-26, RN-30, RN-38).
+  max_cancelaciones_conductor: 10,
+  max_cancelaciones_pasajero: 5,
+  ventana_cancelaciones_dias: 30,
+  minutos_limite_cancelacion: 30,
+  // Inicio y cierre del viaje (RN-27, RN-43, RN-44) y recordatorio de salida (RN-33).
+  minutos_inicio_anticipado: 15,
+  minutos_tolerancia_inicio: 30,
+  minutos_cierre_automatico: 15,
+  minutos_recordatorio: 30,
+  // Publicar viaje: horario de salida (RN-12), precio por plaza en créditos (RN-13), paradas y
+  // condiciones (RN-10) y velocidad media con la que se estima la duración del viaje.
+  hora_minima_salida: "06:00",
+  hora_maxima_salida: "23:00",
+  precio_minimo_plaza: 1,
+  precio_maximo_plaza: 10,
+  max_paradas: 5,
+  max_condiciones: 10,
+  velocidad_promedio_km_h: 35,
+  // Vehículo: año de fabricación mínimo (RN-08), asientos máximos (RN-09) y vigencia máxima del
+  // SOAT en días, contando el de inicio y el de fin (RN-36).
+  anio_minimo_vehiculo: 2000,
+  max_asientos_vehiculo: 10,
+  max_dias_soat: 366,
+  // Calificación (RN-47), billetera (RN-41, RN-42) y ahorro de CO₂ (RN-28).
+  dias_para_calificar: 1,
+  recarga_minima: 5,
+  recarga_maxima: 200,
+  retiro_minimo: 10,
+  factor_co2_kg_km: 0.18,
+};
+
 // Busca por código y falla si la referencia no existe, para no insertar copias rotas.
 const indexarPorCodigo = (documentos, tipo) => {
   const porCodigo = new Map(documentos.map((d) => [d.codigo, d]));
@@ -212,3 +251,19 @@ db.distritos.createIndex({ "departamento.id": 1 });
 upsert("departamentos", departamentos);
 upsert("distritos", documentosDistritos);
 upsert("sedes", documentosSedes);
+
+// Completa los parámetros que falten sin pisar los que ya existen: $ifNull conserva el valor actual.
+const configActual = db.app.findOne({ _id: "config" }) || {};
+const faltantes = Object.keys(parametros).filter((campo) => configActual[campo] == null);
+const completarParametros = Object.fromEntries(
+  Object.entries(parametros).map(([campo, valor]) => [campo, { $ifNull: ["$" + campo, { $literal: valor }] }]),
+);
+db.app.updateOne(
+  { _id: "config" },
+  [{ $set: { ...completarParametros, fecha_actualizacion: faltantes.length ? "$$NOW" : "$fecha_actualizacion" } }],
+  { upsert: true },
+);
+print(
+  `app: config con ${Object.keys(parametros).length} parámetros ` +
+  (faltantes.length ? `(agregados: ${faltantes.join(", ")})` : "(sin cambios)"),
+);

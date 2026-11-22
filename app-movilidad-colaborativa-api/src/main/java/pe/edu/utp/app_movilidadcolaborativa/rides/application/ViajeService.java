@@ -199,7 +199,7 @@ public class ViajeService {
 				.destino(destino)
 				.paradas(paradas)
 				.distanciaKm(distanciaKm)
-				.duracionMin(ReglasViaje.duracionMin(distanciaKm))
+				.duracionMin(ReglasViaje.duracionMin(distanciaKm, parametrosService.leer().velocidadPromedioKmH()))
 				.fechaSalida(solicitud.departureTime())
 				.precioPorPlaza(solicitud.pricePerSeat())
 				.plazasTotales(solicitud.seats())
