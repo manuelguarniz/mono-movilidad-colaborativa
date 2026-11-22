@@ -23,6 +23,8 @@ import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ApiException
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.CodigoError;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.EstadoUsuario;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.AsistenciaMovilidad;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.TipoAsistencia;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.application.LibroCreditos;
@@ -122,12 +124,32 @@ class ReservaServiceTest {
 		assertThat(reserva.totalCreditos()).isEqualTo(10);
 		assertThat(reserva.estado()).isEqualTo(EstadoReserva.CONFIRMADA);
 		assertThat(reserva.liquidada()).isFalse();
+		assertThat(reserva.asistencia()).isNull();
 		assertThat(reserva.fechaCancelacion()).isNull();
 		verify(libro).retener(reserva, reserva.fechaCreacion());
 		assertThat(reserva.fechaCreacion()).isEqualTo(reserva.fechaActualizacion()).isNotNull();
 
 		verify(transacciones).commit(any());
 		verify(transacciones, never()).rollback(any());
+	}
+
+	@Test
+	void laReservaCopiaLaAsistenciaDelPasajeroSinElConsentimiento() {
+		when(usuarioRepository.findById(pasajeroId)).thenReturn(Optional.of(Usuario.builder().id(pasajeroId)
+				.nombres("Valeria").apellidos("Rodríguez").estado(EstadoUsuario.ACTIVO).saldoCreditos(100)
+				.asistenciaMovilidad(new AsistenciaMovilidad(TipoAsistencia.SILLA_RUEDAS, "Silla plegable",
+						Instant.parse("2026-10-01T15:04:00Z")))
+				.build()));
+		existe(viaje().build());
+		elDescuentoModifica(1);
+
+		servicio.reservar(pasajeroId, viajeId, 1);
+
+		ArgumentCaptor<Reserva> guardada = ArgumentCaptor.forClass(Reserva.class);
+		verify(mongoTemplate).insert(guardada.capture());
+		assertThat(guardada.getValue().asistencia())
+				.isEqualTo(new Reserva.Asistencia(TipoAsistencia.SILLA_RUEDAS, "Silla plegable"));
+		assertThat(guardada.getValue().toString()).doesNotContain("Silla plegable");
 	}
 
 	@Test

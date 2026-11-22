@@ -112,7 +112,7 @@ public class VehiculoService {
 
 	/**
 	 * Reemplaza los datos editables del vehículo y actualiza su copia en los viajes activos del conductor.
-	 * Si no llegan una foto nueva, la accesibilidad o el SOAT, se conservan los actuales. Si el usuario todavía no tiene vehículo, lo registra:
+	 * Si no llegan una foto nueva o la accesibilidad, se conservan las actuales; el SOAT siempre llega (RN-36). Si el usuario todavía no tiene vehículo, lo registra:
 	 * no hay viajes que actualizar.
 	 */
 	public VehiculoDto actualizar(ObjectId usuarioId, ActualizarVehiculoRequest solicitud) {
@@ -186,8 +186,8 @@ public class VehiculoService {
 	}
 
 	/**
-	 * RN-36: el SOAT está vigente hoy y dura como máximo 366 días. Si no llega, se conserva el anterior (puede no
-	 * haber ninguno). Sin foto nueva, se conserva la del SOAT anterior.
+	 * RN-36: el SOAT está vigente hoy y dura como máximo 366 días. La solicitud lo exige; el caso null solo queda
+	 * como respaldo y conserva el anterior. Sin foto nueva, se conserva la del SOAT anterior.
 	 */
 	private Soat soat(SoatRequest solicitud, Soat anterior, ObjectId usuarioId, Instant ahora) {
 		if (solicitud == null) {

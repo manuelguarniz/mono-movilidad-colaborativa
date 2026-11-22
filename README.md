@@ -411,10 +411,10 @@ El backend implementa 30 de los 31 endpoints del contrato actual. Lo nuevo de es
 | Módulo | Estado |
 | --- | --- |
 | Autenticación (login, OTP, cierre de sesión) | Implementado: OTP solo en el primer login de la cuenta, con `usuarios.ultima_conexion` (RF-01, RN-35) |
-| Registro (cuenta y completar perfil) | Implementado; falta la asistencia de movilidad. La foto de perfil es opcional hasta que exista la carga de imágenes |
+| Registro (cuenta y completar perfil) | Implementado, con la asistencia de movilidad opcional en P04 (RN-17). La foto de perfil es opcional hasta que exista la carga de imágenes |
 | Catálogos (departamentos, distritos, sedes) | Implementado. La ciudad de una sede (RN-49) es el nombre de su distrito (`sedes.distrito.nombre`) |
-| Perfil (consultar y actualizar datos) | Implementado: P14 con calificación, saldo (de `GET /wallet`), SOAT con aviso a ≤ 15 días y cambio de modo con modal por `PATCH /users/me/mode` (RN-48, `TRIP_IN_PROGRESS`). P13 implementado con la misma pantalla en modo pasajero: asistencia de movilidad en solo lectura (`mobilityAssistance`; se editará en P15), «¿Tienes vehículo?» y los modales 13-C a 13-E |
-| Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional hasta que P05 y P16 lo pidan, y las fotos hasta que exista la carga de imágenes |
+| Perfil (consultar y actualizar datos) | Implementado: P14 con calificación, saldo (de `GET /wallet`), SOAT con aviso a ≤ 15 días y cambio de modo con modal por `PATCH /users/me/mode` (RN-48, `TRIP_IN_PROGRESS`). P13 implementado con la misma pantalla en modo pasajero: asistencia de movilidad (`mobilityAssistance`) con el enlace «Declarar en Actualizar datos», «¿Tienes vehículo?» y los modales 13-C a 13-E. P15 implementado con el rediseño: sin modalidad, documento con tipo, asistencia editable (RN-17) y el modal «Quitar asistencia». La reserva copia la asistencia (RN-21) y el conductor la ve en Mis viajes (RN-22) |
+| Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT obligatorio (RN-36; decisión del 2026-11-21) en P05 y P16. El frontend exige la foto del certificado y, al actualizar, la del vehículo; la API todavía las acepta opcionales |
 | Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/{rideId}` trae además la reserva del usuario en ese viaje (`myBooking`, con la hora límite para cancelar de RN-25), su reserva activa en otro viaje (RN-23) y su bloqueo (RN-38), para la barra inferior de P09. Reservar retiene el total del saldo disponible y, sin saldo, responde `INSUFFICIENT_CREDITS` con el botón «Recargar» (RN-39) |
 | Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Cancelar reembolsa el 100 % y finalizar paga al conductor (RN-40). Sin notificaciones. Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
 | Archivos (carga de imágenes) | Pendiente |
@@ -1371,8 +1371,8 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 01 | [01. login.jpeg](<frames/01. login.jpeg>) | Iniciar sesión | Autenticación | Implementada |
 | 02 | [02. login_verificacion.jpeg](<frames/02. login_verificacion.jpeg>) | Verificación OTP | Autenticación | Implementada |
 | 03 | [03. registro.jpeg](<frames/03. registro.jpeg>) | Registro | Registro | Implementada |
-| 04 | [04. registro_datos_personales.jpeg](<frames/04. registro_datos_personales.jpeg>) | Completar perfil | Registro | Implementada (sin asistencia) · rediseño en diseño ([prompt](<docs/design/P04-CompletarPerfil/prompt.md>)) |
-| 05 | [05. registro_vehiculo.jpeg](<frames/05. registro_vehiculo.jpeg>) | Datos del vehículo | Registro | Implementada (sin SOAT) · rediseño en diseño ([prompt](<docs/design/P05-DatosVehiculo/prompt.md>)) |
+| 04 | [04. registro_datos_personales.jpeg](<frames/04. registro_datos_personales.jpeg>) | Completar perfil | Registro | Implementada (con asistencia) · rediseño en diseño ([prompt](<docs/design/P04-CompletarPerfil/prompt.md>)) |
+| 05 | [05. registro_vehiculo.jpeg](<frames/05. registro_vehiculo.jpeg>) | Datos del vehículo | Registro | Implementada (con accesibilidad y SOAT) · rediseño en diseño ([prompt](<docs/design/P05-DatosVehiculo/prompt.md>)) |
 | 06 | [P06-Dashboard/v3.2.png](<docs/design/P06-Dashboard/v3.2.png>) | Dashboard / viajes | Viajes | Implementada · rediseño aprobado |
 | 07 | [07. dashboard_condiciones_viaje.jpeg](<frames/07. dashboard_condiciones_viaje.jpeg>) | Condiciones del viaje | Viajes | Implementada |
 | 08 | [08. dashboard_confirm_viaje.jpeg](<frames/08. dashboard_confirm_viaje.jpeg>) | Confirmar reserva (dashboard) | Viajes | Implementada |
@@ -1382,8 +1382,8 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 12 | [12. confirm_publicar_viaje.jpeg](<frames/12. confirm_publicar_viaje.jpeg>) | Confirmar publicación | Viajes | Implementada |
 | 13 | [P13-PerfilPasajero/v1.1.png](<docs/design/P13-PerfilPasajero/v1.1.png>) | Perfil — pasajero | Perfil | Implementada · rediseño aprobado |
 | 14 | [P14-PerfilConductor/v1.1.png](<docs/design/P14-PerfilConductor/v1.1.png>) | Perfil — conductor | Perfil | Implementada · rediseño aprobado |
-| 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada (sin asistencia) · rediseño en diseño ([prompt](<docs/design/P15-ActualizarDatos/prompt.md>)) |
-| 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada (sin SOAT) · rediseño aprobado |
+| 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada según el prompt (15-A a 15-D, sin capturas aprobadas) · rediseño en diseño ([prompt](<docs/design/P15-ActualizarDatos/prompt.md>)) |
+| 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada · rediseño aprobado |
 | 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Implementada · diseño aprobado |
 | 18 | [P18-Notificaciones/prompt.md](<docs/design/P18-Notificaciones/prompt.md>) | Notificaciones | Notificaciones | En diseño |
 | 19 | [P19-Historial/v3.1.png](<docs/design/P19-Historial/v3.1.png>) | Historial | Historial | Implementada |

@@ -47,6 +47,7 @@ import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.web.UsuarioCont
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.application.VehiculoService;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.ActualizarVehiculoRequest;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.RegistrarVehiculoRequest;
+import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.SoatRequest;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.infrastructure.web.VehiculoController;
 
 import java.time.Instant;
@@ -220,11 +221,25 @@ class ValidacionSolicitudesTest {
 		mvc.perform(put("/users/me").contentType(MediaType.APPLICATION_JSON)
 						.content("{\"firstName\":\"Ana\",\"lastName\":\"Torres\"}"))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.errors", hasSize(2)))
-				.andExpect(jsonPath("$.errors[0].field").value("activeMode"))
-				.andExpect(jsonPath("$.errors[0].message").value("La modalidad es obligatoria"))
-				.andExpect(jsonPath("$.errors[1].field").value("phone"))
-				.andExpect(jsonPath("$.errors[1].message").value("El teléfono es obligatorio"));
+				.andExpect(jsonPath("$.errors", hasSize(1)))
+				.andExpect(jsonPath("$.errors[0].field").value("phone"))
+				.andExpect(jsonPath("$.errors[0].message").value("El teléfono es obligatorio"));
+		verifyNoInteractions(perfilService);
+	}
+
+	@Test
+	void actualizarPerfilValidaLaAsistenciaDeMovilidad() throws Exception {
+		mvc.perform(put("/users/me").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"firstName\":\"Ana\",\"lastName\":\"Torres\",\"phone\":\"+51987654321\","
+								+ "\"mobilityAssistance\":{\"note\":\"" + "x".repeat(121) + "\",\"consent\":false}}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors", hasSize(3)))
+				.andExpect(jsonPath("$.errors[?(@.field=='mobilityAssistance.type')].message")
+						.value("Elige el tipo de asistencia"))
+				.andExpect(jsonPath("$.errors[?(@.field=='mobilityAssistance.note')].message")
+						.value("La nota debe tener como máximo 120 caracteres"))
+				.andExpect(jsonPath("$.errors[?(@.field=='mobilityAssistance.consent')].message")
+						.value("Para guardar tu asistencia debes autorizar compartirla, o apaga la opción."));
 		verifyNoInteractions(perfilService);
 	}
 
@@ -238,7 +253,7 @@ class ValidacionSolicitudesTest {
 		ArgumentCaptor<ActualizarPerfilRequest> solicitud = ArgumentCaptor.forClass(ActualizarPerfilRequest.class);
 		verify(perfilService).actualizar(any(ObjectId.class), solicitud.capture());
 		assertThat(solicitud.getValue()).isEqualTo(new ActualizarPerfilRequest(null, "Ana", "Torres", "CE",
-				"AB123456", "+51987654321", "PASSENGER"));
+				"AB123456", "+51987654321", "PASSENGER", null));
 	}
 
 	@Test
@@ -281,19 +296,23 @@ class ValidacionSolicitudesTest {
 		mvc.perform(post("/vehicles").contentType(MediaType.APPLICATION_JSON)
 						.content("{\"plate\":\" abc123 \",\"type\":\"SEDAN\",\"brand\":\" Toyota \",\"model\":\"Yaris\","
 								+ "\"color\":\"Blanco\",\"year\":2021,\"seats\":3,\"ownerDni\":\"45678912\","
+								+ "\"soat\":{\"insurer\":\"Rímac Seguros\",\"policyNumber\":\"2401-123456\",\"startDate\":\"2026-03-15\",\"endDate\":\"2027-03-14\"},"
 								+ "\"acceptedTerms\":true}"))
 				.andExpect(status().isCreated());
 		ArgumentCaptor<RegistrarVehiculoRequest> solicitud = ArgumentCaptor.forClass(RegistrarVehiculoRequest.class);
 		verify(vehiculoService).registrar(any(ObjectId.class), solicitud.capture());
 		assertThat(solicitud.getValue()).isEqualTo(new RegistrarVehiculoRequest("ABC-123", "SEDAN", "Toyota", "Yaris",
-				"Blanco", 2021, 3, "45678912", null, true, null, null, null));
+				"Blanco", 2021, 3, "45678912", null, true, null, null,
+				new SoatRequest("Rímac Seguros", "2401-123456", LocalDate.of(2026, 3, 15), LocalDate.of(2027, 3, 14), null)));
 	}
 
 	@Test
 	void actualizarVehiculoValidoRespondeOk() throws Exception {
 		mvc.perform(put("/vehicles/me").contentType(MediaType.APPLICATION_JSON)
 						.content("{\"plate\":\"B1C-4567\",\"type\":\"MOTORCYCLE\",\"brand\":\"Honda\",\"model\":\"CB190\","
-								+ "\"color\":\"Rojo\",\"year\":2000,\"seats\":1,\"isOwner\":false,\"acceptedTerms\":true}"))
+								+ "\"color\":\"Rojo\",\"year\":2000,\"seats\":1,\"isOwner\":false,"
+								+ "\"soat\":{\"insurer\":\"Rímac Seguros\",\"policyNumber\":\"2401-123456\",\"startDate\":\"2026-03-15\",\"endDate\":\"2027-03-14\"},"
+								+ "\"acceptedTerms\":true}"))
 				.andExpect(status().isOk());
 		verify(vehiculoService).actualizar(any(ObjectId.class), any(ActualizarVehiculoRequest.class));
 	}
@@ -305,7 +324,8 @@ class ValidacionSolicitudesTest {
 								+ "\"ownerDni\":\"1234\",\"acceptedTerms\":false,\"photoFileId\":\"zzz\"}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-				.andExpect(jsonPath("$.errors", hasSize(10)))
+				.andExpect(jsonPath("$.errors", hasSize(11)))
+				.andExpect(jsonPath("$.errors[?(@.field=='soat')].message").value("El SOAT es obligatorio"))
 				.andExpect(jsonPath("$.errors[?(@.field=='plate')].message").value("La placa debe tener el formato ABC-123"))
 				.andExpect(jsonPath("$.errors[?(@.field=='type')].message").value("El tipo de vehículo no es válido"))
 				.andExpect(jsonPath("$.errors[?(@.field=='brand')].message").value("La marca es obligatoria"))
@@ -322,7 +342,7 @@ class ValidacionSolicitudesTest {
 
 		mvc.perform(put("/vehicles/me").contentType(MediaType.APPLICATION_JSON).content("{\"year\":2999}"))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.errors", hasSize(8)))
+				.andExpect(jsonPath("$.errors", hasSize(9)))
 				.andExpect(jsonPath("$.errors[?(@.field=='plate')].message").value("La placa es obligatoria"))
 				.andExpect(jsonPath("$.errors[?(@.field=='seats')].message").value("Las plazas son obligatorias"))
 				.andExpect(jsonPath("$.errors[?(@.field=='year')].message")

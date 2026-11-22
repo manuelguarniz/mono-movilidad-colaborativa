@@ -8,6 +8,7 @@ import {
   type Role,
 } from "@/mocks/db";
 import {
+  checkAssistance,
   DNI,
   api,
   apiError,
@@ -114,11 +115,13 @@ export const userHandlers = [
       });
     }
 
-    if (body.activeMode == null) {
-      errors.push({ field: "activeMode", message: "La modalidad es obligatoria" });
-    } else if (body.activeMode !== "PASSENGER" && body.activeMode !== "DRIVER") {
+    // La modalidad es opcional: P15 ya no la muestra (RN-48); si no llega, se conserva.
+    if (body.activeMode != null && body.activeMode !== "PASSENGER" && body.activeMode !== "DRIVER") {
       errors.push({ field: "activeMode", message: "La modalidad no es válida" });
     }
+
+    // RN-17: reemplaza la asistencia guardada; `null` la quita.
+    const assistance = checkAssistance(body.mobilityAssistance, errors);
 
     if (body.photoFileId != null && !isObjectId(body.photoFileId)) {
       errors.push({ field: "photoFileId", message: "La foto de perfil no es válida" });
@@ -173,7 +176,8 @@ export const userHandlers = [
         "Completa tu perfil antes de actualizar tus datos",
       );
     }
-    const modeError = modeChangeError(user, body.activeMode as Role);
+    const activeMode = (body.activeMode as Role | undefined) ?? user.activeMode;
+    const modeError = activeMode ? modeChangeError(user, activeMode) : null;
     if (modeError) {
       return modeError;
     }
@@ -192,7 +196,8 @@ export const userHandlers = [
     user.firstName = (body.firstName as string).trim();
     user.lastName = (body.lastName as string).trim();
     user.phone = body.phone as string;
-    user.activeMode = body.activeMode as Role;
+    user.activeMode = activeMode;
+    user.mobilityAssistance = assistance;
     if (registersDocument) {
       user.documentType = body.documentType as DocumentType;
       user.documentNumber = body.documentNumber as string;

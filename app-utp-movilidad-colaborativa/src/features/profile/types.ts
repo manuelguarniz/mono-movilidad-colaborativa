@@ -19,7 +19,7 @@ export type UserProfile = {
   district: { id: string; name: string } | null;
   campus: { id: string; name: string; address: string } | null;
   homeAddress: { label: string; address?: string | null } | null;
-  // RN-17: solo en el perfil propio; `null` si no la declaró. P15 todavía no permite editarla.
+  // RN-17: solo en el perfil propio; `null` si no la declaró. Se edita en P15.
   mobilityAssistance: MobilityAssistance | null;
   roles: Role[];
   activeMode: Role;
@@ -43,18 +43,29 @@ export type TripInProgress = {
   vehicle: { brand: string; model: string; color: string } | null;
 };
 
+export type MobilityAssistanceType = "WHEELCHAIR" | "CRUTCHES_OR_WALKER" | "OTHER";
+
 export type MobilityAssistance = {
-  type: "WHEELCHAIR" | "CRUTCHES_OR_WALKER" | "OTHER";
+  type: MobilityAssistanceType;
   note: string | null;
 };
 
+// `MobilityAssistanceRequest` (RN-17): solo se guarda con el consentimiento marcado.
+export type MobilityAssistanceRequest = {
+  type: MobilityAssistanceType;
+  note?: string;
+  consent: true;
+};
+
 // `UserUpdateRequest` (PUT /users/me). El documento solo se envía mientras el usuario no
-// tenga uno registrado; el correo no es editable.
+// tenga uno registrado; el correo no es editable. La modalidad se cambia en el perfil
+// (PATCH /users/me/mode, RN-48). `mobilityAssistance: null` quita la asistencia guardada.
 export type UserUpdateRequest = {
   firstName: string;
   lastName: string;
   phone: string;
-  activeMode: Role;
+  activeMode?: Role;
+  mobilityAssistance: MobilityAssistanceRequest | null;
   documentType?: DocumentType;
   documentNumber?: string;
   photoFileId?: string;

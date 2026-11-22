@@ -13,6 +13,12 @@ type AuthStepLayoutProps = {
   showLogo?: boolean | "bordered";
   // Cabecera con el nombre de la app y título alineado a la izquierda.
   showBrandHeader?: boolean;
+  /**
+   * Encabezado de flujo (P15, P16): «←» y el título en la misma fila, sin el nombre de la app.
+   * `onBack` reemplaza al enlace, por ejemplo para confirmar si hay cambios sin guardar.
+   */
+  flowHeader?: boolean;
+  onBack?: () => void;
   children: ReactNode;
   footer?: ReactNode;
 };
@@ -24,10 +30,40 @@ export function AuthStepLayout({
   subtitle,
   showLogo = false,
   showBrandHeader = false,
+  flowHeader = false,
+  onBack,
   children,
   footer,
 }: AuthStepLayoutProps) {
   const BackIcon = backIcon === "chevron" ? ChevronLeftIcon : ArrowLeftIcon;
+
+  if (flowHeader) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-panel">
+          <div className="auth-content">
+            <div className="flow-header">
+              {onBack ? (
+                <button type="button" className="auth-back-button" aria-label="Volver" onClick={onBack}>
+                  <BackIcon className="h-6 w-6" />
+                </button>
+              ) : (
+                <Link to={backTo} className="auth-back-button" aria-label="Volver">
+                  <BackIcon className="h-6 w-6" />
+                </Link>
+              )}
+              <h1 className="text-[1.375rem] font-semibold leading-tight text-[var(--text-primary)]">
+                {title}
+              </h1>
+            </div>
+            {subtitle ? <p className="text-sm text-[var(--text-brown)]">{subtitle}</p> : null}
+            <div className="mt-5">{children}</div>
+            {footer}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-shell">

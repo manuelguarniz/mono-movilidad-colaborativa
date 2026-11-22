@@ -106,6 +106,8 @@ public class ReservaService {
 								viaje.vehiculo().modelo(), viaje.vehiculo().color())))
 				.plazas(plazas)
 				.totalCreditos(total)
+				// RN-21: copia del momento; cambios posteriores del perfil no la modifican.
+				.asistencia(Reserva.Asistencia.desde(pasajero.getAsistenciaMovilidad()))
 				.estado(EstadoReserva.CONFIRMADA)
 				.liquidada(false)
 				.fechaCreacion(ahora)

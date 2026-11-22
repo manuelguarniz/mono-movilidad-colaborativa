@@ -143,7 +143,8 @@ paths:
       operationId: completeProfile
       summary: Completar el perfil
       description: |
-        Guarda los datos personales y la foto, asigna el rol `PASSENGER` y deja la cuenta
+        Guarda los datos personales, la foto y, si llega, la necesidad de asistencia de
+        movilidad (RN-17, solo con `consent: true`); asigna el rol `PASSENGER` y deja la cuenta
         en estado `ACTIVE`. Todos los datos son obligatorios, incluida la foto (RN-04),
         que se sube antes con `POST /files`. Admite un token `REGISTRATION` o, si el usuario abandonó el registro y
         luego inició sesión, un token `SESSION`.
@@ -526,8 +527,8 @@ paths:
         foto y la accesibilidad (RN-06, RN-18). Una moto no puede marcar ningún check de
         accesibilidad.
 
-        `soat` es opcional mientras los formularios de P05 y P16 no lo pidan. Si llega, se
-        valida según RN-36: vigente hoy, con 366 días de vigencia como máximo.
+        `soat` es obligatorio (RN-36; decisión del 2026-11-21): «El SOAT es obligatorio». Debe
+        estar vigente hoy y durar 366 días como máximo.
       requestBody:
         required: true
         content:
@@ -624,7 +625,8 @@ paths:
         tiene foto, `photoFileId` es obligatorio. De las casillas, solo es obligatoria la
         de términos y condiciones (RN-16).
 
-        Si `accessibility` o `soat` no llegan, se conservan los actuales. Si el vehículo
+        `soat` es obligatorio (RN-15, RN-36): sin `photoFileId` se conserva la foto del
+        certificado anterior. Si `accessibility` no llega, se conserva la actual. Si el vehículo
         pasa a ser una moto sin enviar `accessibility`, se le quitan los checks (RN-18). La
         copia en los viajes activos incluye la accesibilidad y el fin del SOAT.
       requestBody:
@@ -1294,8 +1296,15 @@ paths:
       operationId: updateMyProfile
       summary: Actualizar mis datos
       description: |
-        Actualiza foto, nombres, apellidos, teléfono y modalidad activa. Todos los datos
-        son obligatorios, incluida la foto (RN-14).
+        Actualiza foto, nombres, apellidos, teléfono y asistencia de movilidad. Todos los
+        datos son obligatorios, incluida la foto, salvo la asistencia (RN-14, RN-17).
+
+        `mobilityAssistance` reemplaza la asistencia guardada; `null` (o ausente) la quita y
+        borra el tipo y la nota. Las reservas ya hechas conservan su copia (RN-21). Si el tipo
+        y la nota no cambian, se conserva la fecha del consentimiento anterior.
+
+        `activeMode` es opcional: P15 ya no muestra la modalidad, que se cambia con
+        `PATCH /users/me/mode` (RN-48). Si llega, se valida igual que allí.
 
         El correo no es editable: si llega en el cuerpo, se ignora. El documento de
         identidad (`documentType` y `documentNumber`) se registra una sola vez: es
@@ -1955,6 +1964,12 @@ components:
           $ref: "#/components/schemas/ObjectId"
         campusId:
           $ref: "#/components/schemas/ObjectId"
+        mobilityAssistance:
+          allOf:
+            - $ref: "#/components/schemas/MobilityAssistanceRequest"
+          description: |
+            Opcional (RN-04). Si no llega, el usuario no declaró ninguna; repetir este paso sin
+            ella no borra la que ya tenga.
 
     LoginRequest:
       type: object
@@ -2212,8 +2227,8 @@ components:
             - $ref: "#/components/schemas/MobilityAssistance"
             - type: "null"
           description: |
-            Solo en el perfil propio. `null` si no la declaró. Todavía no se edita: `PUT /users/me`
-            no la recibe hasta que P15 tenga la sección (RF-14).
+            Solo en el perfil propio. `null` si no la declaró. Se edita con `PUT /users/me`
+            (P15) y se declara al completar el perfil (P04).
         tripInProgress:
           oneOf:
             - $ref: "#/components/schemas/TripInProgress"
@@ -2286,6 +2301,28 @@ components:
           type: [string, "null"]
           maxLength: 120
 
+    MobilityAssistanceRequest:
+      type: object
+      description: |
+        Necesidad de asistencia que declara el usuario en P04 y P15 (RN-17). Solo se guarda con
+        el consentimiento «Autorizo compartir esta información con los conductores de los
+        viajes que reserve». Errores (`VALIDATION_ERROR`, campo `mobilityAssistance.*`):
+        «Elige el tipo de asistencia», «La nota debe tener como máximo 120 caracteres» y
+        «Para guardar tu asistencia debes autorizar compartirla, o apaga la opción.».
+      required: [type, consent]
+      properties:
+        type:
+          type: string
+          enum: [WHEELCHAIR, CRUTCHES_OR_WALKER, OTHER]
+        note:
+          type: [string, "null"]
+          maxLength: 120
+          description: Opcional; una nota vacía equivale a no enviarla.
+          example: Silla plegable, puedo pasar al asiento solo.
+        consent:
+          type: boolean
+          const: true
+
     ModeChangeRequest:
       type: object
       required: [activeMode]
@@ -2343,7 +2380,7 @@ components:
 
     UserUpdateRequest:
       type: object
-      required: [firstName, lastName, phone, activeMode]
+      required: [firstName, lastName, phone]
       properties:
         photoFileId:
           allOf:
@@ -2373,7 +2410,14 @@ components:
           description: Celular peruano en formato E.164.
           example: "+51987654321"
         activeMode:
-          $ref: "#/components/schemas/Role"
+          allOf:
+            - $ref: "#/components/schemas/Role"
+          description: Opcional; si no llega, se conserva la modalidad actual.
+        mobilityAssistance:
+          oneOf:
+            - $ref: "#/components/schemas/MobilityAssistanceRequest"
+            - type: "null"
+          description: "`null` o ausente quita la asistencia guardada (RN-17)."
 
     # --------------------------------------------------------------- Vehículo
     VehicleType:
@@ -2522,7 +2566,7 @@ components:
     VehicleCreateRequest:
       type: object
       required:
-        [plate, type, brand, model, color, year, seats, ownerDni, acceptedTerms]
+        [plate, type, brand, model, color, year, seats, ownerDni, acceptedTerms, soat]
       properties:
         plate:
           $ref: "#/components/schemas/Plate"
@@ -2568,11 +2612,11 @@ components:
         soat:
           allOf:
             - $ref: "#/components/schemas/SoatRequest"
-          description: Opcional mientras P05 no lo pida (RN-36).
+          description: Obligatorio (RN-36).
 
     VehicleUpdateRequest:
       type: object
-      required: [plate, type, brand, model, color, year, seats, acceptedTerms]
+      required: [plate, type, brand, model, color, year, seats, acceptedTerms, soat]
       properties:
         plate:
           $ref: "#/components/schemas/Plate"
@@ -2625,7 +2669,7 @@ components:
         soat:
           allOf:
             - $ref: "#/components/schemas/SoatRequest"
-          description: Si no se envía, se conserva el actual (RN-36; opcional mientras P16 no lo pida).
+          description: Obligatorio (RN-15, RN-36). Sin foto nueva se conserva la del certificado anterior.
 
     Plate:
       type: string
@@ -2892,7 +2936,8 @@ components:
 
     RidePassenger:
       type: object
-      required: [bookingId, id, name, photoUrl, rating, seats, totalCredits, status]
+      required:
+        [bookingId, id, name, photoUrl, rating, seats, totalCredits, status, mobilityAssistance]
       properties:
         bookingId:
           $ref: "#/components/schemas/ObjectId"
@@ -2916,6 +2961,13 @@ components:
         status:
           type: string
           enum: [CONFIRMED, IN_RIDE, NO_SHOW]
+        mobilityAssistance:
+          oneOf:
+            - $ref: "#/components/schemas/MobilityAssistance"
+            - type: "null"
+          description: |
+            Copia que guardó la reserva al crearse (RN-21); cambios posteriores del perfil no la
+            modifican. Solo la recibe el conductor del viaje (RN-22).
 
     MyBookings:
       type: object

@@ -10,6 +10,14 @@ import {
   catalogService,
   type CatalogItem,
 } from "@/features/auth/services/catalogService";
+import { MobilityAssistanceCard } from "@/features/profile/components/MobilityAssistanceCard";
+import {
+  EMPTY_ASSISTANCE,
+  toAssistanceRequest,
+  validateAssistance,
+  type AssistanceErrors,
+  type AssistanceForm,
+} from "@/features/profile/utils/assistance";
 import { getUploadErrorMessage, uploadPhoto } from "@/shared/api/fileService";
 import { usePhotoSelection } from "@/shared/hooks/usePhotoSelection";
 import UserIcon from "@/assets/images/icons/user.svg?react";
@@ -31,6 +39,9 @@ export function CompleteProfilePage() {
     campus: "",
     hasVehicle: false,
   });
+  // Sección opcional «Necesito asistencia de movilidad» (RF-02 B, RN-17).
+  const [assistance, setAssistance] = useState<AssistanceForm>(EMPTY_ASSISTANCE);
+  const [assistanceErrors, setAssistanceErrors] = useState<AssistanceErrors>({});
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -92,6 +103,12 @@ export function CompleteProfilePage() {
       return;
     }
 
+    const nextAssistanceErrors = validateAssistance(assistance);
+    setAssistanceErrors(nextAssistanceErrors);
+    if (Object.keys(nextAssistanceErrors).length > 0) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -113,6 +130,7 @@ export function CompleteProfilePage() {
         districtId: form.district,
         campusId: form.campus,
         photoFileId,
+        mobilityAssistance: toAssistanceRequest(assistance) ?? undefined,
       });
 
       // Con «Tengo vehículo» el registro continúa con los datos del vehículo (RF-07).
@@ -210,6 +228,16 @@ export function CompleteProfilePage() {
           icon={
             <GraduationCapIcon className="h-6 w-6" />
           }
+        />
+
+        <MobilityAssistanceCard
+          variant="register"
+          value={assistance}
+          errors={assistanceErrors}
+          onChange={(next) => {
+            setAssistanceErrors({});
+            setAssistance(next);
+          }}
         />
 
         <label className="profile-vehicle-option">

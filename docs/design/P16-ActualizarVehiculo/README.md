@@ -32,3 +32,10 @@ Manda el README raíz (sección 11). El detalle y el motivo de cada cambio está
 - Solo el check de términos es obligatorio (RN-16).
 - Nota: los cambios se copian a los viajes publicados y las reservas conservan su copia (RF-14).
 - Estados: errores de validación (16-B) y SOAT por vencer (16-D).
+
+## Implementación (2026-11-21)
+
+- SOAT obligatorio en la API y en el formulario (también en P05). La foto del certificado y la del vehículo las exige el frontend; la API las acepta opcionales.
+- Las fechas del SOAT usan el selector nativo del navegador (`<input type="date">`), sin ícono propio.
+- La franja 16-D también avisa si el SOAT guardado ya venció.
+

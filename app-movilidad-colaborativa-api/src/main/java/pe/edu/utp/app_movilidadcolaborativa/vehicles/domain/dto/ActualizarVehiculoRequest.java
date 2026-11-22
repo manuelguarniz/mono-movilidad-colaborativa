@@ -16,7 +16,8 @@ import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.ReglasVeh
 
 // RN-15 y RN-16. Si isOwner no llega, se conserva el valor actual. El DNI del propietario es opcional y solo se
 // usa cuando el usuario aún no tiene vehículo y la actualización lo registra; después no se modifica aquí.
-// Si accessibility o soat no llegan, se conservan los actuales: el SOAT es opcional mientras P16 no lo pida.
+// Si accessibility no llega, se conserva la actual. El SOAT es obligatorio (RN-15, RN-36; decisión del 2026-11-21):
+// sin foto nueva del certificado se conserva la anterior.
 public record ActualizarVehiculoRequest(
 		@NotBlank(message = "La placa es obligatoria") @PlacaPeru String plate,
 		@NotNull(message = "El tipo de vehículo es obligatorio")
@@ -38,7 +39,7 @@ public record ActualizarVehiculoRequest(
 		@AssertTrue(message = "Debes aceptar los términos y condiciones") Boolean acceptedTerms,
 		@IdObjeto(message = "La foto del vehículo no es válida") String photoFileId,
 		AccesibilidadDto accessibility,
-		@Valid SoatRequest soat) {
+		@NotNull(message = "El SOAT es obligatorio") @Valid SoatRequest soat) {
 
 	// La placa se normaliza y los textos se recortan al construir la solicitud, antes de validarla.
 	public ActualizarVehiculoRequest {

@@ -1,25 +1,18 @@
 import type { Vehicle, VehicleType } from "@/features/vehicles/types";
 
+// Etiquetas del selector aprobado en P16 (16-A, 16-C).
 export const VEHICLE_TYPE_OPTIONS: Array<{ value: VehicleType; label: string }> = [
-  { value: "SEDAN", label: "Automóvil / Sedán" },
+  { value: "SEDAN", label: "Sedán" },
   { value: "HATCHBACK", label: "Hatchback" },
-  { value: "SUV", label: "SUV / Camioneta" },
-  { value: "VAN", label: "Van / Minivan" },
-  { value: "MOTORCYCLE", label: "Motocicleta" },
+  { value: "SUV", label: "SUV" },
+  { value: "VAN", label: "Van" },
+  { value: "MOTORCYCLE", label: "Moto" },
 ];
 
 // RN-08 y RN-09.
 const MIN_YEAR = 2000;
-const MIN_SEATS = 1;
-const MAX_SEATS = 10;
-
-export const SEAT_OPTIONS = Array.from({ length: MAX_SEATS }, (_, index) => {
-  const seats = index + MIN_SEATS;
-  return {
-    value: String(seats),
-    label: `${seats} ${seats === 1 ? "asiento" : "asientos"}`,
-  };
-});
+export const MIN_SEATS = 1;
+export const MAX_SEATS = 10;
 
 // Los campos del formulario son texto; se convierten al armar la solicitud.
 export type VehicleFormValues = {
@@ -56,42 +49,42 @@ export const toVehicleForm = (vehicle: Vehicle): VehicleFormValues => ({
 const PLATE = /^[A-Za-z0-9]{3}-?[A-Za-z0-9]{3,4}$/;
 export const DNI = /^\d{8}$/;
 
-/** Primer error del formulario, con los mismos mensajes de la API, o `""` si es válido. */
-export function validateVehicleForm(values: VehicleFormValues) {
+export type VehicleFieldErrors = Partial<Record<keyof VehicleFormValues, string>>;
+
+/** Errores por campo, con los mismos mensajes de la API; vacío si el formulario es válido. */
+export function validateVehicleForm(values: VehicleFormValues): VehicleFieldErrors {
+  const errors: VehicleFieldErrors = {};
   const plate = values.plate.trim();
   if (!plate) {
-    return "La placa es obligatoria";
-  }
-  if (!PLATE.test(plate)) {
-    return "La placa debe tener el formato ABC-123";
+    errors.plate = "La placa es obligatoria";
+  } else if (!PLATE.test(plate)) {
+    errors.plate = "La placa debe tener el formato ABC-123";
   }
   if (!values.type) {
-    return "El tipo de vehículo es obligatorio";
+    errors.type = "El tipo de vehículo es obligatorio";
   }
   if (!values.brand.trim()) {
-    return "La marca es obligatoria";
+    errors.brand = "La marca es obligatoria";
   }
   if (!values.model.trim()) {
-    return "El modelo es obligatorio";
+    errors.model = "El modelo es obligatorio";
   }
   if (!values.color.trim()) {
-    return "El color es obligatorio";
-  }
-  if (!values.year) {
-    return "El año de fabricación es obligatorio";
+    errors.color = "El color es obligatorio";
   }
   const year = Number(values.year);
-  if (!Number.isInteger(year) || year < MIN_YEAR || year > new Date().getFullYear()) {
-    return "El año de fabricación debe estar entre 2000 y el año actual";
-  }
-  if (!values.seats) {
-    return "Las plazas son obligatorias";
+  if (!values.year) {
+    errors.year = "El año de fabricación es obligatorio";
+  } else if (!Number.isInteger(year) || year < MIN_YEAR || year > new Date().getFullYear()) {
+    errors.year = "El año de fabricación debe estar entre 2000 y el año actual";
   }
   const seats = Number(values.seats);
-  if (!Number.isInteger(seats) || seats < MIN_SEATS || seats > MAX_SEATS) {
-    return "Las plazas deben estar entre 1 y 10";
+  if (!values.seats) {
+    errors.seats = "Las plazas son obligatorias";
+  } else if (!Number.isInteger(seats) || seats < MIN_SEATS || seats > MAX_SEATS) {
+    errors.seats = "Las plazas deben estar entre 1 y 10";
   }
-  return "";
+  return errors;
 }
 
 export const toVehicleData = (values: VehicleFormValues) => ({

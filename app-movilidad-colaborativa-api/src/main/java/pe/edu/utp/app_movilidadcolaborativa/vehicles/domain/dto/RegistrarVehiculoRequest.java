@@ -15,7 +15,7 @@ import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.PlacaPeru
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.validation.ReglasVehiculo;
 
 // RN-06: todo es obligatorio, excepto la casilla «Soy el propietario», la foto y la accesibilidad (RN-18).
-// El SOAT (RN-36) es opcional mientras los formularios de P05 y P16 no lo pidan; si llega, se valida.
+// El SOAT (RN-36) es obligatorio (decisión del 2026-11-21, cuando P05 y P16 lo piden).
 public record RegistrarVehiculoRequest(
 		@NotBlank(message = "La placa es obligatoria") @PlacaPeru String plate,
 		@NotNull(message = "El tipo de vehículo es obligatorio")
@@ -38,7 +38,7 @@ public record RegistrarVehiculoRequest(
 		@AssertTrue(message = "Debes aceptar los términos y condiciones") Boolean acceptedTerms,
 		@IdObjeto(message = "La foto del vehículo no es válida") String photoFileId,
 		AccesibilidadDto accessibility,
-		@Valid SoatRequest soat) {
+		@NotNull(message = "El SOAT es obligatorio") @Valid SoatRequest soat) {
 
 	// La placa se normaliza y los textos se recortan al construir la solicitud, antes de validarla.
 	public RegistrarVehiculoRequest {

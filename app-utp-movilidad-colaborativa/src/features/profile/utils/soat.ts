@@ -13,7 +13,7 @@ export type SoatState =
   | { kind: "expired"; daysLeft: number };
 
 /** Días que faltan para `soat.endDate` (fecha de Perú), contados desde hoy en Perú. */
-export function getSoatState(soat: Soat, now = Date.now()): SoatState {
+export function getSoatState(soat: Pick<Soat, "endDate">, now = Date.now()): SoatState {
   const today = Date.parse(limaDay.format(now));
   const daysLeft = Math.round((Date.parse(soat.endDate) - today) / DAY_MS);
   if (daysLeft < 0) {
@@ -21,6 +21,9 @@ export function getSoatState(soat: Soat, now = Date.now()): SoatState {
   }
   return { kind: daysLeft <= SOAT_WARNING_DAYS ? "expiring" : "valid", daysLeft };
 }
+
+/** Hoy en Perú como `AAAA-MM-DD`. */
+export const limaToday = (now = Date.now()) => limaDay.format(now);
 
 /** `AAAA-MM-DD` → `DD/MM/AAAA`, sin pasar por zonas horarias. */
 export const formatSoatDate = (date: string) => date.split("-").reverse().join("/");

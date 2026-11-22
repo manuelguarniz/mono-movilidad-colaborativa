@@ -37,6 +37,7 @@ import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.TipoDocumento;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.TipoVehiculo;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Usuario;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Vehiculo;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.AsistenciaRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.UsuarioRepository;
 
 import java.time.Instant;
@@ -97,7 +98,7 @@ class PerfilServiceTest {
 	}
 
 	private static ActualizarPerfilRequest solicitud(String tipo, String numero, String modo) {
-		return new ActualizarPerfilRequest(null, "Carlos Alberto", "Mendoza Ruiz", tipo, numero, "+51987654321", modo);
+		return new ActualizarPerfilRequest(null, "Carlos Alberto", "Mendoza Ruiz", tipo, numero, "+51987654321", modo, null);
 	}
 
 	private Document cambiosDelUsuario() {
@@ -298,9 +299,63 @@ class PerfilServiceTest {
 		assertThat(enViaje.vehicle()).isEqualTo(new PerfilUsuarioDto.VehiculoResumenDto("Chevrolet", "Spark", "Rojo"));
 	}
 
+	private static ActualizarPerfilRequest conAsistencia(AsistenciaRequest asistencia) {
+		return new ActualizarPerfilRequest(null, "Carlos Alberto", "Mendoza Ruiz", null, null, "+51987654321", null,
+				asistencia);
+	}
+
+	@Test
+	void sinModalidadSeConservaLaActual() {
+		existe(conductor().modoActivo(Rol.CONDUCTOR).build());
+
+		servicio.actualizar(usuarioId, conAsistencia(null));
+
+		assertThat(cambiosDelUsuario()).doesNotContainKey("modo_activo");
+	}
+
+	@Test
+	void laAsistenciaSeGuardaConLaFechaDelConsentimiento() {
+		existe(pasajero().tipoDocumento(TipoDocumento.DNI).numeroDocumento("72345678").build());
+
+		servicio.actualizar(usuarioId,
+				conAsistencia(new AsistenciaRequest("WHEELCHAIR", " Silla plegable, puedo pasar al asiento solo. ", true)));
+
+		AsistenciaMovilidad guardada = (AsistenciaMovilidad) cambiosDelUsuario().get("asistencia_movilidad");
+		assertThat(guardada.tipo()).isEqualTo(TipoAsistencia.SILLA_RUEDAS);
+		assertThat(guardada.nota()).isEqualTo("Silla plegable, puedo pasar al asiento solo.");
+		assertThat(guardada.fechaConsentimiento()).isNotNull();
+		assertThat(guardada.toString()).doesNotContain("Silla plegable");
+	}
+
+	@Test
+	void laAsistenciaSinCambiosConservaElConsentimientoAnterior() {
+		AsistenciaMovilidad anterior = new AsistenciaMovilidad(TipoAsistencia.OTRA, null,
+				Instant.parse("2026-10-01T15:04:00Z"));
+		existe(pasajero().tipoDocumento(TipoDocumento.DNI).numeroDocumento("72345678").asistenciaMovilidad(anterior)
+				.build());
+
+		servicio.actualizar(usuarioId, conAsistencia(new AsistenciaRequest("OTHER", "  ", true)));
+
+		assertThat(cambiosDelUsuario().get("asistencia_movilidad")).isEqualTo(anterior);
+	}
+
+	@Test
+	void sinAsistenciaSeQuitaLaDelPerfil() {
+		existe(pasajero().tipoDocumento(TipoDocumento.DNI).numeroDocumento("72345678")
+				.asistenciaMovilidad(new AsistenciaMovilidad(TipoAsistencia.MULETAS_ANDADOR, "Uso andador",
+				Instant.parse("2026-10-01T15:04:00Z"))).build());
+
+		servicio.actualizar(usuarioId, conAsistencia(null));
+
+		Document cambios = cambiosDelUsuario();
+		assertThat(cambios).containsKey("asistencia_movilidad");
+		assertThat(cambios.get("asistencia_movilidad")).isNull();
+	}
+
 	@Test
 	void laAsistenciaDeMovilidadSeDevuelveSinLaFechaDeConsentimiento() {
-		existe(pasajero().asistenciaMovilidad(new AsistenciaMovilidad(TipoAsistencia.SILLA_RUEDAS,
+		existe(pasajero().tipoDocumento(TipoDocumento.DNI).numeroDocumento("72345678")
+				.asistenciaMovilidad(new AsistenciaMovilidad(TipoAsistencia.SILLA_RUEDAS,
 				"Silla plegable", Instant.parse("2026-10-01T15:04:00Z"))).build());
 
 		assertThat(servicio.consultar(usuarioId).mobilityAssistance())
@@ -315,7 +370,7 @@ class PerfilServiceTest {
 		existe(pasajero().build());
 		ObjectId archivoId = new ObjectId();
 		ActualizarPerfilRequest conFoto = new ActualizarPerfilRequest(archivoId.toHexString(), "Carlos", "Mendoza",
-				"DNI", "72345678", "+51987654321", "PASSENGER");
+				"DNI", "72345678", "+51987654321", "PASSENGER", null);
 
 		when(archivoRepository.findById(archivoId)).thenReturn(Optional.of(new Archivo(archivoId, usuarioId,
 				PropositoArchivo.FOTO_VEHICULO, "vehiculos/a.jpg", "/uploads/vehiculos/a.jpg", "image/jpeg", 1,
@@ -337,11 +392,11 @@ class PerfilServiceTest {
 		existe(conductor().build());
 
 		servicio.actualizar(usuarioId, new ActualizarPerfilRequest(null, "Carlos Alberto", "Mendoza Ruiz", null, null,
-				"+51999888777", "DRIVER"));
+				"+51999888777", "DRIVER", null));
 		verify(mongoTemplate, never()).updateMulti(any(Query.class), any(Update.class), any(String.class));
 
 		servicio.actualizar(usuarioId, new ActualizarPerfilRequest(null, "Juan Carlos", "Ñahui", null, null,
-				"+51999888777", "DRIVER"));
+				"+51999888777", "DRIVER", null));
 		ArgumentCaptor<Query> filtro = ArgumentCaptor.forClass(Query.class);
 		ArgumentCaptor<Update> copia = ArgumentCaptor.forClass(Update.class);
 		verify(mongoTemplate).updateMulti(filtro.capture(), copia.capture(), eq("viajes"));

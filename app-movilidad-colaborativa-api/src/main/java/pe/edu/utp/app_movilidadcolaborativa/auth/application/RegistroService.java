@@ -101,6 +101,12 @@ public class RegistroService {
 				.addToSet("roles", Rol.PASAJERO)
 				.set("estado", EstadoUsuario.ACTIVO)
 				.set("fecha_actualizacion", Instant.now());
+		// RN-17: solo con consentimiento (lo valida la solicitud). Repetir este paso sin asistencia no borra la
+		// que ya se declaró: eso se hace en «Actualizar datos».
+		if (solicitud.mobilityAssistance() != null) {
+			cambios.set("asistencia_movilidad",
+					solicitud.mobilityAssistance().aAsistencia(usuario.getAsistenciaMovilidad(), Instant.now()));
+		}
 		// Un conductor que repite este paso con un token SESSION conserva su modalidad activa.
 		if (usuario.getModoActivo() == null) {
 			cambios.set("modo_activo", Rol.PASAJERO);

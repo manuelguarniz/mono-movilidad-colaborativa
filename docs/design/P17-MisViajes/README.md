@@ -39,7 +39,7 @@ Manda el README raíz. Las capturas son una referencia de alta fidelidad, no un 
 - La tarjeta de mañana de 17-B muestra solo la fila «Ocupación» con barra.
 - «Finalizar viaje» (17-F) muestra el aviso «Viaje completado» y se queda en Mis viajes: P20 Calificar todavía no existe.
 - 17-F calcula «Recibirás N créditos» con las reservas de quienes subieron y de quienes no se presentaron (RN-40). La billetera todavía no existe, así que el cobro y los reembolsos solo se informan.
-- La línea de asistencia de movilidad del pasajero (RN-22) no aparece: el perfil todavía no guarda ese dato.
+- La línea de asistencia de movilidad del pasajero (RN-22) va en su fila, en ámbar con el ícono de accesibilidad: «{tipo} — {nota}», con la copia que guardó la reserva (RN-21). Implementada el 2026-11-21.
 - El chip «Paso previo a la salida» de 17-E (agregado por Stitch) no se implementa.
 - 17-D sin reservas omite la frase «Se cancelarán las N reservas…»; con una sola reserva dice «Se cancelará la reserva confirmada y se devolverán sus créditos.».
 - Con el plazo de inicio vencido y sin el job de RF-08, la tarjeta muestra «Ya pasó el plazo para iniciar este viaje» (texto nuevo, igual al mensaje de la API).

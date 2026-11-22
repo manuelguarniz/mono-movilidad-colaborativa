@@ -1,4 +1,5 @@
 import type { RideSummary } from "@/features/dashboard/types";
+import type { MobilityAssistance } from "@/features/profile/types";
 
 // Tipos del contrato `docs/openapi.yaml` que usa Mis viajes (P17).
 
@@ -35,7 +36,7 @@ export type MyBookings = {
   cancellations: CancellationCounter;
 };
 
-// `RidePassenger`. La asistencia de movilidad (RN-22) llegará cuando el perfil la guarde.
+// `RidePassenger`. `mobilityAssistance` es la copia que guardó la reserva (RN-21, RN-22).
 export type RidePassenger = {
   bookingId: string;
   id: string;
@@ -45,6 +46,7 @@ export type RidePassenger = {
   seats: number;
   totalCredits: number;
   status: "CONFIRMED" | "IN_RIDE" | "NO_SHOW";
+  mobilityAssistance: MobilityAssistance | null;
 };
 
 // `DriverRide`: viaje del conductor con sus reservas y sus plazos (RN-26, RN-43).

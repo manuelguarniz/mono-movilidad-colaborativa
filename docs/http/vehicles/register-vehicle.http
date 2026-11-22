@@ -129,6 +129,12 @@ Authorization: Bearer {{sessionToken}}
     "seats": 4,
     "isOwner": true,
     "acceptedTerms": true,
+    "soat": {
+        "insurer": "Rímac Seguros",
+        "policyNumber": "2401-123456",
+        "startDate": "2026-03-15",
+        "endDate": "2027-03-14"
+    },
     "photoFileId": null
 }
 
@@ -158,6 +164,12 @@ Authorization: Bearer {{sessionToken}}
     "seats": 4,
     "isOwner": true,
     "acceptedTerms": true,
+    "soat": {
+        "insurer": "Rímac Seguros",
+        "policyNumber": "2401-123456",
+        "startDate": "2026-03-15",
+        "endDate": "2027-03-14"
+    },
     "photoFileId": null
 }
 
@@ -178,5 +190,11 @@ Authorization: Bearer {{sessionToken}}
     "seats": 4,
     "isOwner": true,
     "acceptedTerms": true,
+    "soat": {
+        "insurer": "Rímac Seguros",
+        "policyNumber": "2401-123456",
+        "startDate": "2026-03-15",
+        "endDate": "2027-03-14"
+    },
     "photoFileId": null
 }

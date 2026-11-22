@@ -144,6 +144,42 @@ export function checkPersonName(
   }
 }
 
+type MockAssistance = {
+  type: "WHEELCHAIR" | "CRUTCHES_OR_WALKER" | "OTHER";
+  note: string | null;
+};
+
+/**
+ * `MobilityAssistanceRequest` (RN-17) con los mensajes de la API. Devuelve la asistencia que se
+ * guarda, o `null` si no llegó o tiene errores (que se agregan a `errors`).
+ */
+export function checkAssistance(value: unknown, errors: FieldError[]): MockAssistance | null {
+  if (value == null) {
+    return null;
+  }
+  const body = value as Record<string, unknown>;
+  const before = errors.length;
+  if (body.type == null) {
+    errors.push({ field: "mobilityAssistance.type", message: "Elige el tipo de asistencia" });
+  } else if (!["WHEELCHAIR", "CRUTCHES_OR_WALKER", "OTHER"].includes(body.type as string)) {
+    errors.push({ field: "mobilityAssistance.type", message: "El tipo de asistencia no es válido" });
+  }
+  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+  if (typeof body.note === "string" && body.note.length > 120) {
+    errors.push({
+      field: "mobilityAssistance.note",
+      message: "La nota debe tener como máximo 120 caracteres",
+    });
+  }
+  if (body.consent !== true) {
+    errors.push({
+      field: "mobilityAssistance.consent",
+      message: "Para guardar tu asistencia debes autorizar compartirla, o apaga la opción.",
+    });
+  }
+  return errors.length > before ? null : { type: body.type as MockAssistance["type"], note };
+}
+
 /** Foto ya subida con `POST /files`, del usuario y del propósito del formulario. */
 export const findOwnFile = (
   fileId: string,

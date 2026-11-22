@@ -8,4 +8,9 @@ import java.time.Instant;
  * 120 caracteres y puede faltar.
  */
 public record AsistenciaMovilidad(TipoAsistencia tipo, String nota, Instant fechaConsentimiento) {
+
+	@Override
+	public String toString() {
+		return "AsistenciaMovilidad[tipo=" + tipo + ", nota=***, fechaConsentimiento=" + fechaConsentimiento + "]";
+	}
 }

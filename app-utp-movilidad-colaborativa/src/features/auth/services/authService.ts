@@ -1,3 +1,4 @@
+import type { MobilityAssistanceRequest } from "@/features/profile/types";
 import { isSessionExpiredError, session } from "@/shared/auth/session";
 import { API_BASE_URL } from "@/shared/config/env";
 
@@ -26,6 +27,8 @@ export type CompleteProfilePayload = {
   districtId: string;
   campusId: string;
   photoFileId?: string;
+  // RN-17: opcional; solo se envía con el consentimiento marcado.
+  mobilityAssistance?: MobilityAssistanceRequest;
 };
 
 type PendingProfileRegistration = {

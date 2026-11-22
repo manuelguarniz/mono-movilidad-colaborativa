@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { FieldError } from "@/features/auth/components/FieldError";
 import ChevronDownIcon from "@/assets/images/icons/chevron-down.svg?react";
 
 type AuthSelectFieldProps = {
@@ -9,6 +10,7 @@ type AuthSelectFieldProps = {
   onChange: (value: string) => void;
   icon?: ReactNode;
   disabled?: boolean;
+  error?: string;
 };
 
 export function AuthSelectField({
@@ -19,8 +21,10 @@ export function AuthSelectField({
   onChange,
   icon,
   disabled,
+  error,
 }: AuthSelectFieldProps) {
   const listboxId = useId();
+  const errorId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -72,8 +76,10 @@ export function AuthSelectField({
 
       <button
         type="button"
-        className="auth-select-trigger"
+        className={error ? "auth-select-trigger auth-input-error" : "auth-select-trigger"}
         disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-controls={listboxId}
@@ -122,6 +128,8 @@ export function AuthSelectField({
           )}
         </ul>
       ) : null}
+
+      {error ? <FieldError id={errorId}>{error}</FieldError> : null}
     </div>
   );
 }

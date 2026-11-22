@@ -1,11 +1,14 @@
 package pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.validation.IdObjeto;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.AsistenciaRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.validation.NombrePersona;
 
-// Mientras no exista POST /files la foto es opcional; si llega, se valida.
+// Mientras no exista POST /files la foto es opcional; si llega, se valida. La asistencia de movilidad es opcional
+// (RN-04, RN-17): si no llega, el usuario no declaró ninguna.
 public record CompletarPerfilRequest(
 		@IdObjeto(message = "La foto de perfil no es válida") String photoFileId,
 		@NotBlank(message = "Los nombres son obligatorios")
@@ -19,7 +22,8 @@ public record CompletarPerfilRequest(
 		@NotNull(message = "El distrito es obligatorio")
 		@IdObjeto(message = "El distrito no es válido") String districtId,
 		@NotNull(message = "La sede es obligatoria")
-		@IdObjeto(message = "La sede no es válida") String campusId) {
+		@IdObjeto(message = "La sede no es válida") String campusId,
+		@Valid AsistenciaRequest mobilityAssistance) {
 
 	// Nombres y apellidos se recortan al construir la solicitud, antes de validarla.
 	public CompletarPerfilRequest {

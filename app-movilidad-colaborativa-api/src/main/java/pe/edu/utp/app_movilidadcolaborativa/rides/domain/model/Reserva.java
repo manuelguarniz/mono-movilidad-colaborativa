@@ -6,6 +6,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.model.ReferenciaNombre;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.AsistenciaMovilidad;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.TipoAsistencia;
 
 import java.time.Instant;
 
@@ -26,6 +28,11 @@ public record Reserva(
 		ResumenViaje viaje,
 		Integer plazas,
 		Integer totalCreditos,
+		/**
+		 * Copia de la asistencia de movilidad del pasajero al reservar (RN-21), sin la fecha de consentimiento; null si
+		 * no declaró ninguna o si la reserva es anterior al campo. Solo la ven el pasajero y el conductor (RN-22).
+		 */
+		Asistencia asistencia,
 		EstadoReserva estado,
 		/**
 		 * false mientras sus créditos están retenidos; true cuando se reembolsan o se pagan al conductor (RN-40). Las
@@ -43,5 +50,19 @@ public record Reserva(
 	}
 
 	public record VehiculoResumen(String marca, String modelo, String color) {
+	}
+
+	/** Dato sensible (RNF-13): toString no muestra la nota, para que nunca termine en un log. */
+	public record Asistencia(TipoAsistencia tipo, String nota) {
+
+		public static Asistencia desde(AsistenciaMovilidad asistencia) {
+			return asistencia == null || asistencia.tipo() == null ? null
+					: new Asistencia(asistencia.tipo(), asistencia.nota());
+		}
+
+		@Override
+		public String toString() {
+			return "Asistencia[tipo=" + tipo + ", nota=***]";
+		}
 	}
 }

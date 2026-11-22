@@ -1,7 +1,8 @@
 # Actualizar mi perfil
 # PUT /users/me
 #
-# Requiere token SESSION. activeMode es obligatorio y phone va como +51 y 9 dígitos.
+# Requiere token SESSION. phone va como +51 y 9 dígitos. activeMode es opcional (la modalidad se
+# cambia con PATCH /users/me/mode). mobilityAssistance reemplaza la asistencia guardada; null la quita (RN-17).
 
 @baseUrl = http://localhost:8080/api
 # token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
@@ -45,7 +46,10 @@
 #   },
 #   "rating": null,
 #   "createdAt": "2026-10-09T03:53:35.841Z",
-#   "mobilityAssistance": null,
+#   "mobilityAssistance": {
+#     "type": "WHEELCHAIR",
+#     "note": "Silla plegable, puedo pasar al asiento solo."
+#   },
 #   "cancellationBlock": null,
 #   "tripInProgress": null
 # }
@@ -61,19 +65,19 @@ Authorization: Bearer {{sessionToken}}
     "phone": "+51987654321",
     "documentType": "DNI",
     "documentNumber": "72345678",
-    "activeMode": "PASSENGER"
+    "mobilityAssistance": {
+        "type": "WHEELCHAIR",
+        "note": "Silla plegable, puedo pasar al asiento solo.",
+        "consent": true
+    }
 }
 
-### 400 · Falta activeMode y teléfono sin prefijo +51
+### 400 · Teléfono sin prefijo +51
 # Respuesta 400 Bad Request
 # {
 #   "code": "VALIDATION_ERROR",
 #   "message": "Revisa los datos enviados",
 #   "errors": [
-#     {
-#       "field": "activeMode",
-#       "message": "La modalidad es obligatoria"
-#     },
 #     {
 #       "field": "phone",
 #       "message": "El teléfono debe tener el formato +51 seguido de 9 dígitos"
@@ -92,6 +96,36 @@ Authorization: Bearer {{sessionToken}}
     "phone": "987654321",
     "documentType": "DNI",
     "documentNumber": "72345678"
+}
+
+### 400 · Asistencia sin tipo ni consentimiento
+# Respuesta 400 Bad Request
+# {
+#   "code": "VALIDATION_ERROR",
+#   "message": "Revisa los datos enviados",
+#   "errors": [
+#     {
+#       "field": "mobilityAssistance.consent",
+#       "message": "Para guardar tu asistencia debes autorizar compartirla, o apaga la opción."
+#     },
+#     {
+#       "field": "mobilityAssistance.type",
+#       "message": "Elige el tipo de asistencia"
+#     }
+#   ]
+# }
+PUT {{baseUrl}}/users/me
+Content-Type: application/json
+Authorization: Bearer {{sessionToken}}
+
+{
+    "firstName": "Ana",
+    "lastName": "Torres",
+    "phone": "+51987654321",
+    "mobilityAssistance": {
+        "note": "Uso andador",
+        "consent": false
+    }
 }
 
 ### 401 · Sin token

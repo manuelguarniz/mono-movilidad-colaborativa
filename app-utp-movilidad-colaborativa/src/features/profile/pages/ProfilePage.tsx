@@ -8,6 +8,7 @@ import {
   type ModeChangeStep,
 } from "@/features/profile/components/ModeChangeSheet";
 import { profileService } from "@/features/profile/services/profileService";
+import { ASSISTANCE_LABELS } from "@/features/profile/utils/assistance";
 import type { MobilityAssistance, Role } from "@/features/profile/types";
 import {
   formatSoatDate,
@@ -67,12 +68,6 @@ const MODE_HELP = {
   PASSENGER: "Como pasajero reservas plazas en viajes de la comunidad UTP.",
   PASSENGER_WITH_VEHICLE: "Al cambiar de modo te pediremos confirmar.",
   PASSENGER_WITHOUT_VEHICLE: "Para usar el modo conductor necesitas registrar un vehículo.",
-};
-
-const ASSISTANCE_LABELS: Record<MobilityAssistance["type"], string> = {
-  WHEELCHAIR: "Silla de ruedas",
-  CRUTCHES_OR_WALKER: "Muletas o andador",
-  OTHER: "Otra",
 };
 
 const SOAT_BANNER_ID = "profile-soat-banner";
@@ -176,8 +171,8 @@ function WalletCard({ wallet, isDriver }: { wallet: Wallet | undefined; isDriver
 }
 
 /**
- * «ASISTENCIA DE MOVILIDAD» (13-A): solo se ve en el perfil propio (RN-22). Se edita en P15,
- * que todavía no tiene la sección: el enlace queda deshabilitado.
+ * «ASISTENCIA DE MOVILIDAD» (13-A): solo se ve en el perfil propio (RN-22). Se edita en P15;
+ * el enlace abre esa pantalla en la tarjeta de asistencia.
  */
 function AssistanceCard({ assistance }: { assistance: MobilityAssistance | null }) {
   return (
@@ -203,12 +198,12 @@ function AssistanceCard({ assistance }: { assistance: MobilityAssistance | null 
         Es opcional. Si la declaras, solo la verán los conductores de los viajes que reserves.
       </p>
       {assistance ? null : (
-        <p
-          className="mt-3 text-sm font-semibold text-[var(--text-muted)]"
-          aria-disabled="true"
+        <Link
+          to="/perfil/datos#asistencia"
+          className="mt-3 inline-block text-sm font-semibold text-[var(--brand-red)]"
         >
-          Declarar en Actualizar datos (próximamente)
-        </p>
+          Declarar en Actualizar datos
+        </Link>
       )}
     </section>
   );

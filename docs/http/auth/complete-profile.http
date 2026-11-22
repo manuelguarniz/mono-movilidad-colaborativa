@@ -2,6 +2,7 @@
 # POST /auth/complete-profile
 #
 # Requiere token REGISTRATION. Deja la cuenta ACTIVE con rol PASSENGER.
+# mobilityAssistance es opcional (RN-17) y solo se guarda con consent: true.
 
 @baseUrl = http://localhost:8080/api
 # token scope REGISTRATION devuelto por POST /auth/register (vence en 15 min)
@@ -22,6 +23,28 @@ Authorization: Bearer {{registrationToken}}
     "departmentId": "6705a1f0c3d4e5f600000101",
     "districtId": "6705a1f0c3d4e5f600000201",
     "campusId": "6705a1f0c3d4e5f600000301"
+}
+
+### 200 · Perfil completado con asistencia de movilidad
+# Respuesta 200 OK
+# {
+#   "message": "Perfil completado correctamente"
+# }
+POST {{baseUrl}}/auth/complete-profile
+Content-Type: application/json
+Authorization: Bearer {{registrationToken}}
+
+{
+    "firstName": "Jorge Luis",
+    "lastName": "Paredes Vega",
+    "departmentId": "6705a1f0c3d4e5f600000101",
+    "districtId": "6705a1f0c3d4e5f600000201",
+    "campusId": "6705a1f0c3d4e5f600000301",
+    "mobilityAssistance": {
+        "type": "WHEELCHAIR",
+        "note": "Silla plegable, puedo pasar al asiento solo.",
+        "consent": true
+    }
 }
 
 ### 400 · departmentId no existe en el catálogo

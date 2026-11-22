@@ -120,6 +120,8 @@ export type MockReservation = {
   passengerId: string;
   // Copia del pasajero al reservar; la calificación es la de su perfil.
   passenger: { name: string; photoUrl: string | null; rating: Rating | null };
+  // RN-21: copia de la asistencia del pasajero al reservar; solo la ve el conductor (RN-22).
+  mobilityAssistance?: MockUser["mobilityAssistance"];
   seats: number;
   totalCredits: number;
   status: "CONFIRMED" | "IN_RIDE" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
@@ -685,7 +687,10 @@ function seed(): Database {
   });
   const reservations: MockReservation[] = [
     reservation(601, oid(504), passenger("Lucía R.", 4.8), 2, 6, { settled: false }),
-    reservation(602, oid(504), passenger("Jorge P.", 4.6), 1, 6, { settled: false }),
+    reservation(602, oid(504), passenger("Jorge P.", 4.6), 1, 6, {
+      settled: false,
+      mobilityAssistance: { type: "WHEELCHAIR", note: "Necesita espacio en la maletera." },
+    }),
     reservation(603, oid(503), passenger("Diego C.", 4.7), 1, 6, { settled: false }),
     {
       ...reservation(604, oid(505), passenger("Valeria R.", 4.8), 2, 4, {
@@ -720,7 +725,7 @@ function seed(): Database {
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
 // El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
-const STORAGE_KEY = "colaboracar_mock_db_v8";
+const STORAGE_KEY = "colaboracar_mock_db_v9";
 
 function load(): Database {
   try {

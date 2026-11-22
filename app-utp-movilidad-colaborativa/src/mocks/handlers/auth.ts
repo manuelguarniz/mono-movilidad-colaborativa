@@ -9,6 +9,7 @@ import {
   type MockUser,
 } from "@/mocks/db";
 import {
+  checkAssistance,
   UTP_EMAIL,
   api,
   apiError,
@@ -165,6 +166,8 @@ export const authHandlers = [
     if (body.photoFileId != null && !isObjectId(body.photoFileId)) {
       errors.push({ field: "photoFileId", message: "La foto de perfil no es válida" });
     }
+    // RN-17: opcional; sin ella se conserva la que ya tuviera.
+    const assistance = checkAssistance(body.mobilityAssistance, errors);
     if (errors.length) {
       return validationError(errors);
     }
@@ -211,6 +214,9 @@ export const authHandlers = [
     user.department = { id: department.id, name: department.name };
     user.district = { id: district.id, name: district.name };
     user.campus = { id: campus.id, name: campus.name, address: campus.address };
+    if (assistance) {
+      user.mobilityAssistance = assistance;
+    }
     if (!user.roles.includes("PASSENGER")) {
       user.roles.push("PASSENGER");
     }

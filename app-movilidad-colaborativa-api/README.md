@@ -46,14 +46,14 @@ El contrato define 31 endpoints y el backend implementa 30. Toda la API cuelga d
 | Módulo | Endpoints | Estado |
 | --- | --- | --- |
 | Autenticación | `POST /auth/login`, `/auth/verify-code`, `/auth/resend-code`, `/auth/logout` | Implementado |
-| Registro | `POST /auth/register`, `/auth/complete-profile` | Implementado; la foto de perfil es opcional hasta que exista `POST /files` |
+| Registro | `POST /auth/register`, `/auth/complete-profile` | Implementado, con la asistencia de movilidad opcional (RN-17); la foto de perfil es opcional hasta que exista `POST /files` |
 | Catálogos | `GET /catalogs/departments`, `/catalogs/districts`, `/catalogs/campuses` | Implementado |
 | Archivos | `POST /files` | Pendiente; solo existen el modelo y el repositorio |
-| Vehículos | `POST /vehicles`, `GET` y `PUT /vehicles/me` | Implementado, con accesibilidad (RN-18) y SOAT (RN-36). El SOAT es opcional mientras P05 y P16 no lo pidan, y las fotos lo son hasta que exista `POST /files` |
+| Vehículos | `POST /vehicles`, `GET` y `PUT /vehicles/me` | Implementado, con accesibilidad (RN-18) y SOAT obligatorio (RN-36, desde el 2026-11-21). Las fotos del vehículo y del certificado las exige el frontend; la API las acepta opcionales |
 | Viajes y reservas | `GET` y `POST /rides`, `GET /rides/{rideId}`, `POST /rides/{rideId}/reserve` | Implementado. La publicación valida el vehículo activo (RN-24), el límite de cancelaciones (RN-30, con los parámetros de la colección `app`) y el SOAT en la salida (RN-37) |
 | Mis viajes | `GET /rides/mine`, `POST /rides/{rideId}/cancel`, `/start`, `/finish`, `GET /bookings/mine`, `POST /bookings/{bookingId}/cancel` | Implementado, con reembolso al cancelar y cobro al finalizar (RN-40). Sin notificaciones: no hay avisos al otro participante. El job que cancela o cierra los viajes vencidos (RF-08) está pendiente |
 | Billetera | `GET /wallet`, `GET /wallet/movements`, `POST /wallet/top-ups`, `POST /wallet/withdrawals` | Implementado: saldo, retenido y retirable, movimientos, recarga simulada (RN-41) y retiro (RN-42). El job `ReversionRetirosJob` devuelve cada minuto los retiros que el operador marca `RECHAZADO` |
-| Perfil | `GET` y `PUT /users/me`, `PATCH /users/me/mode` | Implementado, con el cambio de modo de RN-48 (`tripInProgress` en el perfil); la foto es opcional hasta que exista `POST /files` |
+| Perfil | `GET` y `PUT /users/me`, `PATCH /users/me/mode` | Implementado, con el cambio de modo de RN-48 (`tripInProgress` en el perfil) y la asistencia de movilidad editable (RN-17). La reserva copia la asistencia (RN-21) y `GET /rides/mine` se la muestra al conductor (RN-22); la foto es opcional hasta que exista `POST /files` |
 | Historial | `GET /history?role&page` | Implementado (RF-09, RN-50): como pasajero o como conductor, 20 por página, con lo que falta calificar en cada viaje completado |
 | Calificaciones | `GET /ratings/rides/{rideId}`, `POST /ratings` | Implementado (RF-10, RN-47): plazo de 24 h desde `fecha_fin` (`dias_para_calificar`), una por reserva y persona, promedio recalculado en una transacción y copiado en los viajes activos. Sin la notificación «Viaje completado» |
 
@@ -219,6 +219,12 @@ Negocio: 409 `EMAIL_ALREADY_REGISTERED`.
 | `campusId` | Obligatorio | La sede es obligatoria |
 | `campusId` | Identificador válido | La sede no es válida |
 | `photoFileId` | Opcional; si llega, identificador válido | La foto de perfil no es válida |
+| `mobilityAssistance` | Opcional: `{ type, note, consent }` (RN-17) | — |
+| `mobilityAssistance.type` | Obligatorio; `WHEELCHAIR`, `CRUTCHES_OR_WALKER` u `OTHER` | Elige el tipo de asistencia / El tipo de asistencia no es válido |
+| `mobilityAssistance.note` | Opcional; máximo 120 caracteres | La nota debe tener como máximo 120 caracteres |
+| `mobilityAssistance.consent` | Debe ser `true` | Para guardar tu asistencia debes autorizar compartirla, o apaga la opción. |
+
+Si llega `mobilityAssistance`, se guarda con la fecha del consentimiento; si no llega, no se borra la que ya tuviera.
 
 Negocio:
 
@@ -281,9 +287,14 @@ No recibe parámetros. Devuelve el perfil completo, con el vehículo si el usuar
 | `lastName` | Al menos una letra, máximo 60 caracteres | Los apellidos deben tener al menos una letra y como máximo 60 caracteres |
 | `phone` | Obligatorio | El teléfono es obligatorio |
 | `phone` | `+51` seguido de 9 dígitos | El teléfono debe tener el formato +51 seguido de 9 dígitos |
-| `activeMode` | Obligatorio | La modalidad es obligatoria |
-| `activeMode` | `PASSENGER` o `DRIVER` | La modalidad no es válida |
+| `activeMode` | Opcional (se conserva si no llega); `PASSENGER` o `DRIVER` | La modalidad no es válida |
 | `photoFileId` | Opcional; si llega, identificador válido | La foto de perfil no es válida |
+| `mobilityAssistance` | Opcional: `{ type, note, consent }` (RN-17) | — |
+| `mobilityAssistance.type` | Obligatorio; `WHEELCHAIR`, `CRUTCHES_OR_WALKER` u `OTHER` | Elige el tipo de asistencia / El tipo de asistencia no es válido |
+| `mobilityAssistance.note` | Opcional; máximo 120 caracteres | La nota debe tener como máximo 120 caracteres |
+| `mobilityAssistance.consent` | Debe ser `true` | Para guardar tu asistencia debes autorizar compartirla, o apaga la opción. |
+
+`mobilityAssistance` reemplaza la asistencia guardada: `null` o ausente la quita (se borran el tipo y la nota, RN-17). Si el tipo y la nota no cambian, se conserva la fecha del consentimiento. Las reservas ya hechas conservan su copia (RN-21). P15 ya no envía `activeMode`: la modalidad se cambia con `PATCH /users/me/mode`.
 
 El documento de identidad solo se valida mientras el usuario no tenga uno; lo hace el servicio y responde igual, como `VALIDATION_ERROR`. Una vez guardado, `documentType` y `documentNumber` se ignoran, igual que `email`.
 
@@ -341,7 +352,7 @@ Si cambia el nombre o la foto de un conductor, el servicio actualiza su copia (`
 | `acceptedTerms` | Debe ser `true` | Debes aceptar los términos y condiciones |
 | `photoFileId` | Opcional; si llega, identificador válido | La foto del vehículo no es válida |
 | `accessibility` | Opcional: `{ wheelchair, boardingAssistance }`; lo que no llega vale `false` | — |
-| `soat` | Opcional mientras P05 y P16 no lo pidan (RN-36) | — |
+| `soat` | Obligatorio (RN-36) | El SOAT es obligatorio |
 | `soat.insurer` | Obligatoria; máximo 60 caracteres | La aseguradora es obligatoria / La aseguradora debe tener como máximo 60 caracteres |
 | `soat.policyNumber` | Obligatorio; de 6 a 20 letras, números o guiones | El número de póliza es obligatorio / El número de póliza debe tener de 6 a 20 letras, números o guiones |
 | `soat.startDate` | Obligatoria (`AAAA-MM-DD`) | La fecha de inicio del SOAT es obligatoria |
@@ -364,7 +375,7 @@ Negocio:
 | `VEHICLE_ALREADY_REGISTERED` | 409 | Ya tienes un vehículo registrado | `POST` |
 | `UNAUTHORIZED` | 401 | Tu sesión expiró. Vuelve a iniciar sesión. (la cuenta ya no existe o está bloqueada) | Ambos |
 
-`POST /vehicles` responde 201 con el vehículo y agrega el rol `CONDUCTOR` al usuario; no cambia su modalidad activa. `PUT /vehicles/me` actualiza la copia del vehículo (marca, modelo, color, placa, `apto_movilidad_reducida` y `soat_fecha_fin`) en los viajes `PUBLICADO` o `EN_CURSO` del conductor; las plazas de esos viajes no cambian. Si no llegan `accessibility` o `soat`, conserva los guardados; si el vehículo pasa a ser una moto sin enviar `accessibility`, se le quitan los checks.
+`POST /vehicles` responde 201 con el vehículo y agrega el rol `CONDUCTOR` al usuario; no cambia su modalidad activa. `PUT /vehicles/me` actualiza la copia del vehículo (marca, modelo, color, placa, `apto_movilidad_reducida` y `soat_fecha_fin`) en los viajes `PUBLICADO` o `EN_CURSO` del conductor; las plazas de esos viajes no cambian. Si no llega `accessibility`, conserva la guardada; sin `soat.photoFileId`, conserva la foto del certificado anterior; si el vehículo pasa a ser una moto sin enviar `accessibility`, se le quitan los checks.
 
 En MongoDB, la accesibilidad va en `vehiculo.accesibilidad` (`silla_ruedas`, `ayuda_abordaje`) y el SOAT en `vehiculo.soat`, con las fechas al inicio del día en hora de Perú. La respuesta siempre trae `accessibility` (en `false` si el vehículo no la tiene guardada) y `soat` en `null` si no se declaró.
 
@@ -436,7 +447,7 @@ Responde 201 con el detalle del viaje y la cabecera `Location` (`/api/rides/{rid
 
 **`GET /rides/mine`**
 
-No recibe parámetros. Devuelve `{ data, cancellations }`: los viajes `PUBLICADO` y `EN_CURSO` del conductor, el que está en curso primero y luego por hora de salida. Cada elemento trae `ride` (el resumen del listado, con `startedAt`), `passengers` (reservas `CONFIRMADA`, `EN_VIAJE` y `NO_SE_PRESENTO`, con la calificación y la foto actuales de cada pasajero) y los plazos `cancellableUntil` (salida − `minutos_limite_cancelacion`), `startableFrom` (salida − `minutos_inicio_anticipado`) y `startableUntil` (salida + `minutos_tolerancia_inicio`). `cancellations` es el contador de RN-30: `count`, `limit`, `windowDays`, `blockedUntil` y `blockedUntilIfCancelled` (el bloqueo que tendría con una cancelación más ahora, para la advertencia de 17-D). Lo usan el dashboard en modo conductor y Mis viajes.
+No recibe parámetros. Devuelve `{ data, cancellations }`: los viajes `PUBLICADO` y `EN_CURSO` del conductor, el que está en curso primero y luego por hora de salida. Cada elemento trae `ride` (el resumen del listado, con `startedAt`), `passengers` (reservas `CONFIRMADA`, `EN_VIAJE` y `NO_SE_PRESENTO`, con la calificación y la foto actuales de cada pasajero y `mobilityAssistance`, la copia de la asistencia que guardó la reserva o `null`; RN-21, RN-22) y los plazos `cancellableUntil` (salida − `minutos_limite_cancelacion`), `startableFrom` (salida − `minutos_inicio_anticipado`) y `startableUntil` (salida + `minutos_tolerancia_inicio`). `cancellations` es el contador de RN-30: `count`, `limit`, `windowDays`, `blockedUntil` y `blockedUntilIfCancelled` (el bloqueo que tendría con una cancelación más ahora, para la advertencia de 17-D). Lo usan el dashboard en modo conductor y Mis viajes.
 
 **`POST /rides/{rideId}/cancel`** (conductor, RN-26)
 
@@ -483,7 +494,7 @@ Además del viaje, trae lo que decide la barra inferior del detalle (P09). Si la
 | --- | --- | --- |
 | `seats` | Opcional; al menos 1 | Debes reservar al menos 1 plaza |
 
-El cuerpo es opcional: sin cuerpo, o sin `seats`, se reserva 1 plaza. Responde 201 con `{ "message": "Reserva confirmada" }`.
+El cuerpo es opcional: sin cuerpo, o sin `seats`, se reserva 1 plaza. Responde 201 con `{ "message": "Reserva confirmada" }`. La reserva guarda una copia de la asistencia de movilidad del pasajero (`asistencia`, sin la fecha de consentimiento, o `null`): cambios posteriores del perfil no la modifican (RN-21).
 
 Negocio, en el orden en que se comprueba:
 
@@ -615,7 +626,7 @@ curl "$API/users/me" -H "Authorization: Bearer <token SESSION>"
 
 curl -X PUT "$API/users/me" -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token SESSION>" \
-  -d '{"firstName":"Ana","lastName":"Torres","documentType":"DNI","documentNumber":"72345678","phone":"+51987654321","activeMode":"PASSENGER"}'
+  -d '{"firstName":"Ana","lastName":"Torres","documentType":"DNI","documentNumber":"72345678","phone":"+51987654321","mobilityAssistance":{"type":"WHEELCHAIR","note":"Silla plegable","consent":true}}'
 ```
 
 Registrar el vehículo, con el token `REGISTRATION` o `SESSION`; consultarlo y actualizarlo, con el token `SESSION`:
@@ -623,13 +634,13 @@ Registrar el vehículo, con el token `REGISTRATION` o `SESSION`; consultarlo y a
 ```bash
 curl -X POST "$API/vehicles" -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
-  -d '{"plate":"ABC-123","type":"SEDAN","brand":"Toyota","model":"Yaris","color":"Blanco","year":2021,"seats":3,"ownerDni":"45678912","isOwner":true,"acceptedTerms":true}'
+  -d '{"plate":"ABC-123","type":"SEDAN","brand":"Toyota","model":"Yaris","color":"Blanco","year":2021,"seats":3,"ownerDni":"45678912","isOwner":true,"acceptedTerms":true,"soat":{"insurer":"Rímac Seguros","policyNumber":"2401-123456","startDate":"2026-03-15","endDate":"2027-03-14"}}'
 
 curl "$API/vehicles/me" -H "Authorization: Bearer <token SESSION>"
 
 curl -X PUT "$API/vehicles/me" -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token SESSION>" \
-  -d '{"plate":"ABC-123","type":"SEDAN","brand":"Toyota","model":"Yaris","color":"Gris","year":2021,"seats":2,"acceptedTerms":true}'
+  -d '{"plate":"ABC-123","type":"SEDAN","brand":"Toyota","model":"Yaris","color":"Gris","year":2021,"seats":2,"acceptedTerms":true,"soat":{"insurer":"Rímac Seguros","policyNumber":"2401-123456","startDate":"2026-03-15","endDate":"2027-03-14"}}'
 ```
 
 Viajes, con el token `SESSION`. La hora de salida va en UTC: las 18:30Z son las 13:30 de Perú.

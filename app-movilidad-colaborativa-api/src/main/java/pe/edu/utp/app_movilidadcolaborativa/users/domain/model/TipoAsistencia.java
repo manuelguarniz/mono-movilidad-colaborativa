@@ -12,4 +12,13 @@ public enum TipoAsistencia {
 	OTRA("OTHER");
 
 	private final String api;
+
+	public static TipoAsistencia desdeApi(String api) {
+		for (TipoAsistencia tipo : values()) {
+			if (tipo.api.equals(api)) {
+				return tipo;
+			}
+		}
+		throw new IllegalArgumentException("Tipo de asistencia desconocido: " + api);
+	}
 }

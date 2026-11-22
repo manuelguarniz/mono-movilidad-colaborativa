@@ -71,8 +71,9 @@ public class PerfilService {
 	}
 
 	/**
-	 * Actualiza nombres, apellidos, teléfono, modalidad y, si llega, la foto. El documento de identidad
-	 * solo se guarda mientras el usuario no tenga uno; después se ignora.
+	 * Actualiza nombres, apellidos, teléfono, asistencia de movilidad, la modalidad si llega y, si llega, la foto.
+	 * El documento de identidad solo se guarda mientras el usuario no tenga uno; después se ignora. Quitar la
+	 * asistencia no cambia las reservas ya hechas, que guardan su propia copia (RN-17, RN-21).
 	 */
 	public PerfilUsuarioDto actualizar(ObjectId usuarioId, ActualizarPerfilRequest solicitud) {
 		Usuario usuario = buscarUsuario(usuarioId);
@@ -90,9 +91,18 @@ public class PerfilService {
 					.set("numero_documento", solicitud.documentNumber());
 		}
 
-		Rol modoActivo = Rol.desdeApi(solicitud.activeMode());
-		validarCambioDeModo(usuario, modoActivo);
-		cambios.set("modo_activo", modoActivo);
+		if (solicitud.activeMode() != null) {
+			Rol modoActivo = Rol.desdeApi(solicitud.activeMode());
+			validarCambioDeModo(usuario, modoActivo);
+			cambios.set("modo_activo", modoActivo);
+		}
+
+		if (solicitud.mobilityAssistance() == null) {
+			cambios.set("asistencia_movilidad", null);
+		} else {
+			cambios.set("asistencia_movilidad",
+					solicitud.mobilityAssistance().aAsistencia(usuario.getAsistenciaMovilidad(), Instant.now()));
+		}
 
 		Foto foto = usuario.getFoto();
 		if (solicitud.photoFileId() != null) {

@@ -146,8 +146,10 @@ function validateVehicle(
     errors.push({ field: "photoFileId", message: "La foto del vehículo no es válida" });
   }
 
-  // RN-36: el SOAT es opcional mientras P05 y P16 no lo pidan; si llega, se valida.
-  if (body.soat != null) {
+  // RN-36: el SOAT es obligatorio al registrar y al actualizar (decisión del 2026-11-21).
+  if (body.soat == null) {
+    errors.push({ field: "soat", message: "El SOAT es obligatorio" });
+  } else {
     const soat = body.soat as Record<string, unknown>;
     checkText(
       soat.insurer,

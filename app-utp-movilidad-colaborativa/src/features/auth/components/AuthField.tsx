@@ -1,4 +1,5 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { useId, type HTMLAttributes, type ReactNode } from "react";
+import { FieldError } from "@/features/auth/components/FieldError";
 
 type AuthFieldProps = {
   label: string;
@@ -22,6 +23,12 @@ type AuthFieldProps = {
   required?: boolean;
   // Campo de solo lectura: se muestra atenuado.
   disabled?: boolean;
+  // Mensaje de validación: borde rojo y el texto debajo del campo. Un espacio (" ") marca el
+  // campo sin texto propio, cuando el mensaje va en una franja de la sección (16-B).
+  error?: string;
+  // Atributos del input, por ejemplo `type="date"` con `min` y `max`.
+  min?: string;
+  max?: string;
 };
 
 export function AuthField({
@@ -41,11 +48,24 @@ export function AuthField({
   uppercaseLabel = false,
   required = false,
   disabled = false,
+  error,
+  min,
+  max,
 }: AuthFieldProps) {
+  const inputId = useId();
+  const errorId = useId();
+  const helperId = useId();
+  const describedBy =
+    [error?.trim() ? errorId : null, helperText ? helperId : null].filter(Boolean).join(" ") ||
+    undefined;
+  // El error y la ayuda quedan fuera de la etiqueta: así no forman parte del nombre del campo.
   return (
-    <label className="mb-5 block">
+    <div className="mb-5 block">
       <span className="mb-2 flex items-center justify-between gap-4">
-        <span className={uppercaseLabel ? "auth-label-uppercase" : "auth-label"}>
+        <label
+          htmlFor={inputId}
+          className={uppercaseLabel ? "auth-label-uppercase" : "auth-label"}
+        >
           {label}
           {required ? (
             <span className="text-[var(--brand-red)]" aria-hidden="true">
@@ -53,11 +73,13 @@ export function AuthField({
               *
             </span>
           ) : null}
-        </span>
+        </label>
         {labelAction}
       </span>
 
-      <span className={disabled ? "auth-input auth-input-disabled" : "auth-input"}>
+      <span
+        className={`auth-input${disabled ? " auth-input-disabled" : ""}${error ? " auth-input-error" : ""}`}
+      >
         {icon ? <span className="auth-input-icon">{icon}</span> : null}
         {prefix ? (
           <span className="shrink-0 border-r border-[var(--border-neutral)] pr-3 text-base font-medium text-[var(--text-primary)]">
@@ -65,6 +87,7 @@ export function AuthField({
           </span>
         ) : null}
         <input
+          id={inputId}
           type={type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -73,14 +96,22 @@ export function AuthField({
           inputMode={inputMode}
           maxLength={maxLength}
           disabled={disabled}
+          min={min}
+          max={max}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
           className="input-base"
         />
         {rightAction}
       </span>
 
+      {error?.trim() ? <FieldError id={errorId}>{error}</FieldError> : null}
+
       {helperText ? (
-        <span className="auth-helper-text block">{helperText}</span>
+        <span id={helperId} className="auth-helper-text block">
+          {helperText}
+        </span>
       ) : null}
-    </label>
+    </div>
   );
 }

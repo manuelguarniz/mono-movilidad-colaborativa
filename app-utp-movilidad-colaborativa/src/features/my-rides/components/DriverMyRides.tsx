@@ -12,6 +12,8 @@ import type { DriverRide, RidePassenger } from "@/features/my-rides/types";
 import { errorMessage, estimatedArrival, formatCountdown, plural } from "@/features/my-rides/utils";
 import { formatDepartureDay } from "@/features/rides/utils/route";
 import { formatDepartureLabel, formatLimaDayMonth, formatLimaTime, getLimaDayLabel } from "@/shared/utils/limaTime";
+import { ASSISTANCE_LABELS } from "@/features/profile/utils/assistance";
+import AccessibleIcon from "@/assets/images/icons/accessible.svg?react";
 import CheckCircleIcon from "@/assets/images/icons/check-circle.svg?react";
 import InfoIcon from "@/assets/images/icons/info.svg?react";
 import LockIcon from "@/assets/images/icons/lock.svg?react";
@@ -33,21 +35,38 @@ function PassengerList({ title, passengers }: { title: string; passengers: RideP
       <p className="publish-label">{title}</p>
       <ul className="mt-2 space-y-2.5">
         {passengers.map((passenger) => (
-          <li key={passenger.bookingId} className="flex items-center gap-3">
+          <li key={passenger.bookingId} className="flex items-start gap-3">
             <DriverAvatar
               name={passenger.name}
               photoUrl={passenger.photoUrl}
               className="ride-driver-avatar h-9 w-9"
             />
-            <p className="min-w-0 flex-1 text-[0.9375rem] font-semibold text-[var(--text-primary)]">
-              {passenger.name}{" "}
-              {passenger.rating ? (
-                <span className="text-sm font-normal text-[var(--text-muted)]">
-                  <span className="text-amber-500">★</span>
-                  {passenger.rating.average}
-                </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[0.9375rem] font-semibold text-[var(--text-primary)]">
+                {passenger.name}{" "}
+                {passenger.rating ? (
+                  <span className="text-sm font-normal text-[var(--text-muted)]">
+                    <span className="text-amber-500">★</span>
+                    {passenger.rating.average}
+                  </span>
+                ) : null}
+              </p>
+              {/* RN-22: copia de la reserva (RN-21); solo la recibe el conductor del viaje. */}
+              {passenger.mobilityAssistance ? (
+                <p className="mt-0.5 flex items-start gap-1 text-[0.8125rem] text-[var(--amber-text)]">
+                  <AccessibleIcon
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    aria-label="Necesita asistencia de movilidad"
+                  />
+                  <span>
+                    {ASSISTANCE_LABELS[passenger.mobilityAssistance.type]}
+                    {passenger.mobilityAssistance.note
+                      ? ` — ${passenger.mobilityAssistance.note}`
+                      : ""}
+                  </span>
+                </p>
               ) : null}
-            </p>
+            </div>
             <span className="shrink-0 text-sm text-[var(--text-muted)]">
               {plural(passenger.seats, "plaza", "plazas")}
             </span>

@@ -32,6 +32,8 @@ import pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.persistence.Usu
 import pe.edu.utp.app_movilidadcolaborativa.wallet.application.LibroCreditos;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Actor;
 
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.TipoAsistencia;
+import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.PerfilUsuarioDto;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -197,6 +199,20 @@ class MisViajesServiceTest {
 		assertThat(proximo.startableFrom()).isEqualTo(Instant.parse("2030-01-15T19:05:00Z"));
 		assertThat(proximo.startableUntil()).isEqualTo(Instant.parse("2030-01-15T19:50:00Z"));
 		assertThat(viajes.cancellations().blockedUntilIfCancelled()).isEqualTo(Instant.parse("2030-02-01T00:00:00Z"));
+	}
+
+	@Test
+	void elConductorVeLaAsistenciaCopiadaEnLaReserva() {
+		Reserva reserva = Reserva.builder().id(new ObjectId()).viajeId(viajeId)
+				.pasajero(new ReferenciaNombre(new ObjectId(), "Jorge P.")).plazas(1).totalCreditos(5)
+				.asistencia(new Reserva.Asistencia(TipoAsistencia.SILLA_RUEDAS, "Silla plegable"))
+				.estado(EstadoReserva.CONFIRMADA).build();
+
+		assertThat(MisViajesConductorDto.PasajeroDto.desde(reserva, null).mobilityAssistance())
+				.isEqualTo(new PerfilUsuarioDto.AsistenciaDto("WHEELCHAIR", "Silla plegable"));
+		assertThat(MisViajesConductorDto.PasajeroDto.desde(Reserva.builder().id(new ObjectId()).viajeId(viajeId)
+				.pasajero(new ReferenciaNombre(new ObjectId(), "Lucía R.")).estado(EstadoReserva.CONFIRMADA).build(), null)
+				.mobilityAssistance()).isNull();
 	}
 
 	@Test

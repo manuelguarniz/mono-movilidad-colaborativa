@@ -35,7 +35,7 @@ export type Soat = {
   declaredAt: string;
 };
 
-// `SoatRequest`. Opcional mientras los formularios de P05 y P16 no lo pidan.
+// `SoatRequest` (RN-36). Obligatorio al registrar y al actualizar el vehículo.
 export type SoatRequest = {
   insurer: string;
   policyNumber: string;
@@ -56,7 +56,7 @@ type VehicleData = {
   acceptedTerms: true;
   photoFileId?: string;
   accessibility?: VehicleAccessibility;
-  soat?: SoatRequest;
+  soat: SoatRequest;
 };
 
 // `VehicleCreateRequest` (POST /vehicles).
