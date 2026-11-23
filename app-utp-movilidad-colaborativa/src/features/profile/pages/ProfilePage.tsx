@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/features/auth/services/authService";
+import { useNavBadges } from "@/features/dashboard/hooks/useNavBadges";
 import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import {
   ModeChangeSheet,
@@ -28,6 +29,7 @@ import BuildingIcon from "@/assets/images/icons/building.svg?react";
 import CarIcon from "@/assets/images/icons/ride.svg?react";
 import CheckCircleIcon from "@/assets/images/icons/check-circle.svg?react";
 import ChevronRightIcon from "@/assets/images/icons/chevron-right.svg?react";
+import HistoryIcon from "@/assets/images/icons/history.svg?react";
 import HomeIcon from "@/assets/images/icons/home.svg?react";
 import IdCardIcon from "@/assets/images/icons/id-card.svg?react";
 import InfoIcon from "@/assets/images/icons/info.svg?react";
@@ -171,6 +173,37 @@ function WalletCard({ wallet, isDriver }: { wallet: Wallet | undefined; isDriver
 }
 
 /**
+ * Acceso al Historial (P19) desde el perfil: ya no está en el menú inferior. Avisa cuando hay
+ * viajes por calificar (RF-10, 24 h).
+ */
+function HistoryLinkCard({ pendingRatings }: { pendingRatings: number }) {
+  return (
+    <Link to="/historial" className="profile-card block transition active:scale-[0.995]">
+      <div className="flex items-center gap-3">
+        <span className="profile-card-icon bg-[var(--surface-muted)] text-[var(--text-brown)]">
+          <HistoryIcon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-[var(--text-primary)]">Historial de viajes</p>
+          <p className="text-sm text-[var(--text-muted)]">
+            {pendingRatings > 0
+              ? `${pendingRatings} ${pendingRatings === 1 ? "calificación pendiente" : "calificaciones pendientes"}`
+              : "Viajes terminados y calificaciones"}
+          </p>
+        </div>
+        {pendingRatings > 0 ? (
+          <span className="profile-chip bg-[var(--brand-soft)] text-[var(--brand-red)]">
+            <StarIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            Calificar
+          </span>
+        ) : null}
+        <ChevronRightIcon className="h-5 w-5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+      </div>
+    </Link>
+  );
+}
+
+/**
  * «ASISTENCIA DE MOVILIDAD» (13-A): solo se ve en el perfil propio (RN-22). Se edita en P15;
  * el enlace abre esa pantalla en la tarjeta de asistencia.
  */
@@ -228,6 +261,7 @@ export function ProfilePage() {
     queryFn: profileService.getMine,
   });
   const { data: wallet } = useQuery({ queryKey: ["wallet"], queryFn: walletService.getWallet });
+  const { pendingRatings } = useNavBadges();
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -434,6 +468,8 @@ export function ProfilePage() {
       </section>
 
       <WalletCard wallet={wallet} isDriver={hasDriverRole} />
+
+      <HistoryLinkCard pendingRatings={pendingRatings} />
 
       {!isDriver ? <AssistanceCard assistance={profile.mobilityAssistance} /> : null}
 

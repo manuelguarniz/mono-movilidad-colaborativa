@@ -21,8 +21,10 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lo que impide reservar a un pasajero: una reserva activa (RN-23) o el límite de cancelaciones (RN-38).
- * Cuentan sus reservas canceladas por él y las NO_SE_PRESENTO dentro de la ventana.
+ * Lo que impide reservar a un pasajero: una reserva activa (RN-23) o el límite
+ * de cancelaciones (RN-38).
+ * Cuentan sus reservas canceladas por él y las NO_SE_PRESENTO dentro de la
+ * ventana.
  */
 @Service
 @RequiredArgsConstructor
@@ -58,13 +60,18 @@ public class RestriccionesPasajeroService {
 		Date desde = Date.from(ahora.minus(Duration.ofDays(parametros.ventanaCancelacionesDias())));
 		// La fecha de una reserva NO_SE_PRESENTO es la de su último cambio de estado.
 		Query consulta = Query.query(Criteria.where("pasajero.id").is(pasajeroId).orOperator(
-				Criteria.where("estado").is("CANCELADA").and("cancelada_por").is("PASAJERO")
-						.and("fecha_cancelacion").gte(desde),
+				Criteria.where("estado")
+						.is("CANCELADA")
+						.and("cancelada_por")
+						.is("PASAJERO")
+						.and("fecha_cancelacion")
+						.gte(desde),
 				Criteria.where("estado").is("NO_SE_PRESENTO").and("fecha_actualizacion").gte(desde)));
 		consulta.fields().include("estado", "fecha_cancelacion", "fecha_actualizacion");
 		return mongoTemplate.find(consulta, Document.class, COLECCION_RESERVAS).stream()
 				.map(reserva -> reserva.getDate("CANCELADA".equals(reserva.getString("estado"))
-						? "fecha_cancelacion" : "fecha_actualizacion"))
+						? "fecha_cancelacion"
+						: "fecha_actualizacion"))
 				.filter(Objects::nonNull)
 				.map(Date::toInstant)
 				.sorted()

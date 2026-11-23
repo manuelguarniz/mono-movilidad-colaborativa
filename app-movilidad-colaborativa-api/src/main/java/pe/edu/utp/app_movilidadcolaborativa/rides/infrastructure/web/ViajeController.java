@@ -22,11 +22,13 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.application.ViajeService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.CancelarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.FiltroViajesRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.IniciarViajeRequest;
+import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.LimitesPublicacionDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ListadoViajesDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.MisViajesConductorDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.PublicarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ReservarViajeRequest;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
+import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.dto.MensajeDto;
 
 import java.net.URI;
@@ -40,6 +42,7 @@ public class ViajeController {
 	private final ViajeService viajeService;
 	private final ReservaService reservaService;
 	private final MisViajesService misViajesService;
+	private final ParametrosService parametrosService;
 
 	@GetMapping
 	public ListadoViajesDto listar(@AuthenticationPrincipal Jwt jwt,
@@ -50,6 +53,12 @@ public class ViajeController {
 	@GetMapping("/mine")
 	public MisViajesConductorDto listarPropios(@AuthenticationPrincipal Jwt jwt) {
 		return misViajesService.viajesPropios(usuarioId(jwt));
+	}
+
+	/** Límites vigentes del formulario de publicación (P11), leídos de la colección app (RN-31). */
+	@GetMapping("/publish-limits")
+	public LimitesPublicacionDto limitesPublicacion() {
+		return LimitesPublicacionDto.desde(parametrosService.leer());
 	}
 
 	@PostMapping

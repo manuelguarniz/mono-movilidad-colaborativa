@@ -113,7 +113,7 @@ Los mensajes entre comillas son literales: los devuelve la API (`app-movilidad-c
   - **Cierre automático** (RN-27). Un viaje `EN_CURSO` cuya hora `fecha_salida + duracion_min + minutos_cierre_automatico` (15) ya pasó se finaliza igual que en RF-07, con `finalizado_por = SISTEMA`.
   - **Recordatorio** (RN-33). Para un viaje `PUBLICADO` que sale dentro de `minutos_recordatorio` (30) se crea «Recordatorio de salida» para el conductor y sus pasajeros. Al conductor se le agrega «Recuerda iniciar el viaje en la app.».
   - **Estadísticas** (RN-28). Al cerrar o cancelar un viaje se recalculan las estadísticas de su conductor y sus pasajeros.
-- **RF-09 — Historial (nuevo).** Lista los viajes terminados del usuario, del más reciente al más antiguo, 20 por página, con pestañas «Como pasajero» y «Como conductor» (RN-50).
+- **RF-09 — Historial (nuevo).** Se abre desde el Perfil (12.1, 2026-11-22). Lista los viajes terminados del usuario, del más reciente al más antiguo, 20 por página, con pestañas «Como pasajero» y «Como conductor» (RN-50).
   - **Como pasajero:** reservas `COMPLETADA`, `CANCELADA` y `NO_SE_PRESENTO`, con fecha, ruta, conductor, créditos pagados o reembolsados y estado.
   - **Como conductor:** viajes `COMPLETADO` y `CANCELADO`, con fecha, ruta, pasajeros que subieron y créditos cobrados.
   - **Calificar.** Cada viaje completado muestra «Calificar» si todavía se puede (RF-10), o la calificación que ya dio.
@@ -171,7 +171,7 @@ Son 50 reglas. Las RN-01 a RN-34 conservan su ID de la versión anterior; alguna
 | RN-09 | 05 y 16 — Vehículo | Los asientos son como mínimo 1 y como máximo `max_asientos_vehiculo` (10). | Aplicación |
 | RN-10 | 11 — Publicar viaje | Todos los campos son obligatorios; las condiciones son opcionales (máximo `max_condiciones`, 10) y las paradas también (máximo `max_paradas`, 5). | Aplicación |
 | RN-11 | 11 — Publicar viaje | Las plazas disponibles son como mínimo 1 y como máximo las plazas del vehículo. | Aplicación |
-| RN-12 | 11 — Publicar viaje | La salida es futura y su hora de Perú está entre `hora_minima_salida` (06:00) y `hora_maxima_salida` (23:00), ambas incluidas. | Aplicación |
+| RN-12 | 11 — Publicar viaje | La salida es futura y su hora de Perú está entre `hora_minima_salida` (06:00) y `hora_maxima_salida` (23:00), ambas incluidas. Si la mínima es posterior a la máxima, el horario cruza la medianoche. | Aplicación |
 | RN-13 | 11 — Publicar viaje | El monto por plaza es como mínimo `precio_minimo_plaza` (1) y como máximo `precio_maximo_plaza` (10) créditos (1 crédito = S/ 1). | Aplicación |
 | RN-14 | 15 — Actualizar datos | Todos los datos son obligatorios, incluida la foto. El tipo y el número de documento se ingresan una sola vez y luego no se pueden modificar; el teléfono sí. | Aplicación |
 | RN-15 | 16 — Actualizar vehículo | Todos los datos son obligatorios, incluidas la foto y el SOAT. | Aplicación |
@@ -1596,6 +1596,7 @@ Cada fila cita los IDs de RF vigentes en su fecha. Las decisiones que una poster
 | 2026-11-21 | ¿Qué pasa con las reservas creadas antes de la billetera, que no retuvieron créditos? | No se liquidan: solo se reembolsan o cobran las reservas con `liquidada = false`. Al cancelarlas, el mensaje es «Reserva cancelada.» sin monto. | Reembolsarlas o cobrarlas crearía créditos que nadie pagó. |
 | 2026-11-21 | ¿Quién puede solicitar un retiro? | Quien tiene el rol `CONDUCTOR`, aunque esté en modo pasajero; la pantalla solo muestra «Retirar» en modo conductor. Si no: `DRIVER_ROLE_REQUIRED`, «Solo los conductores pueden retirar créditos». | RF-12 lo limita al conductor, y el saldo retirable ya excluye lo que no se ganó conduciendo. |
 | 2026-11-21 | ¿Cuándo se pide el OTP? | Solo en el primer login de la cuenta. Se controla con el campo `ultima_conexion` de `usuarios`: vacío ⇒ OTP; con fecha ⇒ sesión directa, y cada login la actualiza (RN-35). Reemplaza la confianza por dispositivo del 2026-10-29: se quitan `dispositivos_confiables`, `X-Device-Id` y `dias_dispositivo_confiable`. | Decisión del equipo: simplifica el acceso. El OTP queda como verificación del correo institucional, no como segundo factor. |
+| 2026-11-22 | ¿Cómo se organiza la barra inferior? | Cambia según el modo activo (RN-48). Pasajero: «Viajes · Mis viajes · Billetera · Perfil». Conductor: «Inicio · Mis viajes · Publicar · Billetera · Perfil», con «Publicar» (P11) como botón central destacado. El Historial (P19) sale de la barra y se abre desde el Perfil, que también lo marca como pestaña activa. La pestaña activa lleva una píldora suave detrás del ícono, y el ícono y el texto van en rojo. Hay un punto rojo en «Mis viajes» cuando hay una reserva activa o viajes publicados o en curso, y otro en «Perfil» cuando hay calificaciones pendientes (RF-10) o el SOAT vence en 15 días o menos (RF-14). | Decisión del usuario: el conductor llega a su acción principal en un toque, el pasajero tiene una barra de 4 pestañas y el Historial, que se usa poco, deja de competir con Viajes y Mis viajes. |
 
 ### 12.2 Preguntas abiertas
 

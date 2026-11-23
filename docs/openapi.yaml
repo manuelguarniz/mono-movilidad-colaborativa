@@ -880,6 +880,28 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /rides/publish-limits:
+    get:
+      tags: [Rides]
+      operationId: getPublishLimits
+      summary: Consultar los límites para publicar un viaje
+      description: |
+        Límites vigentes de la colección `app` (RN-31) que valida `POST /rides`, para que el
+        formulario de Publicar viaje (P11) aplique los mismos: horario de salida en hora de
+        Perú (RN-12), precio por plaza (RN-13), paradas y condiciones (RN-10). Si
+        `departureFrom` es posterior a `departureTo`, el horario cruza la medianoche.
+      responses:
+        "200":
+          description: Límites de publicación.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishLimits"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /rides/{rideId}:
     parameters:
       - $ref: "#/components/parameters/RideId"
@@ -3088,6 +3110,37 @@ components:
               type: string
               format: date-time
 
+    PublishLimits:
+      type: object
+      required: [departureFrom, departureTo, minPrice, maxPrice, maxStops, maxConditions]
+      properties:
+        departureFrom:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: "`hora_minima_salida` en hora de Perú (RN-12)."
+          example: "06:00"
+        departureTo:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: "`hora_maxima_salida` en hora de Perú (RN-12)."
+          example: "23:00"
+        minPrice:
+          type: integer
+          description: "`precio_minimo_plaza` (RN-13)."
+          example: 1
+        maxPrice:
+          type: integer
+          description: "`precio_maximo_plaza` (RN-13)."
+          example: 10
+        maxStops:
+          type: integer
+          description: "`max_paradas` (RN-10)."
+          example: 5
+        maxConditions:
+          type: integer
+          description: "`max_condiciones` (RN-10)."
+          example: 10
+
     RideCreateRequest:
       type: object
       required:
@@ -3100,7 +3153,8 @@ components:
           format: date-time
           description: |
             Debe ser una fecha futura, con hora de Perú entre `hora_minima_salida` y
-            `hora_maxima_salida` (6:00 y 23:00 por defecto, colección `app`, RN-31) (RN-12).
+            `hora_maxima_salida` (6:00 y 23:00 por defecto, colección `app`, RN-31) (RN-12);
+            si la mínima es posterior a la máxima, el horario cruza la medianoche.
           example: "2026-10-09T12:30:00Z"
         origin:
           $ref: "#/components/schemas/Place"

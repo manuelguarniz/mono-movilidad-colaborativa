@@ -9,7 +9,7 @@
 // Conductor con SOAT por vencer y un viaje en curso	u25900038 @utp.edu.pe
 // Conductor con SOAT vencido	u25906550 @utp.edu.pe
 // Cuenta bloqueada	u25901111 @utp.edu.pe
-//
+// Pasajero con retiro u25900001@utp.edu.pe
 //
 // Uso (mongosh, después de seed.js, que carga los catálogos):
 //   mongosh "mongodb+srv://<usuario>:<clave>@<cluster>/db_colabora_car" seed-data.js

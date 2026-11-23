@@ -28,14 +28,19 @@ public final class ReglasViaje {
 	private ReglasViaje() {
 	}
 
-	/** RN-12: la salida es futura y su hora de Perú está entre horaMinima y horaMaxima, ambas incluidas. */
+	/**
+	 * RN-12: la salida es futura y su hora de Perú está entre horaMinima y horaMaxima, ambas incluidas. Si
+	 * horaMinima es posterior a horaMaxima, el horario cruza la medianoche (p. ej. 22:00 a 02:00).
+	 */
 	public static boolean esHoraSalidaValida(Instant salida, Instant ahora, LocalTime horaMinima,
 			LocalTime horaMaxima) {
 		if (salida == null || !salida.isAfter(ahora)) {
 			return false;
 		}
 		LocalTime hora = salida.atZone(ZONA_PERU).toLocalTime();
-		return !hora.isBefore(horaMinima) && !hora.isAfter(horaMaxima);
+		boolean desdeMinima = !hora.isBefore(horaMinima);
+		boolean hastaMaxima = !hora.isAfter(horaMaxima);
+		return horaMinima.isAfter(horaMaxima) ? desdeMinima || hastaMaxima : desdeMinima && hastaMaxima;
 	}
 
 	/** Distancia en línea recta entre los puntos consecutivos de la ruta, con un decimal. */

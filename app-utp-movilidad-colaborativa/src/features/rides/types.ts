@@ -66,6 +66,16 @@ export type PublishedRide = {
 };
 
 // Lo que la pantalla usa de `Vehicle` (GET /vehicles/me).
+/** GET /rides/publish-limits: límites vigentes de P11 (colección app, RN-31). Horas de Perú "HH:mm". */
+export type PublishLimits = {
+  departureFrom: string;
+  departureTo: string;
+  minPrice: number;
+  maxPrice: number;
+  maxStops: number;
+  maxConditions: number;
+};
+
 export type MyVehicle = {
   brand: string;
   model: string;

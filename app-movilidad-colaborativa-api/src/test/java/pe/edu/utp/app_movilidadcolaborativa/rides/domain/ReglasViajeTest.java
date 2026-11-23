@@ -55,6 +55,19 @@ class ReglasViajeTest {
 	}
 
 	@Test
+	void elHorarioDeSalidaPuedeCruzarLaMedianoche() {
+		// 22:00 a 02:00 de Perú. 2026-10-11T04:30Z es 23:30; 2026-10-11T06:00Z es 1:00; 2026-10-11T08:00Z es 3:00.
+		LocalTime veintidos = LocalTime.of(22, 0);
+		LocalTime dos = LocalTime.of(2, 0);
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-11T04:30:00Z"), AHORA, veintidos, dos))
+				.isTrue();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-11T06:00:00Z"), AHORA, veintidos, dos))
+				.isTrue();
+		assertThat(ReglasViaje.esHoraSalidaValida(Instant.parse("2026-10-11T08:00:00Z"), AHORA, veintidos, dos))
+				.isFalse();
+	}
+
+	@Test
 	void laDistanciaSumaLosTramosEnLineaRectaYLaDuracionSeEstima() {
 		GeoJsonPoint sede = new GeoJsonPoint(-79.0353, -8.0975);
 		GeoJsonPoint ovalo = new GeoJsonPoint(-79.0389, -8.0851);

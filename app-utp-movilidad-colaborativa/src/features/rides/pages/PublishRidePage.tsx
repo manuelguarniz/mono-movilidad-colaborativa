@@ -8,15 +8,12 @@ import { rideService } from "@/features/rides/services/rideService";
 import type {
   GeoPoint,
   Place,
+  PublishLimits,
   RideDirection,
   RoutePoint,
 } from "@/features/rides/types";
 import {
-  MAX_CONDITIONS,
   MAX_CONDITION_LENGTH,
-  MAX_PRICE,
-  MAX_STOPS,
-  MIN_PRICE,
   createRoutePoint,
   findStopPosition,
   formatDepartureDay,
@@ -65,12 +62,13 @@ const PUBLISH_PATH = "/viajes/publicar";
 // Mensajes de validación de P11 (docs/design/P11-PublicarViaje/prompt.md).
 const MESSAGES = {
   noVehicle: "Registra un vehículo para usar la modalidad de conductor (o para publicar viajes)",
-  departure: "Elige una salida futura entre las 06:00 y las 23:00.",
+  departure: (limits: PublishLimits) =>
+    `Elige una salida futura entre las ${limits.departureFrom} y las ${limits.departureTo}.`,
   soat: "Tu SOAT vence antes de la salida. Actualízalo en tu perfil para publicar.",
   route: "Toca el mapa para fijar el origen y el destino.",
   routeNames: "Escribe el nombre de cada punto de la ruta.",
-  maxStops: `Puedes agregar hasta ${MAX_STOPS} paradas.`,
-  maxConditions: `Puedes agregar hasta ${MAX_CONDITIONS} condiciones.`,
+  maxStops: (max: number) => `Puedes agregar hasta ${max} paradas.`,
+  maxConditions: (max: number) => `Puedes agregar hasta ${max} condiciones.`,
   conditionLength: `Escribe la condición en ${MAX_CONDITION_LENGTH} caracteres o menos.`,
 };
 
@@ -116,10 +114,11 @@ export function PublishRidePage() {
   const [direction, setDirection] = useState<RideDirection>(
     draft?.direction ?? "TO_CAMPUS",
   );
-  const [departure, setDeparture] = useState(() =>
-    draft ? new Date(draft.departure) : getDefaultDeparture(),
+  // `null`: todavía no se eligió; se propone la próxima salida dentro del horario (con los límites cargados).
+  const [chosenDeparture, setDeparture] = useState<Date | null>(() =>
+    draft ? new Date(draft.departure) : null,
   );
-  const [pricePerSeat, setPricePerSeat] = useState(draft?.pricePerSeat ?? DEFAULT_PRICE);
+  const [chosenPrice, setPricePerSeat] = useState(draft?.pricePerSeat ?? DEFAULT_PRICE);
   // `null`: todavía no se eligió; se ofrecen las plazas del vehículo menos una.
   const [selectedSeats, setSelectedSeats] = useState<number | null>(
     draft?.selectedSeats ?? null,
@@ -143,6 +142,11 @@ export function PublishRidePage() {
     queryKey: ["vehicles", "me"],
     queryFn: rideService.getMyVehicle,
     retry: (failureCount, queryError) => !isNotFound(queryError) && failureCount < 1,
+  });
+
+  const limitsQuery = useQuery({
+    queryKey: ["rides", "publish-limits"],
+    queryFn: rideService.getPublishLimits,
   });
 
   const profileQuery = useQuery({
@@ -244,7 +248,12 @@ export function PublishRidePage() {
     </div>
   );
 
-  if (vehicleQuery.isLoading || profileQuery.isLoading || campusQuery.isLoading) {
+  if (
+    vehicleQuery.isLoading ||
+    profileQuery.isLoading ||
+    campusQuery.isLoading ||
+    limitsQuery.isLoading
+  ) {
     return (
       <div className="publish-screen">
         {header}
@@ -275,8 +284,10 @@ export function PublishRidePage() {
     );
   }
 
-  const loadError = vehicleQuery.error ?? profileQuery.error ?? campusQuery.error;
-  if (loadError || !vehicle || !profile) {
+  const limits = limitsQuery.data;
+  const loadError =
+    vehicleQuery.error ?? profileQuery.error ?? campusQuery.error ?? limitsQuery.error;
+  if (loadError || !vehicle || !profile || !limits) {
     return renderBlocked(
       <AlertIcon className="h-7 w-7" />,
       "No se pudieron cargar tus datos",
@@ -288,6 +299,7 @@ export function PublishRidePage() {
           vehicleQuery.refetch();
           profileQuery.refetch();
           campusQuery.refetch();
+          limitsQuery.refetch();
         }}
       >
         Reintentar
@@ -342,11 +354,13 @@ export function PublishRidePage() {
   ];
   const { distanceKm, durationMin } = measureRoute(routeLocations);
   const directionLabel = DIRECTIONS.find((item) => item.value === direction)!.label;
+  const departure = chosenDeparture ?? getDefaultDeparture(limits);
+  const pricePerSeat = Math.min(Math.max(chosenPrice, limits.minPrice), limits.maxPrice);
   const departureTime = formatDepartureTime(departure);
   const departureDay = formatDepartureDay(departure);
 
   // RN-12 y RN-37 dependen de la fecha elegida: se marcan en el formulario (frame 11-B).
-  const departureError = isDepartureValid(departure) ? "" : MESSAGES.departure;
+  const departureError = isDepartureValid(departure, limits) ? "" : MESSAGES.departure(limits);
   // Sin SOAT declarado no se valida: es opcional mientras P05 y P16 no lo pidan.
   const departureDate = toLimaInputValue(departure).slice(0, 10);
   const soat = vehicle.soat;
@@ -382,8 +396,8 @@ export function PublishRidePage() {
       setHome(createRoutePoint("", location));
       return;
     }
-    if (stops.length >= MAX_STOPS) {
-      setRouteError(MESSAGES.maxStops);
+    if (stops.length >= limits.maxStops) {
+      setRouteError(MESSAGES.maxStops(limits.maxStops));
       return;
     }
     // La parada se inserta en el tramo donde menos alarga el recorrido.
@@ -418,8 +432,8 @@ export function PublishRidePage() {
     if (!condition) {
       return;
     }
-    if (conditions.length >= MAX_CONDITIONS) {
-      setConditionError(MESSAGES.maxConditions);
+    if (conditions.length >= limits.maxConditions) {
+      setConditionError(MESSAGES.maxConditions(limits.maxConditions));
       return;
     }
     if (condition.length > MAX_CONDITION_LENGTH) {
@@ -693,6 +707,15 @@ export function PublishRidePage() {
                     min={toLimaInputValue(new Date())}
                     aria-invalid={Boolean(departureError)}
                     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    // Con el input invisible, el clic solo enfocaría un segmento (Chrome de escritorio
+                    // abre el selector únicamente desde su icono): se abre explícitamente.
+                    onClick={(event) => {
+                      try {
+                        event.currentTarget.showPicker();
+                      } catch {
+                        // Navegadores sin showPicker: queda el comportamiento nativo.
+                      }
+                    }}
                     onChange={(event) => {
                       const value = fromLimaInputValue(event.target.value);
                       if (value) {
@@ -718,7 +741,7 @@ export function PublishRidePage() {
                   type="button"
                   className="publish-stepper-button"
                   aria-label="Bajar el precio"
-                  disabled={pricePerSeat <= MIN_PRICE}
+                  disabled={pricePerSeat <= limits.minPrice}
                   onClick={() => {
                     edit();
                     setPricePerSeat(pricePerSeat - 1);
@@ -739,7 +762,7 @@ export function PublishRidePage() {
                   type="button"
                   className="publish-stepper-button"
                   aria-label="Subir el precio"
-                  disabled={pricePerSeat >= MAX_PRICE}
+                  disabled={pricePerSeat >= limits.maxPrice}
                   onClick={() => {
                     edit();
                     setPricePerSeat(pricePerSeat + 1);
@@ -749,7 +772,7 @@ export function PublishRidePage() {
                 </button>
               </div>
               <p className="mt-2 text-xs text-[var(--text-muted)]">
-                De {MIN_PRICE} a {MAX_PRICE} créditos por plaza
+                De {limits.minPrice} a {limits.maxPrice} créditos por plaza
               </p>
             </div>
           </div>
@@ -807,7 +830,7 @@ export function PublishRidePage() {
           <div className="flex items-center justify-between gap-3">
             <p className="publish-label">Ruta</p>
             <p className="text-sm text-[var(--text-muted)]">
-              {stops.length} de {MAX_STOPS} paradas
+              {stops.length} de {limits.maxStops} paradas
             </p>
           </div>
           <ol className="publish-route-list">
@@ -832,7 +855,7 @@ export function PublishRidePage() {
               Condiciones (opcional)
             </label>
             <p className="text-sm text-[var(--text-muted)]">
-              {conditions.length} de {MAX_CONDITIONS}
+              {conditions.length} de {limits.maxConditions}
             </p>
           </div>
           {conditions.length ? (
@@ -862,7 +885,7 @@ export function PublishRidePage() {
               type="text"
               value={conditionDraft}
               placeholder="Agregar condición"
-              disabled={conditions.length >= MAX_CONDITIONS}
+              disabled={conditions.length >= limits.maxConditions}
               className="publish-input"
               onChange={(event) => {
                 setConditionError("");
@@ -878,16 +901,16 @@ export function PublishRidePage() {
             <button
               type="button"
               className="publish-add-button"
-              disabled={!conditionDraft.trim() || conditions.length >= MAX_CONDITIONS}
+              disabled={!conditionDraft.trim() || conditions.length >= limits.maxConditions}
               onClick={addCondition}
             >
               Agregar
             </button>
           </div>
-          {conditionError || conditions.length >= MAX_CONDITIONS ? (
+          {conditionError || conditions.length >= limits.maxConditions ? (
             <p className="publish-field-error" role="alert">
               <AlertIcon className="h-4 w-4 shrink-0" />
-              {conditionError || MESSAGES.maxConditions}
+              {conditionError || MESSAGES.maxConditions(limits.maxConditions)}
             </p>
           ) : null}
         </div>

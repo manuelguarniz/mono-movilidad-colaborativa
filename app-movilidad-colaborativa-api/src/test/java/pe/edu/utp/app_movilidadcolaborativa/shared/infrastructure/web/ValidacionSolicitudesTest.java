@@ -57,6 +57,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService;
+import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService.Parametros;
+
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -84,6 +87,7 @@ class ValidacionSolicitudesTest {
 	private final BilleteraService billeteraService = mock(BilleteraService.class);
 	private final HistorialService historialService = mock(HistorialService.class);
 	private final CalificacionService calificacionService = mock(CalificacionService.class);
+	private final ParametrosService parametrosService = mock(ParametrosService.class);
 	private MockMvc mvc;
 
 	@BeforeEach
@@ -94,13 +98,27 @@ class ValidacionSolicitudesTest {
 				.standaloneSetup(new AuthController(authService, registroService),
 						new CatalogoController(catalogoService), new UsuarioController(perfilService),
 							new VehiculoController(vehiculoService),
-							new ViajeController(viajeService, reservaService, misViajesService),
+							new ViajeController(viajeService, reservaService, misViajesService, parametrosService),
 							new ReservaController(misViajesService), new BilleteraController(billeteraService),
 							new HistorialController(historialService), new CalificacionController(calificacionService))
 				.setControllerAdvice(new ManejadorErrores())
 				.setValidator(validador)
 				.setCustomArgumentResolvers(jwtDelUsuario())
 				.build();
+	}
+
+	@Test
+	void losLimitesDePublicacionSeLeenDeLaConfiguracion() throws Exception {
+		when(parametrosService.leer()).thenReturn(Parametros.POR_DEFECTO);
+
+		mvc.perform(get("/rides/publish-limits"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.departureFrom").value("06:00"))
+				.andExpect(jsonPath("$.departureTo").value("23:00"))
+				.andExpect(jsonPath("$.minPrice").value(1))
+				.andExpect(jsonPath("$.maxPrice").value(10))
+				.andExpect(jsonPath("$.maxStops").value(5))
+				.andExpect(jsonPath("$.maxConditions").value(10));
 	}
 
 	// Sin el filtro de seguridad, el @AuthenticationPrincipal se resuelve con un JWT fijo.

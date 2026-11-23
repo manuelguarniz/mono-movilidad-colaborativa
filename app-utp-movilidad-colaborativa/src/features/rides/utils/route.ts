@@ -1,10 +1,7 @@
-import type { GeoPoint, RoutePoint } from "@/features/rides/types";
+import type { GeoPoint, PublishLimits, RoutePoint } from "@/features/rides/types";
 
-// Reglas de negocio de «Publicar viaje» (README, RN-10 a RN-13).
-export const MAX_STOPS = 5;
-export const MIN_PRICE = 1;
-export const MAX_PRICE = 10;
-export const MAX_CONDITIONS = 10;
+// Reglas de negocio de «Publicar viaje» (README, RN-10 a RN-13). Los límites configurables llegan de
+// GET /rides/publish-limits (colección app, RN-31); el largo de la condición es fijo.
 export const MAX_CONDITION_LENGTH = 60;
 
 // Perú no tiene horario de verano: siempre UTC-5.
@@ -60,8 +57,6 @@ export function findStopPosition(route: GeoPoint[], stop: GeoPoint) {
 /** Distancia con coma decimal, como se escribe en Perú: `5,2 km`. */
 export const formatKm = (km: number) => `${km.toFixed(1).replace(".", ",")} km`;
 
-const MIN_DEPARTURE_MINUTES = 6 * 60;
-const MAX_DEPARTURE_MINUTES = 23 * 60;
 const SLOT_MINUTES = 30;
 
 /** Fecha en la hora de Perú, leída con los métodos `getUTC*`. */
@@ -85,32 +80,41 @@ export function fromLimaInputValue(value: string) {
   return new Date(Date.UTC(year, month - 1, day, hours, minutes) + LIMA_OFFSET_MS);
 }
 
-/** La salida es futura y su hora está entre las 06:00 y las 23:00 de Perú (RN-12). */
-export function isDepartureValid(date: Date) {
+/** `"06:30"` → minutos desde la medianoche. */
+const clockToMinutes = (value: string) => {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+/**
+ * La salida es futura y su hora de Perú está entre `departureFrom` y `departureTo`, ambas incluidas (RN-12).
+ * Si `departureFrom` es posterior a `departureTo`, el horario cruza la medianoche.
+ */
+export function isDepartureValid(date: Date, limits: PublishLimits) {
+  if (date.getTime() <= Date.now()) {
+    return false;
+  }
   const lima = toLimaClock(date);
   const minutes = lima.getUTCHours() * 60 + lima.getUTCMinutes();
-  return (
-    date.getTime() > Date.now() &&
-    minutes >= MIN_DEPARTURE_MINUTES &&
-    minutes <= MAX_DEPARTURE_MINUTES
-  );
+  const from = clockToMinutes(limits.departureFrom);
+  const to = clockToMinutes(limits.departureTo);
+  return from <= to
+    ? minutes >= from && minutes <= to
+    : minutes >= from || minutes <= to;
 }
 
 /** Próxima media hora disponible dentro del horario permitido. */
-export function getDefaultDeparture() {
-  const now = Date.now();
+export function getDefaultDeparture(limits: PublishLimits) {
   const slotMs = SLOT_MINUTES * 60 * 1000;
-  const slot = new Date(Math.ceil((now + 1) / slotMs) * slotMs);
-  if (isDepartureValid(slot)) {
-    return slot;
+  const first = new Date(Math.ceil((Date.now() + 1) / slotMs) * slotMs);
+  // Fuera de horario se avanza de media en media hora, como mucho un día.
+  for (let slot = first; slot.getTime() - first.getTime() <= DAY_MS; ) {
+    if (isDepartureValid(slot, limits)) {
+      return slot;
+    }
+    slot = new Date(slot.getTime() + slotMs);
   }
-  // Fuera de horario: la primera salida del día siguiente (o de hoy, si aún no son las 6).
-  const lima = toLimaClock(slot);
-  const dayOffset = lima.getUTCHours() * 60 + lima.getUTCMinutes() > MAX_DEPARTURE_MINUTES ? 1 : 0;
-  return new Date(
-    Date.UTC(lima.getUTCFullYear(), lima.getUTCMonth(), lima.getUTCDate() + dayOffset, 6) +
-      LIMA_OFFSET_MS,
-  );
+  return first;
 }
 
 const shortDayFormatter = new Intl.DateTimeFormat("es-PE", {

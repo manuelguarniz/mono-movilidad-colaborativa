@@ -360,20 +360,46 @@ body {
   }
 
   .bottom-nav {
-    @apply fixed bottom-0 left-0 right-0 z-10 flex justify-around border-t border-[var(--border-neutral)] bg-white px-2 pt-2;
+    @apply fixed bottom-0 left-0 right-0 z-10 flex items-end justify-around border-t border-[var(--border-neutral)] bg-white px-1 pt-1.5;
     padding-bottom: max(0.5rem, var(--safe-bottom));
   }
 
   .bottom-nav-item {
-    @apply flex min-w-[3.5rem] flex-col items-center gap-0.5 rounded-full px-3 py-1 text-[var(--text-muted)];
+    @apply flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[var(--text-muted)] transition-colors;
+  }
+
+  /* Píldora suave solo detrás del ícono (activa: fondo rojo claro, ícono y texto en rojo). */
+  .bottom-nav-icon {
+    @apply relative flex h-8 w-14 items-center justify-center rounded-full transition-colors;
   }
 
   .bottom-nav-item-active {
-    @apply bg-[var(--brand-red)] text-white;
+    @apply text-[var(--brand-red)];
+  }
+
+  .bottom-nav-item-active .bottom-nav-icon {
+    @apply bg-[var(--brand-soft)];
+  }
+
+  .bottom-nav-item-active .bottom-nav-label {
+    @apply font-semibold;
+  }
+
+  .bottom-nav-badge {
+    @apply absolute right-3 top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[var(--brand-red)];
   }
 
   .bottom-nav-label {
     @apply whitespace-nowrap text-[0.6875rem] font-medium;
+  }
+
+  /* «Publicar» del conductor: botón circular elevado al centro del menú. */
+  .bottom-nav-publish {
+    @apply flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[var(--brand-red)];
+  }
+
+  .bottom-nav-publish-button {
+    @apply -mt-6 flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[var(--brand-red)] text-white shadow-lg transition active:scale-95;
   }
 
   .auth-back-button {

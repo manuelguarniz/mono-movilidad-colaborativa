@@ -56,6 +56,16 @@ const toRideDetail = ({
 
 const PAGE_SIZE = 20;
 const ACTIVE_BOOKING = ["CONFIRMED", "IN_RIDE"];
+
+// Valores por defecto de la colección app (RN-31) que devuelve GET /rides/publish-limits.
+const PUBLISH_LIMITS = {
+  departureFrom: "06:00",
+  departureTo: "23:00",
+  minPrice: 1,
+  maxPrice: 10,
+  maxStops: 5,
+  maxConditions: 10,
+};
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 // Valores por defecto de la colección `app` (RN-31).
@@ -408,6 +418,14 @@ export const rideHandlers = [
     });
   }),
 
+  http.get(api("/rides/publish-limits"), ({ request }) => {
+    const user = authenticate(request);
+    if (user instanceof Response) {
+      return user;
+    }
+    return HttpResponse.json(PUBLISH_LIMITS);
+  }),
+
   http.post(api("/rides"), async ({ request }) => {
     const user = authenticate(request);
     if (user instanceof Response) {
@@ -446,11 +464,13 @@ export const rideHandlers = [
       return invalidJson();
     } else {
       const time = limaTime(departure);
-      if (departure <= new Date() || time < "06:00" || time > "23:00") {
+      const { departureFrom: from, departureTo: to } = PUBLISH_LIMITS;
+      const inWindow =
+        from <= to ? time >= from && time <= to : time >= from || time <= to;
+      if (departure <= new Date() || !inWindow) {
         errors.push({
           field: "departureTime",
-          message:
-            "La hora de salida debe ser futura y estar entre las 6:00 y las 23:00",
+          message: `La hora de salida debe ser futura y estar entre las ${from} y las ${to}`,
         });
       }
     }

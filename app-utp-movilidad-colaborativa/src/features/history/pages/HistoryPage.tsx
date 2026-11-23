@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { dashboardService } from "@/features/dashboard/services/dashboardService";
 import { HistoryCard } from "@/features/history/components/HistoryCard";
@@ -7,6 +8,7 @@ import { historyService } from "@/features/history/services/historyService";
 import type { HistoryEntry, HistoryRole } from "@/features/history/types";
 import { monthGroup } from "@/features/history/utils";
 import { errorMessage } from "@/features/my-rides/utils";
+import ArrowLeftIcon from "@/assets/images/icons/arrow-left.svg?react";
 import ChevronDownIcon from "@/assets/images/icons/chevron-down.svg?react";
 
 const TABS: { role: HistoryRole; label: string }[] = [
@@ -31,6 +33,7 @@ function groupByMonth(entries: HistoryEntry[]) {
 /**
  * Historial (P19). Las pestañas filtran por rol y no cambian el modo de la app (RN-48); se
  * abre en la del modo actual del perfil. 20 viajes por página con «Ver más viajes» (RF-09).
+ * Se abre desde el Perfil (no tiene pestaña propia en el menú inferior).
  */
 export function HistoryPage() {
   const userQuery = useQuery({ queryKey: ["users", "me"], queryFn: dashboardService.getCurrentUser });
@@ -49,11 +52,16 @@ export function HistoryPage() {
 
   return (
     <div className="dashboard-page pb-4">
-      <div>
-        <p className="publish-label">Viajes terminados</p>
-        <h2 className="mt-1 text-[1.75rem] font-semibold leading-tight text-[var(--text-primary)]">
-          Historial
-        </h2>
+      <div className="flex items-start gap-2">
+        <Link to="/perfil" className="auth-back-button mt-1" aria-label="Volver al perfil">
+          <ArrowLeftIcon className="h-6 w-6" />
+        </Link>
+        <div>
+          <p className="publish-label">Viajes terminados</p>
+          <h2 className="mt-1 text-[1.75rem] font-semibold leading-tight text-[var(--text-primary)]">
+            Historial
+          </h2>
+        </div>
       </div>
 
       <div className="history-tabs" role="tablist" aria-label="Historial por rol">

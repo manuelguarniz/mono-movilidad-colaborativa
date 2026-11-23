@@ -3,6 +3,7 @@ import type {
   Campus,
   MyProfile,
   MyVehicle,
+  PublishLimits,
   PublishedRide,
   RideCreateRequest,
   RideDetailView,
@@ -26,6 +27,9 @@ export const rideService = {
   /** Responde 404 `RIDE_NOT_FOUND` si el viaje no existe. */
   getRide: (rideId: string) =>
     apiClient.get<unknown, RideDetailView>(`/rides/${rideId}`),
+
+  /** Límites de horario, precio, paradas y condiciones que valida el backend (RN-10, RN-12, RN-13). */
+  getPublishLimits: () => apiClient.get<unknown, PublishLimits>("/rides/publish-limits"),
 
   publishRide: (payload: RideCreateRequest) =>
     apiClient.post<unknown, PublishedRide>("/rides", payload),
