@@ -37,6 +37,7 @@ import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.dto.RetirarRequest;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.dto.RetiroDto;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.model.EstadoRetiro;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.model.MovimientoCredito;
+import pe.edu.utp.app_movilidadcolaborativa.notifications.application.Notificador;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.model.Pago;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.model.Retiro;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.model.TipoMovimiento;
@@ -68,6 +69,7 @@ public class BilleteraService {
 	private final ParametrosService parametrosService;
 	private final RestriccionesPasajeroService restriccionesPasajeroService;
 	private final LibroCreditos libroCreditos;
+	private final Notificador notificador;
 
 	// ------------------------------------------------------------------ Consulta
 
@@ -229,7 +231,8 @@ public class BilleteraService {
 	}
 
 	/**
-	 * RN-42: devuelve los créditos de cada retiro RECHAZADO que aún no se revirtió (movimiento REVERSION_RETIRO).
+	 * RN-42: devuelve los créditos de cada retiro RECHAZADO que aún no se revirtió (movimiento REVERSION_RETIRO) y
+	 * notifica al conductor en la misma transacción (RN-32).
 	 * Lo llama el job cada minuto. Devuelve cuántos revirtió.
 	 */
 	public int revertirRechazados() {
@@ -256,6 +259,7 @@ public class BilleteraService {
 						.retiroId(retiro.id())
 						.fecha(ahora)
 						.build()).orElseThrow();
+				notificador.retiroRechazado(retiro, ahora);
 				return true;
 			});
 			if (aplicado) {

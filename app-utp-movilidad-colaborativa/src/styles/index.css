@@ -1243,3 +1243,119 @@ body {
   }
 }
 
+
+/* Notificaciones (P18, RF-13): campana, bandeja y aviso en tiempo real. */
+@layer components {
+  .notification-badge {
+    @apply absolute right-0.5 top-0.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-[var(--accent-red)] px-1 text-[0.6875rem] font-semibold leading-none text-white tabular-nums;
+  }
+
+  .notification-mark-all {
+    @apply flex items-center gap-1.5 text-[0.9375rem] font-semibold text-[var(--brand-red)] transition active:scale-95 disabled:text-[var(--text-placeholder)] disabled:active:scale-100;
+  }
+
+  .notification-group-label {
+    @apply mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)];
+  }
+
+  .notification-card {
+    @apply divide-y divide-[var(--border-neutral)] overflow-hidden rounded-2xl border border-[var(--border-neutral)] bg-white;
+  }
+
+  /* Un único componente de fila: chevron a 16 px del borde derecho en todas (ajuste de P18). */
+  .notification-row {
+    @apply flex w-full items-center gap-3 py-4 pl-4 pr-4 text-left transition active:bg-[#f5f5f5];
+  }
+
+  .notification-row-unread {
+    @apply bg-[#fff1f0] active:bg-[#ffe6e4];
+  }
+
+  .notification-dot {
+    @apply h-2 w-2 shrink-0 rounded-full bg-[var(--accent-red)];
+  }
+
+  .notification-title {
+    @apply text-base text-[var(--text-primary)];
+  }
+
+  .notification-message {
+    @apply mt-0.5 block text-[0.9375rem] leading-snug text-[var(--text-brown)];
+  }
+
+  .notification-assistance {
+    @apply mt-1.5 flex items-start gap-1.5 text-[0.9375rem] font-medium leading-snug text-[var(--amber-text)];
+  }
+
+  .notification-time {
+    @apply mt-1 block text-sm text-[var(--text-muted)];
+  }
+
+  .notification-chevron {
+    @apply h-5 w-5 shrink-0 text-[var(--text-muted)];
+  }
+
+  .notification-icon {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center self-start rounded-full;
+  }
+
+  .notification-icon-amber {
+    @apply bg-[#fff4d6] text-[var(--amber-text)];
+  }
+
+  .notification-icon-green {
+    @apply bg-[var(--credit-green-soft)] text-[var(--credit-green)];
+  }
+
+  .notification-icon-gray {
+    @apply bg-[var(--surface-muted)] text-[var(--text-brown)];
+  }
+
+  .notification-icon-red {
+    @apply bg-[var(--brand-soft)] text-[var(--brand-red)];
+  }
+
+  .notification-empty {
+    @apply flex flex-1 flex-col items-center justify-center pb-16 text-center;
+  }
+
+  .notification-empty-icon {
+    @apply flex h-24 w-24 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--text-muted)];
+  }
+
+  .notification-empty-button {
+    @apply mt-6 rounded-full bg-[var(--brand-soft)] px-6 py-3 text-[0.9375rem] font-semibold text-[var(--brand-red)] transition active:scale-95;
+  }
+
+  /* Aviso en tiempo real: arriba, bajo el área segura, sin tapar la barra inferior. */
+  .notification-toast-region {
+    @apply pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-[var(--webview-px)];
+    padding-top: max(0.75rem, var(--safe-top));
+  }
+
+  .notification-toast {
+    @apply pointer-events-auto flex w-full max-w-lg items-start gap-1 rounded-2xl border border-[var(--border-neutral)] bg-white p-1 shadow-lg;
+    animation: notification-toast-in 180ms ease-out;
+  }
+
+  .notification-toast-body {
+    @apply flex min-w-0 flex-1 items-start gap-3 rounded-xl p-2 text-left;
+  }
+
+  .notification-toast-close {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)];
+  }
+}
+
+@keyframes notification-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-toast {
+    animation: none;
+  }
+}

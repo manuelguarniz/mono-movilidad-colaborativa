@@ -41,7 +41,7 @@ El resto de pruebas no usa la base de datos: `ValidacionSolicitudesTest` comprue
 
 ## 2. Estado y estructura
 
-El contrato define 31 endpoints y el backend implementa 30. Toda la API cuelga de `/api`.
+El contrato define 36 endpoints y el backend implementa 35. Toda la API cuelga de `/api`.
 
 | Módulo | Endpoints | Estado |
 | --- | --- | --- |
@@ -51,11 +51,12 @@ El contrato define 31 endpoints y el backend implementa 30. Toda la API cuelga d
 | Archivos | `POST /files` | Pendiente; solo existen el modelo y el repositorio |
 | Vehículos | `POST /vehicles`, `GET` y `PUT /vehicles/me` | Implementado, con accesibilidad (RN-18) y SOAT obligatorio (RN-36, desde el 2026-11-21). Las fotos del vehículo y del certificado las exige el frontend; la API las acepta opcionales |
 | Viajes y reservas | `GET` y `POST /rides`, `GET /rides/publish-limits`, `GET /rides/{rideId}`, `POST /rides/{rideId}/reserve` | Implementado. `GET /rides/publish-limits` expone al formulario de P11 el horario de salida, el precio y los máximos de paradas y condiciones de la colección `app` (RN-10, RN-12, RN-13). La publicación valida el vehículo activo (RN-24), el límite de cancelaciones (RN-30, con los parámetros de la colección `app`) y el SOAT en la salida (RN-37) |
-| Mis viajes | `GET /rides/mine`, `POST /rides/{rideId}/cancel`, `/start`, `/finish`, `GET /bookings/mine`, `POST /bookings/{bookingId}/cancel` | Implementado, con reembolso al cancelar y cobro al finalizar (RN-40). Sin notificaciones: no hay avisos al otro participante. El job que cancela o cierra los viajes vencidos (RF-08) está pendiente |
-| Billetera | `GET /wallet`, `GET /wallet/movements`, `POST /wallet/top-ups`, `POST /wallet/withdrawals` | Implementado: saldo, retenido y retirable, movimientos, recarga simulada (RN-41) y retiro (RN-42). El job `ReversionRetirosJob` devuelve cada minuto los retiros que el operador marca `RECHAZADO` |
+| Mis viajes | `GET /rides/mine`, `POST /rides/{rideId}/cancel`, `/start`, `/finish`, `GET /bookings/mine`, `POST /bookings/{bookingId}/cancel` | Implementado, con reembolso al cancelar y cobro al finalizar (RN-40), y las notificaciones de RF-13 en la misma transacción (RN-32). El job que cancela o cierra los viajes vencidos (RF-08) está pendiente |
+| Billetera | `GET /wallet`, `GET /wallet/movements`, `POST /wallet/top-ups`, `POST /wallet/withdrawals` | Implementado: saldo, retenido y retirable, movimientos, recarga simulada (RN-41) y retiro (RN-42). El job `ReversionRetirosJob` devuelve cada minuto los retiros que el operador marca `RECHAZADO` y notifica al conductor |
 | Perfil | `GET` y `PUT /users/me`, `PATCH /users/me/mode` | Implementado, con el cambio de modo de RN-48 (`tripInProgress` en el perfil) y la asistencia de movilidad editable (RN-17). La reserva copia la asistencia (RN-21) y `GET /rides/mine` se la muestra al conductor (RN-22); la foto es opcional hasta que exista `POST /files` |
 | Historial | `GET /history?role&page` | Implementado (RF-09, RN-50): como pasajero o como conductor, 20 por página, con lo que falta calificar en cada viaje completado |
-| Calificaciones | `GET /ratings/rides/{rideId}`, `POST /ratings` | Implementado (RF-10, RN-47): plazo de 24 h desde `fecha_fin` (`dias_para_calificar`), una por reserva y persona, promedio recalculado en una transacción y copiado en los viajes activos. Sin la notificación «Viaje completado» |
+| Calificaciones | `GET /ratings/rides/{rideId}`, `POST /ratings` | Implementado (RF-10, RN-47): plazo de 24 h desde `fecha_fin` (`dias_para_calificar`), una por reserva y persona, promedio recalculado en una transacción y copiado en los viajes activos. La notificación «Viaje completado» la crea `POST /rides/{rideId}/finish` |
+| Notificaciones | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{notificationId}/read`, `POST /notifications/read-all`, `GET /notifications/stream` | Implementado (RF-13, desde el 2026-11-23): bandeja de 50, contador y marcado de leídas (RN-34), y avisos en tiempo real por SSE con un Change Stream de MongoDB por instancia. Falta el «Recordatorio de salida», que llega con el job de RF-08 |
 
 El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módulo. Cada módulo tiene tres capas: `application` (casos de uso), `domain` (model, dto, validation) e `infrastructure` (web, persistence, security, mail).
 
@@ -67,6 +68,7 @@ El código está en `pe.edu.utp.app_movilidadcolaborativa`, organizado por módu
 | `vehicles` | Registro, consulta y actualización del vehículo, que se guarda embebido en `Usuario`; sus reglas (`ReglasVehiculo`, RN-07 a RN-09). |
 | `rides` | Listado, detalle y publicación de viajes (`ViajeService`) y reserva de plazas (`ReservaService`); modelos `Viaje` y `Reserva` y sus reglas (`ReglasViaje`, RN-11 a RN-13). |
 | `ratings` | Calificaciones (`CalificacionService`): contexto para calificar, registro y promedio del calificado; modelo `CalificacionViaje` (colección `calificaciones`). El historial (`HistorialService`) vive en `rides`. |
+| `notifications` | Notificaciones (RF-13): `Notificador` crea cada tipo con los textos de RF-13 dentro de la transacción del flujo; `NotificacionService` da la bandeja, el contador y el marcado; `ConexionesSse` guarda las conexiones SSE abiertas en la instancia y `EscuchaNotificaciones` reparte los cambios del Change Stream. |
 | `wallet` | Billetera (`BilleteraService`), libro de créditos (`LibroCreditos`: cada cambio de saldo con su movimiento, retención, reembolso y liquidación) y el job de reversión de retiros; modelos `Pago`, `MovimientoCredito` y `Retiro`. |
 | `files` | Modelo `Archivo` y su repositorio. |
 | `shared` | Lo transversal: errores (`CodigoError`, `ApiException`, `ManejadorErrores`), validaciones comunes, alcances del token, seguridad, CORS y configuración. |
@@ -187,6 +189,7 @@ Están centralizados, con su estado HTTP, en el enum `CodigoError`. Los cuatro p
 | `RATING_NOT_ALLOWED` | 403 | Solo pueden calificar quienes hicieron el viaje (RN-47) |
 | `RATING_WINDOW_CLOSED` | 409 | El plazo para calificar este viaje terminó (RN-47) |
 | `ALREADY_RATED` | 409 | Ya calificaste a esta persona en este viaje (RN-47) |
+| `NOTIFICATION_NOT_FOUND` | 404 | Notificación no encontrada (no existe o es de otro usuario, RN-34) |
 | `OTP_INVALID` | 400 | Código inválido. Te quedan N intentos. (`details.attemptsLeft`) |
 | `OTP_EXPIRED` | 400 | El código expiró. Solicita uno nuevo. |
 | `OTP_ATTEMPTS_EXCEEDED` | 429 | Agotaste los intentos. Solicita un nuevo código. |
@@ -562,7 +565,30 @@ Negocio, en orden: 403 `DRIVER_ROLE_REQUIRED` («Solo los conductores pueden ret
 
 Negocio, en orden: 403 `RATING_NOT_ALLOWED` (reserva inexistente o no `COMPLETADA`, viaje no `COMPLETADO`, o el autor no es el pasajero de la reserva ni el conductor del viaje), 409 `RATING_WINDOW_CLOSED` («El plazo para calificar este viaje terminó»: pasaron `dias_para_calificar` días desde `fecha_fin`) y 409 `ALREADY_RATED` («Ya calificaste a esta persona en este viaje»; también lo da el índice único `reserva_id` + `autor.id` + `usuario_calificado_id` ante dos envíos simultáneos). En una transacción se inserta la calificación y se recalcula `usuarios.calificacion` del calificado con una agregación (promedio a un decimal y cantidad); después se copia en `conductor.calificacion` de sus viajes `PUBLICADO` y `EN_CURSO`. Responde 201 con `{ id, rideId, bookingId, ratedUserId, ratedRole, score, comment, createdAt }`. El comentario solo se devuelve aquí, a su autor.
 
-El operador resuelve el retiro en Atlas: `estado = PAGADO` con `codigo_operacion` y `fecha_resolucion`, o `estado = RECHAZADO` con `motivo_rechazo`. `ReversionRetirosJob` (cada 60 s, configurable con `app.jobs.reversion-retiros`) devuelve los rechazados con `reversion_aplicada` distinto de `true`: inserta `REVERSION_RETIRO`, sube el saldo y marca `reversion_aplicada = true`, en una transacción.
+**`GET /notifications`**, **`GET /notifications/unread-count`** (RF-13)
+
+`{ data, unreadCount }` con las 50 más recientes del usuario del token, de la más nueva a la más antigua, y `{ unreadCount }` para la campana. Cada notificación trae `id`, `type`, `title`, `message` (texto armado al crearla, que no se actualiza), `assistance` («Necesita asistencia: …» solo en `NUEVA_RESERVA`, RN-22), `rideId`, `bookingId`, `read` y `createdAt`. El índice TTL `expiracion` las borra a los 30 días (RN-34).
+
+**`POST /notifications/{notificationId}/read`**, **`POST /notifications/read-all`** (RF-13, RN-34)
+
+Devuelven `{ unreadCount }`. Una notificación que no existe o es de otro usuario responde 404 `NOTIFICATION_NOT_FOUND` («Notificación no encontrada»); marcar una ya leída no es error.
+
+**`GET /notifications/stream`** (RF-13, RNF-16)
+
+Server-Sent Events con el Bearer en `Authorization` (el frontend usa `fetch`, porque `EventSource` no envía headers). Al conectar envía `unread-count`; después, `notification` con `{ notification, unreadCount }` por cada notificación nueva y `unread-count` cuando cambian las leídas (agrupado 300 ms por usuario). Un comentario `: ping` cada 25 s mantiene viva la conexión, que se cierra al vencer el token o a los 30 min.
+
+Cómo llega el aviso: los flujos insertan la notificación dentro de su transacción (RN-32) con `Notificador`. Cada instancia abre un único Change Stream sobre `notificaciones` (inserts y cambios de `leida`), que solo ve lo confirmado, y lo reparte a las conexiones SSE que tiene abiertas; así llega aunque la haya creado otra instancia o un job (RNF-10). Si el stream se corta, se reabre con el último resume token y backoff de hasta 30 s. Requiere réplica set: funciona en Atlas, incluido el tier gratuito (verificado el 2026-11-23 con MongoDB 8.0). Para apagarlo, por ejemplo en pruebas sin Atlas: `app.notifications.realtime=false`. La ruta permite el dispatch `ASYNC` sin volver a autenticar, porque el token ya se validó al abrir la conexión.
+
+| Flujo | Notificación | Destinatario |
+| --- | --- | --- |
+| `POST /rides/{rideId}/reserve` | `NUEVA_RESERVA`, con `assistance` si el pasajero declaró asistencia | Conductor |
+| `POST /bookings/{bookingId}/cancel` | `RESERVA_CANCELADA`, con las plazas libres después de devolverlas | Conductor |
+| `POST /rides/{rideId}/cancel` | `VIAJE_CANCELADO`, con los créditos devueltos y el motivo | Cada pasajero `CONFIRMADA` |
+| `POST /rides/{rideId}/start` | `VIAJE_INICIADO` / `NO_SE_PRESENTO` (con lo que se cobrará) | Pasajeros que subieron / que no |
+| `POST /rides/{rideId}/finish` | `VIAJE_COMPLETADO`: al conductor con a quiénes calificar y lo cobrado; a cada pasajero `COMPLETADA` con su conductor | Conductor y pasajeros |
+| `ReversionRetirosJob` | `RETIRO_RECHAZADO`, con el motivo | Conductor |
+
+El operador resuelve el retiro en Atlas: `estado = PAGADO` con `codigo_operacion` y `fecha_resolucion`, o `estado = RECHAZADO` con `motivo_rechazo`. `ReversionRetirosJob` (cada 60 s, configurable con `app.jobs.reversion-retiros`) devuelve los rechazados con `reversion_aplicada` distinto de `true`: inserta `REVERSION_RETIRO`, sube el saldo, marca `reversion_aplicada = true` y crea la notificación `RETIRO_RECHAZADO`, en una transacción.
 
 ## 5. Ejemplos con curl
 

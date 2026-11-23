@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { authService } from "@/features/auth/services/authService";
+import { NotificationsRealtime } from "@/features/notifications/components/NotificationsRealtime";
 
 export function ProtectedRoute() {
   const location = useLocation();
@@ -14,5 +15,11 @@ export function ProtectedRoute() {
     return <Navigate to="/auth/verificacion" replace />;
   }
 
-  return <Outlet />;
+  // Con sesión, el stream de notificaciones (RF-13) queda abierto en todas las pantallas.
+  return (
+    <>
+      <NotificationsRealtime />
+      <Outlet />
+    </>
+  );
 }

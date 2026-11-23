@@ -135,7 +135,7 @@ Los mensajes entre comillas son literales: los devuelve la API (`app-movilidad-c
 - **RF-13 — Notificaciones.**
   - **Campana.** El encabezado del dashboard (06) tiene una campana con el número de notificaciones no leídas (hasta «9+»), con el texto accesible «Notificaciones, N sin leer».
   - **Bandeja (18).** Muestra la más reciente primero, hasta 50. Cada notificación tiene título, mensaje y hace cuánto llegó. Al tocar una, se marca como leída y se abre la pantalla relacionada (Mis viajes, historial, calificar o billetera). El botón «Marcar todas como leídas» las marca todas. Sin notificaciones: «No tienes notificaciones».
-  - **Actualización.** El contador se actualiza al abrir la app y cada 60 s mientras está abierta (RNF-16).
+  - **Actualización.** En tiempo real, sin recargar la página ni consultar cada cierto tiempo: mientras la app está abierta, el backend envía cada notificación nueva por Server-Sent Events (`GET /notifications/stream`). Sube el contador de la campana y aparece un aviso breve arriba con el título y el mensaje; al tocarlo se marca como leída y abre la pantalla relacionada. En la bandeja, la nueva entra arriba sin aviso (RNF-16; decisión del 2026-11-23).
   - **Tipos y textos** (RN-32, RN-33):
 
   | Tipo | Destinatario | Mensaje |
@@ -347,7 +347,7 @@ Son 18 requerimientos, cada uno con una métrica y una forma de verificarlo. Los
 | RNF-13 | Privacidad | El dato de asistencia de movilidad es un dato sensible (Ley 29733): solo se guarda con consentimiento expreso, solo se expone según RN-22 y nunca se escribe en los logs. El número de Yape de un retiro solo lo ve su dueño. | `GET /rides` y `GET /rides/{id}` no incluyen el dato de asistencia. El conductor de la reserva sí lo ve; otro conductor no. Buscar la nota o el número de Yape en los logs no devuelve resultados. |
 | RNF-14 | Confiabilidad | El job programado corre cada minuto y es idempotente aunque corra en varias instancias a la vez (RNF-10). Cancela, cierra o recuerda un viaje como máximo 1 minuto después de que corresponde. | Prueba de integración: un viaje sin iniciar a +30 min queda `CANCELADO`, y uno `EN_CURSO` a +15 min de su llegada estimada queda `COMPLETADO`, tras una ejecución. Dos ejecuciones simultáneas dejan los mismos saldos, las mismas estadísticas y una sola notificación por destinatario. |
 | RNF-15 | Consistencia | Reservar, cancelar, iniciar, cerrar, recargar y retirar actualizan las reservas, las plazas, los saldos, los movimientos y las notificaciones en una sola transacción. Nunca hay sobreventa ni saldo negativo. | Prueba concurrente: 10 pasajeros reservan a la vez la última plaza y solo uno obtiene `CONFIRMADA`. Después de cada operación, `plazas_disponibles` = `plazas_totales` − Σ plazas de reservas activas. |
-| RNF-16 | Usabilidad | Una notificación aparece en el contador de la campana como máximo 60 s después del evento, mientras la app está abierta. La bandeja carga en menos de 1 s con 50 notificaciones. | Con dos dispositivos: el conductor cancela y en el del pasajero el contador sube en ≤ 60 s. Con 50 notificaciones de prueba, `GET /notifications` responde en < 1 s. |
+| RNF-16 | Usabilidad | Una notificación aparece en el contador de la campana como máximo 5 s después del evento, mientras la app está abierta, sin recargar ni consultar periódicamente (SSE). La bandeja carga en menos de 1 s con 50 notificaciones. | Con dos dispositivos: el conductor cancela y en el del pasajero el contador sube y aparece el aviso en ≤ 5 s, sin recargar. Con 50 notificaciones de prueba, `GET /notifications` responde en < 1 s. |
 | RNF-17 | Integridad | El saldo de cada usuario se puede reconstruir desde su libro de movimientos: `saldo_creditos` = Σ `monto` de sus movimientos, y `creditos_retenidos` = Σ `total_creditos` de sus reservas con `liquidada = false`. Ningún movimiento se edita ni se borra. | Un script de conciliación recorre todos los usuarios después de la prueba de carga y no encuentra diferencias. El rol de base de datos de la API no tiene permiso de `update` ni `delete` sobre `movimientos_creditos`. |
 | RNF-18 | Auditabilidad | Cada operación de créditos (recarga, retención, reembolso, cobro, retiro y reversión) queda en `movimientos_creditos` con usuario, monto, saldo posterior, referencia a su origen y fecha. | Para una reserva completada, se puede seguir en la base de datos la cadena recarga → retención → cobro, con los mismos montos. |
 
@@ -360,7 +360,7 @@ flowchart TB
   subgraph FE["Frontend · React 18 + TypeScript + Vite (WebView móvil)"]
     direction LR
     pages["<b>Páginas y componentes</b><br/>features: auth, dashboard, viajes,<br/>mis viajes, historial, billetera,<br/>notificaciones y perfil"]
-    services["<b>Servicios y estado</b><br/>authService, rideService, walletService<br/>TanStack Query (caché y sondeo de 60 s)"]
+    services["<b>Servicios y estado</b><br/>authService, rideService, walletService<br/>TanStack Query (caché) y stream SSE de notificaciones"]
     http["<b>Cliente HTTP</b><br/>apiClient (Axios)<br/>adjunta el token JWT"]
     pages --> services --> http
   end
@@ -391,6 +391,7 @@ flowchart TB
   end
 
   FE -->|"HTTPS · REST/JSON"| BE
+  BE -.->|"SSE · notificaciones en tiempo real"| FE
   infraOut --> mail
   BE -->|"driver de MongoDB · conexión TLS a Atlas"| DB
   operador -.->|"Atlas Data Explorer"| billetera
@@ -406,7 +407,7 @@ El detalle de las colecciones está en la sección 5.
 
 El detalle para ejecutar, probar y extender el backend está en su propio documento, [app-movilidad-colaborativa-api/README.md](app-movilidad-colaborativa-api/README.md): variables de entorno, tokens, formato de errores, mensajes de validación por endpoint y ejemplos con curl. El contrato de la API es [docs/openapi.yaml](docs/openapi.yaml), y [docs/http/](docs/http/) tiene una solicitud de ejemplo por endpoint, con la respuesta esperada. Aquí solo va el resumen.
 
-El backend implementa 30 de los 31 endpoints del contrato actual. Lo nuevo de este documento que todavía no tiene endpoints figura como pendiente:
+El backend implementa 35 de los 36 endpoints del contrato actual. Lo nuevo de este documento que todavía no tiene endpoints figura como pendiente:
 
 | Módulo | Estado |
 | --- | --- |
@@ -416,12 +417,13 @@ El backend implementa 30 de los 31 endpoints del contrato actual. Lo nuevo de es
 | Perfil (consultar y actualizar datos) | Implementado: P14 con calificación, saldo (de `GET /wallet`), SOAT con aviso a ≤ 15 días y cambio de modo con modal por `PATCH /users/me/mode` (RN-48, `TRIP_IN_PROGRESS`). P13 implementado con la misma pantalla en modo pasajero: asistencia de movilidad (`mobilityAssistance`) con el enlace «Declarar en Actualizar datos», «¿Tienes vehículo?» y los modales 13-C a 13-E. P15 implementado con el rediseño: sin modalidad, documento con tipo, asistencia editable (RN-17) y el modal «Quitar asistencia». La reserva copia la asistencia (RN-21) y el conductor la ve en Mis viajes (RN-22) |
 | Vehículos (registrar, consultar y actualizar) | Implementado, con accesibilidad (RN-18) y SOAT obligatorio (RN-36; decisión del 2026-11-21) en P05 y P16. El frontend exige la foto del certificado y, al actualizar, la del vehículo; la API todavía las acepta opcionales |
 | Viajes y reservas (listar, publicar, detalle y reservar) | Implementado. El listado es de todas las sedes, con ciudad, filtro de accesibles y 20 por página (RN-19, RN-49), y la reserva respeta una reserva activa por pasajero y su límite de cancelaciones (RN-23, RN-38). La publicación valida el vehículo activo, el límite de cancelaciones y el SOAT en la salida (RN-24, RN-30, RN-37). `GET /rides/{rideId}` trae además la reserva del usuario en ese viaje (`myBooking`, con la hora límite para cancelar de RN-25), su reserva activa en otro viaje (RN-23) y su bloqueo (RN-38), para la barra inferior de P09. Reservar retiene el total del saldo disponible y, sin saldo, responde `INSUFFICIENT_CREDITS` con el botón «Recargar» (RN-39) |
-| Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Cancelar reembolsa el 100 % y finalizar paga al conductor (RN-40). Sin notificaciones. Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
+| Mis viajes (consultar, cancelar, iniciar y finalizar) | Implementado: `GET /rides/mine` con pasajeros, plazos y contador de RN-30; `GET /bookings/mine`; cancelación de reserva y de viaje (RN-25, RN-26), inicio con «¿Quiénes subieron?» (RN-43, RN-46) y fin (RN-45). Cancelar reembolsa el 100 % y finalizar paga al conductor (RN-40). Cada operación crea sus notificaciones en la misma transacción (RN-32). Falta el job de RF-08, así que un viaje no iniciado o no finalizado no se cancela ni se cierra solo |
 | Archivos (carga de imágenes) | Pendiente |
 | Billetera (consultar, movimientos, recarga simulada y retiro) | Implementado (RF-11, RF-12, RN-41, RN-42), con el job que devuelve los retiros rechazados por el operador. Las reservas creadas antes de la billetera no retuvieron créditos (`reservas.liquidada` ausente) y no se reembolsan ni se cobran |
 | Historial (consultar) | Implementado: `GET /history?role&page`, como pasajero o como conductor, 20 por página (RF-09, RN-50), con lo que falta calificar en cada viaje completado |
-| Calificaciones (consultar y calificar) | Implementado: `GET /ratings/rides/{rideId}` y `POST /ratings` (RF-10, RN-47), con plazo de 24 h desde `fecha_fin`, una por reserva y persona, y promedio del calificado recalculado en una transacción y copiado en sus viajes activos. Sin la notificación «Viaje completado» |
-| Notificaciones y el resto del job programado | Pendiente |
+| Calificaciones (consultar y calificar) | Implementado: `GET /ratings/rides/{rideId}` y `POST /ratings` (RF-10, RN-47), con plazo de 24 h desde `fecha_fin`, una por reserva y persona, y promedio del calificado recalculado en una transacción y copiado en sus viajes activos. La notificación «Viaje completado» la crea el fin del viaje |
+| Notificaciones (bandeja, contador y tiempo real) | Implementado (RF-13, P18): bandeja de 50, contador, marcar leídas (RN-34) y avisos en tiempo real por SSE. Cada instancia escucha la colección `notificaciones` con un Change Stream de MongoDB y reparte los cambios a sus conexiones abiertas (RNF-10). Se crean en reservar, cancelar reserva o viaje, iniciar, finalizar y en la devolución de retiros rechazados. Falta el «Recordatorio de salida», que llega con el job |
+| Resto del job programado (RF-08) | Pendiente: cancelar los no iniciados, cerrar los no finalizados y los recordatorios de salida |
 
 Tres decisiones definen cómo se comporta la API:
 
@@ -787,7 +789,8 @@ Insertar el movimiento y actualizar los saldos de `usuarios` se ejecutan en una 
   "usuario_id": "6705a1f0c3d4e5f600000002",
   "tipo": "NUEVA_RESERVA",
   "titulo": "Nueva reserva",
-  "mensaje": "Valeria R. reservó 1 plaza(s) en tu viaje del 09/10 08:30. Necesita asistencia: Silla de ruedas.",
+  "mensaje": "Valeria R. reservó 1 plaza(s) en tu viaje del 09/10 08:30.",
+  "asistencia": "Necesita asistencia: Silla de ruedas.",
   "viaje_id": "6705a1f0c3d4e5f600000501",
   "reserva_id": "6705a1f0c3d4e5f600000601",
   "leida": false,
@@ -795,7 +798,7 @@ Insertar el movimiento y actualizar los saldos de `usuarios` se ejecutan en una 
 }
 ```
 
-`tipo` es `NUEVA_RESERVA`, `RESERVA_CANCELADA`, `VIAJE_CANCELADO`, `RECORDATORIO_SALIDA`, `VIAJE_INICIADO`, `NO_SE_PRESENTO`, `VIAJE_COMPLETADO` o `RETIRO_RECHAZADO` (tabla de RF-13). `mensaje` se guarda ya armado, con los datos del momento del evento, y no se actualiza. Un índice TTL sobre `fecha_creacion` borra la notificación a los 30 días (RN-34). El texto de asistencia solo aparece en notificaciones para el conductor del viaje (RN-22).
+`tipo` es `NUEVA_RESERVA`, `RESERVA_CANCELADA`, `VIAJE_CANCELADO`, `RECORDATORIO_SALIDA`, `VIAJE_INICIADO`, `NO_SE_PRESENTO`, `VIAJE_COMPLETADO` o `RETIRO_RECHAZADO` (tabla de RF-13). `mensaje` se guarda ya armado, con los datos del momento del evento, y no se actualiza. Un índice TTL sobre `fecha_creacion` borra la notificación a los 30 días (RN-34). El texto de asistencia solo aparece en notificaciones para el conductor del viaje (RN-22) y va en su propio campo `asistencia` (`null` en el resto), porque la bandeja lo muestra en una línea aparte; nunca incluye la nota (RNF-13). El backend escucha los inserts y los cambios de `leida` de esta colección con un Change Stream para avisar en tiempo real (RF-13).
 
 **`app`** — un único documento con los parámetros de negocio configurables (RN-31). Se edita directamente en la base de datos.
 
@@ -1395,7 +1398,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada según el prompt (15-A a 15-D, sin capturas aprobadas) · rediseño en diseño ([prompt](<docs/design/P15-ActualizarDatos/prompt.md>)) |
 | 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada · rediseño aprobado |
 | 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Implementada · diseño aprobado |
-| 18 | [P18-Notificaciones/v1.1.png](<docs/design/P18-Notificaciones/v1.1.png>) | Notificaciones | Notificaciones | Diseño aprobado |
+| 18 | [P18-Notificaciones/v1.1.png](<docs/design/P18-Notificaciones/v1.1.png>) | Notificaciones | Notificaciones | Implementada · diseño aprobado |
 | 19 | [P19-Historial/v3.1.png](<docs/design/P19-Historial/v3.1.png>) | Historial | Historial | Implementada |
 | 20 | [P20-Calificar/v1.1.png](<docs/design/P20-Calificar/v1.1.png>) | Calificar | Calificaciones | Implementada |
 | 21 | [P21-Billetera/v1.1.png](<docs/design/P21-Billetera/v1.1.png>) | Billetera | Billetera | Implementada · diseño aprobado |
@@ -1597,6 +1600,7 @@ Cada fila cita los IDs de RF vigentes en su fecha. Las decisiones que una poster
 | 2026-11-21 | ¿Quién puede solicitar un retiro? | Quien tiene el rol `CONDUCTOR`, aunque esté en modo pasajero; la pantalla solo muestra «Retirar» en modo conductor. Si no: `DRIVER_ROLE_REQUIRED`, «Solo los conductores pueden retirar créditos». | RF-12 lo limita al conductor, y el saldo retirable ya excluye lo que no se ganó conduciendo. |
 | 2026-11-21 | ¿Cuándo se pide el OTP? | Solo en el primer login de la cuenta. Se controla con el campo `ultima_conexion` de `usuarios`: vacío ⇒ OTP; con fecha ⇒ sesión directa, y cada login la actualiza (RN-35). Reemplaza la confianza por dispositivo del 2026-10-29: se quitan `dispositivos_confiables`, `X-Device-Id` y `dias_dispositivo_confiable`. | Decisión del equipo: simplifica el acceso. El OTP queda como verificación del correo institucional, no como segundo factor. |
 | 2026-11-22 | ¿Cómo se organiza la barra inferior? | Cambia según el modo activo (RN-48). Pasajero: «Viajes · Mis viajes · Billetera · Perfil». Conductor: «Inicio · Mis viajes · Publicar · Billetera · Perfil», con «Publicar» (P11) como botón central destacado. El Historial (P19) sale de la barra y se abre desde el Perfil, que también lo marca como pestaña activa. La pestaña activa lleva una píldora suave detrás del ícono, y el ícono y el texto van en rojo. Hay un punto rojo en «Mis viajes» cuando hay una reserva activa o viajes publicados o en curso, y otro en «Perfil» cuando hay calificaciones pendientes (RF-10) o el SOAT vence en 15 días o menos (RF-14). | Decisión del usuario: el conductor llega a su acción principal en un toque, el pasajero tiene una barra de 4 pestañas y el Historial, que se usa poco, deja de competir con Viajes y Mis viajes. |
+| 2026-11-23 | ¿Cómo llegan las notificaciones mientras la app está abierta? | En tiempo real, sin recargar ni consultar cada cierto tiempo: Server-Sent Events (`GET /notifications/stream`) autenticado con el mismo Bearer, que el frontend abre con `fetch`. Cada instancia del backend escucha la colección `notificaciones` con un Change Stream de MongoDB y reparte los cambios a sus conexiones. Al llegar una, sube el contador y aparece un aviso breve que abre la pantalla relacionada. RNF-16 pasa de 60 s a 5 s. Reemplaza la consulta cada 60 s. | Decisión del usuario. SSE basta porque el canal es solo del servidor al cliente y encaja con Spring WebMVC; el Change Stream solo ve lo confirmado (RN-32), funciona con varias instancias (RNF-10) y no agrega infraestructura. Verificado en el tier gratuito de Atlas (MongoDB 8.0). |
 
 ### 12.2 Preguntas abiertas
 

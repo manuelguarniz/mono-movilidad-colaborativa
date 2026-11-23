@@ -1,0 +1,29 @@
+# Notificaciones en tiempo real (RF-13, RNF-16): Server-Sent Events
+# GET /notifications/stream
+#
+# Requiere token SESSION en Authorization. La conexión queda abierta: el cliente REST la
+# muestra mientras llegan eventos. También se puede probar con curl:
+#   curl -N -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/notifications/stream
+#
+# Eventos:
+#   unread-count  {"unreadCount":N}                       al conectar y cuando cambian las leídas
+#   notification  {"notification":{...},"unreadCount":N}  con cada notificación nueva (tras el commit)
+#   : ping                                                 cada 25 s
+# El servidor cierra al vencer el token o a los 30 min; el cliente se reconecta.
+
+@baseUrl = http://localhost:8080/api
+@sessionToken = pega-aqui-el-token
+
+### 200 · Stream de eventos
+# retry:3000
+# event:unread-count
+# data:{"unreadCount":2}
+#
+# event:notification
+# data:{"notification":{"id":"6705a1f0c3d4e5f600000c01","type":"VIAJE_INICIADO","title":"Viaje iniciado","message":"Tu viaje a Urb. El Golf inició.","assistance":null,"rideId":"6705a1f0c3d4e5f600000504","bookingId":"6705a1f0c3d4e5f600000601","read":false,"createdAt":"2026-10-29T19:21:00Z"},"unreadCount":3}
+GET {{baseUrl}}/notifications/stream
+Authorization: Bearer {{sessionToken}}
+Accept: text/event-stream
+
+### 401 · Sin token o vencido
+# { "code": "UNAUTHORIZED", "message": "Tu sesión expiró. Vuelve a iniciar sesión." }

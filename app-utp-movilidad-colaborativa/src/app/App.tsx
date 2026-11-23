@@ -5,6 +5,7 @@ import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
 import { HistoryPage } from "@/features/history/pages/HistoryPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { MyRidesPage } from "@/features/my-rides/pages/MyRidesPage";
+import { NotificationsPage } from "@/features/notifications/pages/NotificationsPage";
 import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 import { UpdateProfilePage } from "@/features/profile/pages/UpdateProfilePage";
 import { PublishRidePage } from "@/features/rides/pages/PublishRidePage";
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/viajes/publicar" element={<PublishRidePage />} />
           <Route path="/viajes/:rideId" element={<RideDetailPage />} />
           <Route path="/calificar/:rideId" element={<RatePage />} />
+          <Route path="/notificaciones" element={<NotificationsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/auth/login" replace />} />

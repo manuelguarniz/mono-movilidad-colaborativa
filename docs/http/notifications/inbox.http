@@ -1,0 +1,50 @@
+# Bandeja y contador de notificaciones (RF-13, P18)
+# GET  /notifications
+# GET  /notifications/unread-count
+# POST /notifications/{notificationId}/read
+# POST /notifications/read-all
+#
+# Requiere token SESSION. Cada usuario solo ve y marca las suyas (RN-34).
+
+@baseUrl = http://localhost:8080/api
+# token scope SESSION devuelto por POST /auth/verify-code (vence en 8 h)
+@sessionToken = pega-aqui-el-token
+@notificationId = 6705a1f0c3d4e5f600000c01
+
+### 200 · Las 50 más recientes y el total de no leídas
+# {
+#   "data": [
+#     {
+#       "id": "6705a1f0c3d4e5f600000c01",
+#       "type": "NUEVA_RESERVA",
+#       "title": "Nueva reserva",
+#       "message": "Valeria R. reservó 1 plaza(s) en tu viaje del 09/10 08:30.",
+#       "assistance": "Necesita asistencia: Silla de ruedas.",
+#       "rideId": "6705a1f0c3d4e5f600000501",
+#       "bookingId": "6705a1f0c3d4e5f600000601",
+#       "read": false,
+#       "createdAt": "2026-10-08T21:15:00Z"
+#     }
+#   ],
+#   "unreadCount": 1
+# }
+GET {{baseUrl}}/notifications
+Authorization: Bearer {{sessionToken}}
+
+### 200 · Contador de la campana
+# { "unreadCount": 1 }
+GET {{baseUrl}}/notifications/unread-count
+Authorization: Bearer {{sessionToken}}
+
+### 200 · Marcar una como leída; devuelve el contador actualizado
+# { "unreadCount": 0 }
+POST {{baseUrl}}/notifications/{{notificationId}}/read
+Authorization: Bearer {{sessionToken}}
+
+### 404 · No existe o es de otro usuario
+# { "code": "NOTIFICATION_NOT_FOUND", "message": "Notificación no encontrada" }
+
+### 200 · Marcar todas como leídas
+# { "unreadCount": 0 }
+POST {{baseUrl}}/notifications/read-all
+Authorization: Bearer {{sessionToken}}

@@ -196,6 +196,54 @@ export type MockRating = {
   createdAt: string;
 };
 
+export type NotificationType =
+  | "NUEVA_RESERVA"
+  | "RESERVA_CANCELADA"
+  | "VIAJE_CANCELADO"
+  | "RECORDATORIO_SALIDA"
+  | "VIAJE_INICIADO"
+  | "NO_SE_PRESENTO"
+  | "VIAJE_COMPLETADO"
+  | "RETIRO_RECHAZADO";
+
+/** Notificación de `notificaciones` (RF-13), ya con la forma de la API. */
+export type MockNotification = {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  assistance: string | null;
+  rideId: string | null;
+  bookingId: string | null;
+  read: boolean;
+  createdAt: string;
+};
+
+/** Título de cada tipo (RF-13). */
+export const NOTIFICATION_TITLES: Record<NotificationType, string> = {
+  NUEVA_RESERVA: "Nueva reserva",
+  RESERVA_CANCELADA: "Reserva cancelada",
+  VIAJE_CANCELADO: "Viaje cancelado",
+  RECORDATORIO_SALIDA: "Recordatorio de salida",
+  VIAJE_INICIADO: "Viaje iniciado",
+  NO_SE_PRESENTO: "No te presentaste",
+  VIAJE_COMPLETADO: "Viaje completado",
+  RETIRO_RECHAZADO: "Retiro rechazado",
+};
+
+const limaDayTime = new Intl.DateTimeFormat("es-PE", {
+  timeZone: "America/Lima",
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+/** `dd/mm hh:mm` en la hora de Perú, como en los textos de RF-13. */
+export const formatDayTime = (iso: string) => limaDayTime.format(new Date(iso)).replace(",", "");
+
 type Database = {
   users: MockUser[];
   rides: MockRide[];
@@ -205,6 +253,7 @@ type Database = {
   movements: MockMovement[];
   withdrawals: MockWithdrawal[];
   ratings: MockRating[];
+  notifications: MockNotification[];
 };
 
 // Los id siguen la numeración de `docs/seed.js` y de los ejemplos del README:
@@ -718,6 +767,7 @@ function seed(): Database {
     files: [],
     ...wallet,
     ratings: history.ratings,
+    notifications: seedNotifications(valeria, carlos, andrea, rides, minutesFromNow),
   };
 }
 
@@ -725,7 +775,7 @@ function seed(): Database {
 // (el token de la cookie sigue apuntando a un usuario que existe). Se pierde al cerrar la
 // pestaña; `resetDb()` lo devuelve a los datos iniciales.
 // El sufijo cambia cuando cambia la forma de los datos, para descartar lo guardado antes.
-const STORAGE_KEY = "colaboracar_mock_db_v9";
+const STORAGE_KEY = "colaboracar_mock_db_v10";
 
 function load(): Database {
   try {
@@ -1014,4 +1064,91 @@ function seedHistory({ valeria, carlos, andrea, buildRide, reservation, passenge
     rating(1004, oid(622), oid(517), valeria, "Valeria R.", andrea.id, "DRIVER", 5),
   ];
   return { rides, reservations, ratings };
+}
+
+/**
+ * Bandejas de los frames de P18: Valeria (18-A) con 3 sin leer y Carlos (18-B) con 2 sin leer y
+ * la asistencia de Jorge P. (RN-22). Andrea tiene el aviso de su retiro rechazado (RN-42).
+ */
+function seedNotifications(
+  valeria: MockUser,
+  carlos: MockUser,
+  andrea: MockUser,
+  rides: MockRide[],
+  minutesFromNow: (minutes: number) => string,
+): MockNotification[] {
+  const ride = (n: number) => rides.find((item) => item.id === oid(n))!;
+  const hourMinute = (iso: string) => formatDayTime(iso).slice(-5);
+  let next = 1101;
+  const item = (
+    user: MockUser,
+    minutesAgo: number,
+    type: NotificationType,
+    message: string,
+    extra: Partial<MockNotification> = {},
+  ): MockNotification => ({
+    id: oid(next++),
+    userId: user.id,
+    type,
+    title: NOTIFICATION_TITLES[type],
+    message,
+    assistance: null,
+    rideId: null,
+    bookingId: null,
+    read: false,
+    createdAt: minutesFromNow(-minutesAgo),
+    ...extra,
+  });
+  const golf = ride(511).destination.label;
+  const cancelled = ride(505);
+  const now = ride(504);
+
+  return [
+    // 18-A — Valeria (pasajera).
+    item(valeria, 10, "VIAJE_COMPLETADO", `Tu viaje a ${golf} terminó. ¡Califica a Carlos M.!`, {
+      rideId: oid(511),
+      bookingId: oid(611),
+    }),
+    item(valeria, 38, "VIAJE_INICIADO", `Tu viaje a ${golf} inició.`, { rideId: oid(511) }),
+    item(valeria, 60, "RECORDATORIO_SALIDA", `Tu viaje a ${golf} sale a las ${hourMinute(ride(511).departureTime)}.`, {
+      rideId: oid(511),
+    }),
+    item(
+      valeria,
+      22 * 60,
+      "VIAJE_CANCELADO",
+      `${cancelled.driver.name} canceló el viaje del ${formatDayTime(cancelled.departureTime)} a ${cancelled.destination.label}. Te devolvimos 8 créditos. Motivo: Tuve un problema con el auto.`,
+      { rideId: cancelled.id, bookingId: oid(604), read: true },
+    ),
+    // 18-B — Carlos (conductor).
+    item(carlos, 10, "VIAJE_COMPLETADO", `Tu viaje a ${golf} terminó. ¡Califica a Valeria R.! Recibiste 18 créditos.`, {
+      rideId: oid(511),
+    }),
+    item(
+      carlos,
+      54,
+      "VIAJE_COMPLETADO",
+      `Tu viaje a ${ride(512).destination.label} terminó. ¡Califica a Mateo R. y Sofía A.! Recibiste 18 créditos.`,
+      { rideId: oid(512) },
+    ),
+    item(carlos, 60, "RECORDATORIO_SALIDA", `Tu viaje a ${now.destination.label} sale a las ${hourMinute(now.departureTime)}.`, {
+      rideId: now.id,
+      read: true,
+    }),
+    item(carlos, 65, "NUEVA_RESERVA", `Lucía R. reservó 2 plaza(s) en tu viaje del ${formatDayTime(now.departureTime)}.`, {
+      rideId: now.id,
+      bookingId: oid(601),
+      read: true,
+    }),
+    item(carlos, 5 * 60, "NUEVA_RESERVA", `Jorge P. reservó 1 plaza(s) en tu viaje del ${formatDayTime(now.departureTime)}.`, {
+      assistance: "Necesita asistencia: Silla de ruedas.",
+      rideId: now.id,
+      bookingId: oid(602),
+      read: true,
+    }),
+    // Andrea: retiro rechazado y devuelto (21, RN-42).
+    item(andrea, 2 * 24 * 60 - 2, "RETIRO_RECHAZADO", "Tu retiro de 20 créditos fue rechazado: El número no tiene Yape activo. Te devolvimos los créditos.", {
+      read: true,
+    }),
+  ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

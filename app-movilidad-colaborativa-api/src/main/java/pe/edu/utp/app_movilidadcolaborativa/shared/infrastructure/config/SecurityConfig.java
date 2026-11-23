@@ -1,5 +1,6 @@
 package pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.config;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -55,6 +56,8 @@ public class SecurityConfig {
 				.cors(Customizer.withDefaults())
 				.sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(rutas -> rutas
+						// El stream SSE (RF-13) se completa en un dispatch ASYNC: el token ya se validó en el REQUEST.
+						.dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
 						.requestMatchers(HttpMethod.GET, "/catalogs/**").permitAll()
 						.requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login").permitAll()
 						.requestMatchers("/auth/verify-code", "/auth/resend-code").hasAuthority(PRE_AUTH)

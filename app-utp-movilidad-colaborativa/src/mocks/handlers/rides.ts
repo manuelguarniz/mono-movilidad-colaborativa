@@ -25,6 +25,7 @@ import {
   type FieldError,
 } from "@/mocks/http";
 import { balanceOf, holdCredits, refundReservation, settleRide } from "@/mocks/ledger";
+import { notifications } from "@/mocks/notifications";
 
 /** Viaje del listado: sin coordenadas, paradas ni datos internos. */
 const toRideSummary = ({
@@ -747,6 +748,7 @@ export const rideHandlers = [
     };
     db.reservations.push(reservation);
     holdCredits(user, reservation, ride);
+    notifications.newBooking(ride, reservation);
     saveDb();
 
     return HttpResponse.json({ message: "Reserva confirmada" }, { status: 201 });
@@ -794,7 +796,7 @@ export const rideHandlers = [
     for (const item of db.reservations) {
       if (item.rideId === ride.id && item.status === "CONFIRMED") {
         Object.assign(item, { status: "CANCELLED", cancelledBy: "DRIVER", cancelledAt: now, updatedAt: now });
-        refundReservation(item, ride, "DRIVER");
+        notifications.rideCancelled(ride, item, refundReservation(item, ride, "DRIVER"), reason || null);
       }
     }
     saveDb();
@@ -854,6 +856,11 @@ export const rideHandlers = [
     Object.assign(ride, { status: "IN_PROGRESS", startedAt: now });
     for (const item of confirmed) {
       Object.assign(item, { status: boarded.includes(item.id) ? "IN_RIDE" : "NO_SHOW", updatedAt: now });
+      if (item.status === "IN_RIDE") {
+        notifications.started(ride, item);
+      } else {
+        notifications.noShow(ride, item);
+      }
     }
     saveDb();
     return HttpResponse.json({ message: "Viaje iniciado" });
@@ -881,7 +888,16 @@ export const rideHandlers = [
         Object.assign(item, { status: "COMPLETED", updatedAt: now });
       }
     }
+    // Lo que cobra el conductor: lo retenido de las COMPLETED y NO_SHOW aún sin liquidar (RN-40).
+    const earned = db.reservations
+      .filter((item) => item.rideId === ride.id && ["COMPLETED", "NO_SHOW"].includes(item.status) && item.settled === false)
+      .reduce((total, item) => total + item.totalCredits, 0);
     settleRide(ride);
+    notifications.completed(
+      ride,
+      db.reservations.filter((item) => item.rideId === ride.id && item.status === "COMPLETED"),
+      earned,
+    );
     saveDb();
     return HttpResponse.json({ message: "Viaje completado" });
   }),
@@ -957,6 +973,7 @@ export const rideHandlers = [
       ride.availableSeats += reservation.seats;
     }
     const credits = refundReservation(reservation, ride, "PASSENGER");
+    notifications.bookingCancelled(ride, reservation);
     saveDb();
     return HttpResponse.json({
       message:

@@ -31,3 +31,13 @@ Manda el README raíz (RF-13, RN-22, RN-32 a RN-34). Las capturas son una refere
 - Con todo leído, la fila superior dice «Todo leído» y el enlace queda deshabilitado (#686C75).
 - Los textos de los mensajes son los literales de la tabla de RF-13. El texto de asistencia solo aparece en las notificaciones del conductor (RN-22) y puede ocupar dos líneas.
 - Estado vacío: «Buscar viajes» para el pasajero y «Publicar viaje» para el conductor.
+
+## Implementación (2026-11-23)
+
+Implementada en `app-utp-movilidad-colaborativa/src/features/notifications/` y en el módulo `notifications` del backend, con avisos en tiempo real (decisión del 2026-11-23 en el README raíz, sección 12.1). Decisiones que no están en los frames:
+
+- **Aviso en tiempo real (toast):** no tiene frame. Tarjeta blanca arriba, bajo el área segura, con el icono del tipo, el título y el mensaje en dos líneas, y «×» para cerrarla. Se oculta a los 5 s, se anuncia con `aria-live="polite"` y al tocarla marca la notificación como leída y abre la pantalla relacionada. No aparece con la bandeja abierta: ahí la nueva entra arriba.
+- **Hora relativa:** «Ahora» en el primer minuto; después, la regla de «Supuestos a validar».
+- **Grupos anteriores a ayer:** «28 oct» (en mayúsculas, como «HOY» y «AYER»).
+- **«Reserva cancelada» con una sola plaza libre:** «Queda 1 plaza libre.» en lugar de «Quedan 1 plazas libres.».
+- **Asistencia (RN-22):** llega en el campo `assistance`, separado de `message`, para mostrarla en su propia línea ámbar.

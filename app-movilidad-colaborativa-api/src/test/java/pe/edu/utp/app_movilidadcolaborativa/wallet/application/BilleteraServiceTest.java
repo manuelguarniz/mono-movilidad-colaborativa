@@ -1,5 +1,6 @@
 package pe.edu.utp.app_movilidadcolaborativa.wallet.application;
 
+import pe.edu.utp.app_movilidadcolaborativa.notifications.application.Notificador;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -45,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -59,8 +61,9 @@ class BilleteraServiceTest {
 	private final ParametrosService parametros = mock(ParametrosService.class);
 	private final RestriccionesPasajeroService restricciones = mock(RestriccionesPasajeroService.class);
 	private final LibroCreditos libro = mock(LibroCreditos.class);
+	private final Notificador notificador = mock(Notificador.class);
 	private final BilleteraService servicio = new BilleteraService(usuarioRepository, mongoTemplate, transacciones,
-			parametros, restricciones, libro);
+			parametros, restricciones, libro, notificador);
 	private final ObjectId usuarioId = new ObjectId();
 
 	{
@@ -256,5 +259,7 @@ class BilleteraServiceTest {
 		when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(Retiro.class)))
 				.thenReturn(UpdateResult.acknowledged(0, 0L, null));
 		assertThat(servicio.revertirRechazados()).isZero();
+		// RN-42: un solo aviso «Retiro rechazado», aunque el job corra dos veces.
+		verify(notificador, times(1)).retiroRechazado(eq(rechazado), any(Instant.class));
 	}
 }

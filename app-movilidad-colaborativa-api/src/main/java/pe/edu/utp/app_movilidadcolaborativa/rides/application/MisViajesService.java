@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import pe.edu.utp.app_movilidadcolaborativa.notifications.application.Notificador;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ContadorCancelacionesDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.MisReservasDto;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.MisReservasDto.ReservaPropiaDto;
@@ -52,7 +53,7 @@ import java.util.stream.Collectors;
  * Mis viajes (RF-06, RF-07): la reserva activa del pasajero y los viajes del conductor, la cancelación de cada uno
  * (RN-25, RN-26), y el inicio y el fin del viaje (RN-43, RN-45, RN-46). Cada cambio de estado es un update
  * condicionado al estado actual, dentro de una transacción, junto con el reembolso o el cobro de los créditos
- * (RN-40). Las notificaciones todavía no existen.
+ * (RN-40) y las notificaciones de RF-13 (RN-32).
  */
 @Service
 @RequiredArgsConstructor
@@ -74,6 +75,7 @@ public class MisViajesService {
 	private final RestriccionesPasajeroService restriccionesPasajeroService;
 	private final CancelacionesConductorService cancelacionesConductorService;
 	private final LibroCreditos libroCreditos;
+	private final Notificador notificador;
 
 	// ------------------------------------------------------------------ Pasajero
 
@@ -135,6 +137,11 @@ public class MisViajesService {
 					new Update().inc("plazas_disponibles", reserva.plazas()).set("fecha_actualizacion", ahora),
 					Viaje.class);
 			devueltos[0] = libroCreditos.reembolsar(reserva, Actor.PASAJERO, ahora);
+			// Se lee dentro de la transacción para avisar las plazas libres ya devueltas.
+			Viaje viaje = mongoTemplate.findById(reserva.viajeId(), Viaje.class);
+			if (viaje != null) {
+				notificador.reservaCancelada(viaje, reserva, ahora);
+			}
 		});
 		return devueltos[0];
 	}
@@ -205,7 +212,8 @@ public class MisViajesService {
 							.set("fecha_cancelacion", ahora)
 							.set("fecha_actualizacion", ahora),
 					Reserva.class);
-			confirmadas.forEach(reserva -> libroCreditos.reembolsar(reserva, Actor.CONDUCTOR, ahora));
+			confirmadas.forEach(reserva -> notificador.viajeCancelado(viaje, reserva,
+					libroCreditos.reembolsar(reserva, Actor.CONDUCTOR, ahora), motivo, false, ahora));
 		});
 	}
 
@@ -230,9 +238,9 @@ public class MisViajesService {
 				.and("estado").is(EstadoViaje.EN_CURSO)), Viaje.class)) {
 			throw new ApiException(CodigoError.RIDE_IN_PROGRESS_EXISTS, "Finaliza tu viaje en curso para iniciar este.");
 		}
-		Set<ObjectId> confirmadas = mongoTemplate.find(Query.query(Criteria.where("viaje_id").is(viajeId)
-						.and("estado").is(EstadoReserva.CONFIRMADA)), Reserva.class).stream()
-				.map(Reserva::id).collect(Collectors.toSet());
+		List<Reserva> reservasConfirmadas = mongoTemplate.find(Query.query(Criteria.where("viaje_id").is(viajeId)
+				.and("estado").is(EstadoReserva.CONFIRMADA)), Reserva.class);
+		Set<ObjectId> confirmadas = reservasConfirmadas.stream().map(Reserva::id).collect(Collectors.toSet());
 		Set<ObjectId> subieron = new HashSet<>(abordados.stream().map(ObjectId::new).toList());
 		if (!confirmadas.containsAll(subieron)) {
 			throw new ValidacionException("boardedBookingIds", "Hay reservas que no pertenecen a este viaje");
@@ -253,6 +261,13 @@ public class MisViajesService {
 							.and("estado").is(EstadoReserva.CONFIRMADA)),
 					new Update().set("estado", EstadoReserva.NO_SE_PRESENTO.name()).set("fecha_actualizacion", ahora),
 					Reserva.class);
+			for (Reserva reserva : reservasConfirmadas) {
+				if (subieron.contains(reserva.id())) {
+					notificador.viajeIniciado(viaje, reserva, ahora);
+				} else {
+					notificador.noSePresento(viaje, reserva, ahora);
+				}
+			}
 		});
 	}
 
@@ -275,7 +290,12 @@ public class MisViajesService {
 							.and("estado").is(EstadoReserva.EN_VIAJE)),
 					new Update().set("estado", EstadoReserva.COMPLETADA.name()).set("fecha_actualizacion", ahora),
 					Reserva.class);
-			libroCreditos.liquidarViaje(viaje, ahora);
+			int cobrado = libroCreditos.liquidarViaje(viaje, ahora);
+			List<Reserva> completadas = mongoTemplate.find(Query.query(Criteria.where("viaje_id").is(viajeId)
+							.and("estado").is(EstadoReserva.COMPLETADA))
+					.with(Sort.by(Sort.Direction.ASC, "fecha_creacion")), Reserva.class);
+			notificador.viajeCompletadoConductor(viaje, completadas, cobrado, ahora);
+			completadas.forEach(reserva -> notificador.viajeCompletadoPasajero(viaje, reserva, ahora));
 		});
 	}
 

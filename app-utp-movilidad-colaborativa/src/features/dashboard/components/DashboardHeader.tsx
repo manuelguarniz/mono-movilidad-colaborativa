@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DriverAvatar } from "@/features/dashboard/components/DriverAvatar";
 import { dashboardService } from "@/features/dashboard/services/dashboardService";
 import { authService } from "@/features/auth/services/authService";
-import BellIcon from "@/assets/images/icons/bell.svg?react";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 
 export function DashboardHeader() {
   const navigate = useNavigate();
@@ -66,15 +66,8 @@ export function DashboardHeader() {
       <h1 className="dashboard-header-title">ColaboraCar</h1>
 
       <div className="flex items-center justify-self-end gap-1">
-      {/* Notificaciones (P18, RF-13): aún no hay bandeja ni contador de no leídas. */}
-      <button
-        type="button"
-        className="dashboard-bell-button"
-        aria-label="Notificaciones (próximamente)"
-        disabled
-      >
-        <BellIcon className="h-6 w-6" />
-      </button>
+      {/* Notificaciones (P18, RF-13): contador de no leídas en tiempo real. */}
+      <NotificationBell />
 
       <div className="relative" ref={menuRef}>
         <button

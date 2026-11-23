@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import pe.edu.utp.app_movilidadcolaborativa.notifications.application.Notificador;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoReserva;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.EstadoViaje;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.model.Reserva;
@@ -56,6 +57,7 @@ public class ReservaService {
 	private final PlatformTransactionManager transactionManager;
 	private final RestriccionesPasajeroService restriccionesPasajeroService;
 	private final LibroCreditos libroCreditos;
+	private final Notificador notificador;
 
 	/** Descuenta las plazas, crea la reserva CONFIRMADA y retiene sus créditos en una misma transacción. */
 	public void reservar(ObjectId usuarioId, ObjectId viajeId, int plazas) {
@@ -114,7 +116,7 @@ public class ReservaService {
 				.fechaActualizacion(ahora)
 				.build();
 		try {
-			guardar(reserva, saldo);
+			guardar(viaje, reserva, saldo);
 		} catch (DuplicateKeyException ex) {
 			// Dos reservas simultáneas del mismo pasajero: el índice único rechaza la segunda.
 			throw yaReservado();
@@ -122,11 +124,11 @@ public class ReservaService {
 	}
 
 	// Dos pasajeros que reservan el mismo viaje a la vez chocan dentro de la transacción: se reintenta.
-	private void guardar(Reserva reserva, int saldoLeido) {
+	private void guardar(Viaje viaje, Reserva reserva, int saldoLeido) {
 		TransactionTemplate transaccion = new TransactionTemplate(transactionManager);
 		for (int intento = 1;; intento++) {
 			try {
-				transaccion.executeWithoutResult(estado -> descontarPlazasYGuardar(reserva, saldoLeido));
+				transaccion.executeWithoutResult(estado -> descontarPlazasYGuardar(viaje, reserva, saldoLeido));
 				return;
 			} catch (TransientDataAccessException ex) {
 				if (intento == INTENTOS) {
@@ -137,7 +139,8 @@ public class ReservaService {
 	}
 
 	// El filtro por plazas suficientes hace atómico el descuento y evita la sobreventa; el del saldo, que quede negativo.
-	private void descontarPlazasYGuardar(Reserva reserva, int saldoLeido) {
+	// La notificación «Nueva reserva» va en la misma transacción (RN-32).
+	private void descontarPlazasYGuardar(Viaje viaje, Reserva reserva, int saldoLeido) {
 		Query conPlazas = Query.query(Criteria.where("_id").is(reserva.viajeId())
 				.and("estado").is(EstadoViaje.PUBLICADO)
 				.and("plazas_disponibles").gte(reserva.plazas()));
@@ -151,6 +154,7 @@ public class ReservaService {
 		if (libroCreditos.retener(reserva, reserva.fechaCreacion()).isEmpty()) {
 			throw saldoInsuficiente(reserva.totalCreditos(), saldoLeido);
 		}
+		notificador.nuevaReserva(viaje, reserva, reserva.fechaCreacion());
 	}
 
 	/** RN-39, con details.required y details.available para el botón «Recargar». */

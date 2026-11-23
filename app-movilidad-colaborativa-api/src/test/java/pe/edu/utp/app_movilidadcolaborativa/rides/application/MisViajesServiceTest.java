@@ -1,5 +1,6 @@
 package pe.edu.utp.app_movilidadcolaborativa.rides.application;
 
+import pe.edu.utp.app_movilidadcolaborativa.notifications.application.Notificador;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -64,8 +65,9 @@ class MisViajesServiceTest {
 	private final RestriccionesPasajeroService restricciones = mock(RestriccionesPasajeroService.class);
 	private final CancelacionesConductorService cancelaciones = mock(CancelacionesConductorService.class);
 	private final LibroCreditos libro = mock(LibroCreditos.class);
+	private final Notificador notificador = mock(Notificador.class);
 	private final MisViajesService servicio = new MisViajesService(usuarioRepository, viajeRepository,
-			reservaRepository, mongoTemplate, transacciones, parametros, restricciones, cancelaciones, libro);
+			reservaRepository, mongoTemplate, transacciones, parametros, restricciones, cancelaciones, libro, notificador);
 	private final ObjectId usuarioId = new ObjectId();
 	private final ObjectId viajeId = new ObjectId();
 
@@ -114,8 +116,11 @@ class MisViajesServiceTest {
 		Reserva confirmada = reserva(reservaId, usuarioId, EstadoReserva.CONFIRMADA, enMinutos(60));
 		when(reservaRepository.findById(reservaId)).thenReturn(Optional.of(confirmada));
 		when(libro.reembolsar(eq(confirmada), eq(Actor.PASAJERO), any(Instant.class))).thenReturn(12);
+		Viaje conPlazasDevueltas = Viajes.publicado(viajeId, new ObjectId()).plazasDisponibles(3).build();
+		when(mongoTemplate.findById(viajeId, Viaje.class)).thenReturn(conPlazasDevueltas);
 
 		assertThat(servicio.cancelarReserva(usuarioId, reservaId)).isEqualTo(12);
+		verify(notificador).reservaCancelada(eq(conPlazasDevueltas), eq(confirmada), any(Instant.class));
 		verify(libro).reembolsar(eq(confirmada), eq(Actor.PASAJERO), any(Instant.class));
 
 		assertThat(actualizacion(Reserva.class)).containsEntry("estado", "CANCELADA")
@@ -227,6 +232,9 @@ class MisViajesServiceTest {
 
 		// RN-40: cada reserva cancelada recupera el 100 % de lo retenido.
 		confirmadas.forEach(reserva -> verify(libro).reembolsar(eq(reserva), eq(Actor.CONDUCTOR), any(Instant.class)));
+		// RN-32: cada pasajero recibe «Viaje cancelado» con el motivo.
+		confirmadas.forEach(reserva -> verify(notificador).viajeCancelado(any(Viaje.class), eq(reserva), eq(0),
+				eq("Emergencia mecánica"), eq(false), any(Instant.class)));
 
 		assertThat(actualizacion(Viaje.class)).containsEntry("estado", "CANCELADO")
 				.containsEntry("cancelado_por", "CONDUCTOR").containsEntry("motivo_cancelacion", "Emergencia mecánica");
@@ -258,11 +266,15 @@ class MisViajesServiceTest {
 		existeViaje(EstadoViaje.PUBLICADO, enMinutos(5));
 		ObjectId subio = new ObjectId();
 		ObjectId noSubio = new ObjectId();
-		when(mongoTemplate.find(any(Query.class), eq(Reserva.class))).thenReturn(List.of(
-				reserva(subio, new ObjectId(), EstadoReserva.CONFIRMADA, enMinutos(5)),
-				reserva(noSubio, new ObjectId(), EstadoReserva.CONFIRMADA, enMinutos(5))));
+		Reserva aBordo = reserva(subio, new ObjectId(), EstadoReserva.CONFIRMADA, enMinutos(5));
+		Reserva ausente = reserva(noSubio, new ObjectId(), EstadoReserva.CONFIRMADA, enMinutos(5));
+		when(mongoTemplate.find(any(Query.class), eq(Reserva.class))).thenReturn(List.of(aBordo, ausente));
 
 		servicio.iniciar(usuarioId, viajeId, List.of(subio.toHexString()));
+
+		verify(notificador).viajeIniciado(any(Viaje.class), eq(aBordo), any(Instant.class));
+		verify(notificador).noSePresento(any(Viaje.class), eq(ausente), any(Instant.class));
+		verify(notificador, never()).viajeIniciado(any(Viaje.class), eq(ausente), any(Instant.class));
 
 		assertThat(actualizacion(Viaje.class)).containsEntry("estado", "EN_CURSO").containsKey("fecha_inicio");
 		ArgumentCaptor<Query> consultas = ArgumentCaptor.forClass(Query.class);
@@ -309,6 +321,20 @@ class MisViajesServiceTest {
 		assertThat(reservas.getValue().getUpdateObject().get("$set", Document.class))
 				.containsEntry("estado", "COMPLETADA");
 		verify(libro, times(1)).liquidarViaje(any(Viaje.class), any(Instant.class));
+	}
+
+	@Test
+	void finalizarNotificaAlConductorYALosPasajerosQueViajaron() {
+		existeViaje(EstadoViaje.EN_CURSO, enMinutos(-20));
+		Reserva completada = reserva(new ObjectId(), new ObjectId(), EstadoReserva.COMPLETADA, enMinutos(-20));
+		when(mongoTemplate.find(any(Query.class), eq(Reserva.class))).thenReturn(List.of(completada));
+		when(libro.liquidarViaje(any(Viaje.class), any(Instant.class))).thenReturn(12);
+
+		servicio.finalizar(usuarioId, viajeId);
+
+		verify(notificador).viajeCompletadoConductor(any(Viaje.class), eq(List.of(completada)), eq(12),
+				any(Instant.class));
+		verify(notificador).viajeCompletadoPasajero(any(Viaje.class), eq(completada), any(Instant.class));
 	}
 
 	@Test

@@ -82,6 +82,10 @@ tags:
     description: Historial de viajes terminados, como pasajero y como conductor (RF-09).
   - name: Ratings
     description: Calificaciones entre participantes de un viaje completado (RF-10, RN-47).
+  - name: Notifications
+    description: |
+      Bandeja y contador de notificaciones (RF-13, P18), con avisos en tiempo real por
+      Server-Sent Events. Cada usuario solo ve y marca las suyas (RN-34).
 
 security:
   - bearerAuth: []
@@ -1031,8 +1035,8 @@ paths:
       description: |
         RN-26. El viaje debe estar `PUBLISHED` y faltar `minutos_limite_cancelacion` (30)
         o más para la salida. En una transacción, el viaje pasa a `CANCELLED` y cada reserva
-        `CONFIRMED` a `CANCELLED`. El cuerpo es opcional. La devolución de créditos y las
-        notificaciones llegan con la billetera (RN-40) y las notificaciones (RF-13).
+        `CONFIRMED` a `CANCELLED`, con la devolución del 100 % de lo retenido (RN-40) y la
+        notificación `VIAJE_CANCELADO` a cada pasajero (RF-13, RN-32). El cuerpo es opcional.
       requestBody:
         required: false
         content:
@@ -1206,7 +1210,8 @@ paths:
         o más para la salida. En una transacción, la reserva pasa a `CANCELLED`, sus plazas
         vuelven al viaje y lo retenido se devuelve al 100 % (movimiento `REFUND`, RN-40).
         Una reserva anterior a la billetera no retuvo créditos: responde «Reserva
-        cancelada.» sin monto. La notificación al conductor llega con las notificaciones.
+        cancelada.» sin monto. En la misma transacción se crea la notificación
+        `RESERVA_CANCELADA` para el conductor (RF-13, RN-32).
       responses:
         "200":
           description: Reserva cancelada.
@@ -1659,6 +1664,142 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: getNotifications
+      summary: Mi bandeja de notificaciones
+      description: |
+        RF-13 (P18). Las 50 más recientes, de la más nueva a la más antigua, y el total de no
+        leídas. Las notificaciones se borran solas a los 30 días (RN-34, índice TTL).
+      responses:
+        "200":
+          description: Bandeja del usuario.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationInbox"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      operationId: getUnreadNotificationCount
+      summary: Número de notificaciones sin leer
+      description: |
+        Contador de la campana (RF-13). Se pide al abrir la app; después lo mantiene al día
+        el stream `GET /notifications/stream`.
+      responses:
+        "200":
+          description: Contador.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /notifications/{notificationId}/read:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/ObjectId"
+    post:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Marcar una notificación como leída
+      description: |
+        Al tocarla en la bandeja o en el aviso (RF-13). Marcar una que ya estaba leída no es
+        error. Devuelve el contador actualizado.
+      responses:
+        "200":
+          description: Contador después de marcarla.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: La notificación no existe o es de otro usuario (`NOTIFICATION_NOT_FOUND`, RN-34).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: NOTIFICATION_NOT_FOUND
+                message: Notificación no encontrada
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: markAllNotificationsRead
+      summary: Marcar todas como leídas
+      description: Botón «Marcar todas como leídas» de P18. Siempre devuelve `unreadCount` 0.
+      responses:
+        "200":
+          description: Contador en 0.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /notifications/stream:
+    get:
+      tags: [Notifications]
+      operationId: streamNotifications
+      summary: Notificaciones en tiempo real (Server-Sent Events)
+      description: |
+        RF-13 y RNF-16. Conexión `text/event-stream` que queda abierta mientras la app está
+        en uso. El token va en `Authorization: Bearer`, como en el resto de la API: el
+        cliente lo abre con `fetch`, porque `EventSource` no permite enviar headers.
+
+        Eventos:
+        - `unread-count` — `{ "unreadCount": 3 }`. Al conectar (sirve para ponerse al día
+          después de reconectar) y cada vez que cambian las leídas, también desde otro
+          dispositivo.
+        - `notification` — `{ "notification": Notification, "unreadCount": 4 }`. Con cada
+          notificación nueva del usuario, solo después de que se confirma la transacción
+          que la creó (RN-32).
+        - Un comentario `: ping` cada 25 s mantiene viva la conexión.
+
+        El servidor sugiere reconectar a los 3 s (`retry: 3000`) y cierra la conexión
+        cuando vence el token o a los 30 min; el cliente se reconecta con el token vigente.
+        Cada instancia del backend recibe los cambios de la colección `notificaciones` con
+        un Change Stream de MongoDB, así que funciona con varias instancias (RNF-10).
+      responses:
+        "200":
+          description: Stream de eventos.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                retry:3000
+                event:unread-count
+                data:{"unreadCount":2}
+
+                event:notification
+                data:{"notification":{"id":"6705a1f0c3d4e5f600000c01","type":"NUEVA_RESERVA","title":"Nueva reserva","message":"Valeria R. reservó 1 plaza(s) en tu viaje del 09/10 08:30.","assistance":"Necesita asistencia: Silla de ruedas.","rideId":"6705a1f0c3d4e5f600000501","bookingId":"6705a1f0c3d4e5f600000601","read":false,"createdAt":"2026-10-08T21:15:00Z"},"unreadCount":3}
+
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1747,7 +1888,7 @@ components:
             `INVALID_STATUS`, `CANCELLATION_DEADLINE_PASSED`, `START_WINDOW_CLOSED`,
             `RIDE_IN_PROGRESS_EXISTS`, `TRIP_IN_PROGRESS`, `INSUFFICIENT_CREDITS`, `OPERATION_CODE_ALREADY_USED`,
             `WITHDRAWAL_PENDING`, `DRIVER_ROLE_REQUIRED`, `RATING_NOT_ALLOWED`,
-            `RATING_WINDOW_CLOSED`, `ALREADY_RATED`, `INTERNAL_ERROR`.
+            `RATING_WINDOW_CLOSED`, `ALREADY_RATED`, `NOTIFICATION_NOT_FOUND`, `INTERNAL_ERROR`.
 
             Una ruta o un método que no existe responde con el nombre del estado HTTP
             (`NOT_FOUND`, `METHOD_NOT_ALLOWED`) y el mensaje `La solicitud no es válida`.
@@ -3498,3 +3639,58 @@ components:
         score: { type: integer, minimum: 1, maximum: 5 }
         comment: { type: [string, "null"] }
         createdAt: { type: string, format: date-time }
+
+    NotificationType:
+      type: string
+      description: Tipos de RF-13; `title` es su nombre («Nueva reserva», «Viaje completado», …).
+      enum:
+        - NUEVA_RESERVA
+        - RESERVA_CANCELADA
+        - VIAJE_CANCELADO
+        - RECORDATORIO_SALIDA
+        - VIAJE_INICIADO
+        - NO_SE_PRESENTO
+        - VIAJE_COMPLETADO
+        - RETIRO_RECHAZADO
+
+    Notification:
+      type: object
+      required: [id, type, title, message, assistance, rideId, bookingId, read, createdAt]
+      properties:
+        id: { $ref: "#/components/schemas/ObjectId" }
+        type: { $ref: "#/components/schemas/NotificationType" }
+        title: { type: string, example: Nueva reserva }
+        message:
+          type: string
+          description: Texto ya armado con los datos del momento del evento (tabla de RF-13); no se actualiza.
+          example: Valeria R. reservó 1 plaza(s) en tu viaje del 09/10 08:30.
+        assistance:
+          type: [string, "null"]
+          description: |
+            «Necesita asistencia: {tipo}.» Solo en `NUEVA_RESERVA`, solo para el conductor y
+            nunca con la nota (RN-22, RNF-13). La bandeja lo muestra en su propia línea.
+          example: "Necesita asistencia: Silla de ruedas."
+        rideId:
+          type: [string, "null"]
+          description: Viaje relacionado; `null` en `RETIRO_RECHAZADO`.
+        bookingId:
+          type: [string, "null"]
+          description: Reserva relacionada; `null` en el `VIAJE_COMPLETADO` del conductor y en `RETIRO_RECHAZADO`.
+        read: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    NotificationInbox:
+      type: object
+      required: [data, unreadCount]
+      properties:
+        data:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/Notification" }
+        unreadCount: { type: integer, minimum: 0, example: 2 }
+
+    UnreadCount:
+      type: object
+      required: [unreadCount]
+      properties:
+        unreadCount: { type: integer, minimum: 0, example: 3 }

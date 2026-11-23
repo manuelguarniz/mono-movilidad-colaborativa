@@ -1,5 +1,6 @@
 package pe.edu.utp.app_movilidadcolaborativa.rides.application;
 
+import pe.edu.utp.app_movilidadcolaborativa.notifications.application.Notificador;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -55,8 +56,9 @@ class ReservaServiceTest {
 	private final PlatformTransactionManager transacciones = mock(PlatformTransactionManager.class);
 	private final RestriccionesPasajeroService restricciones = mock(RestriccionesPasajeroService.class);
 	private final LibroCreditos libro = mock(LibroCreditos.class);
+	private final Notificador notificador = mock(Notificador.class);
 	private final ReservaService servicio = new ReservaService(usuarioRepository, viajeRepository, reservaRepository,
-			mongoTemplate, transacciones, restricciones, libro);
+			mongoTemplate, transacciones, restricciones, libro, notificador);
 	private final ObjectId pasajeroId = new ObjectId();
 	private final ObjectId conductorId = new ObjectId();
 	private final ObjectId viajeId = new ObjectId();
@@ -128,6 +130,8 @@ class ReservaServiceTest {
 		assertThat(reserva.fechaCancelacion()).isNull();
 		verify(libro).retener(reserva, reserva.fechaCreacion());
 		assertThat(reserva.fechaCreacion()).isEqualTo(reserva.fechaActualizacion()).isNotNull();
+		// RN-32: la notificación al conductor va en la misma transacción.
+		verify(notificador).nuevaReserva(viaje, reserva, reserva.fechaCreacion());
 
 		verify(transacciones).commit(any());
 		verify(transacciones, never()).rollback(any());
