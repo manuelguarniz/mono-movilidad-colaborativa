@@ -143,7 +143,7 @@ Los montos "18 créditos" van en el texto, sin icono de moneda ni color verde.
 Duplica el frame 18-A y cambia solo lo siguiente:
 1. Las tres notificaciones de "HOY" pasan a leídas: fondo blanco, sin punto rojo
    y título en peso regular.
-2. La fila superior dice "Sin notificaciones nuevas" a la izquierda, y el enlace
+2. La fila superior dice "Todo leído" a la izquierda (una sola línea), y el enlace
    "Marcar todas como leídas" se ve deshabilitado (texto #686C75, sin icono de color).
 Mantén igual los textos, las horas, los iconos y el grupo "AYER". No repitas filas.
 ```
@@ -181,7 +181,51 @@ Mantén el encabezado "← Notificaciones". Sin barra inferior.
 
 | Captura | Frame | Prompt | Resultado |
 | --- | --- | --- | --- |
-| v1.1 | 18-A | Contexto común + 18-A | — |
+| v1.1 | 18-A | Contexto común + 18-A | ✅ Aprobable |
+| v1.2 | 18-B | Contexto común + 18-B (ref. v1.1) | ✅ Aprobable |
+| v1.3 | 18-C | Duplica 18-A | ⚠️ Fila superior partida en dos líneas (#1) |
+| v1.4 | 18-D | Duplica 18-A | ✅ Aprobable |
+| v2.1 | 18-C | Corrección de v1.3 | ✅ Aprobada |
+
+### Revisión 2026-11-23 (v1.1–v1.4)
+
+Las cuatro capturas son móviles a 2× (780 px de ancho), sin barra inferior ni hamburguesa, con tildes, «¡» y «·» correctos.
+
+**Funciona:**
+
+- 18-A: tres no leídas con punto rojo, fondo #FFF1F0 y título semibold; la de «AYER» en blanco y regular. Textos literales, iconos y colores por tipo como se pidieron. «3 sin leer» y «Marcar todas como leídas» en una línea.
+- 18-B: «2 sin leer», dos «Viaje completado» no leídos con los créditos dentro del texto (sin moneda ni verde), «Nueva reserva» con «2 plaza(s)» literal de RF-13 y la línea ámbar de asistencia solo en la reserva de Jorge P. (RN-22).
+- 18-C: las tres de «HOY» pasan a leídas sin repetir filas; textos, horas e iconos iguales a 18-A.
+- 18-D: campana en círculo gris, título, texto de ayuda y «Buscar viajes» en rojo suave; sin restos de la lista.
+
+**Pendiente:**
+
+| # | Problema | Frame | Severidad | Veces |
+| --- | --- | --- | --- | --- |
+| 1 | La fila superior no cabe: «Sin notificaciones nuevas» y «Marcar todas como leídas» se parten en dos líneas y el icono de doble check queda suelto en medio. Los dos textos juntos miden más que los 358 px útiles, así que hay que acortar el de la izquierda. | 18-C | Media | 1 |
+| 2 | Chevron «›» desalineado: en la primera fila de cada tarjeta queda unos 15 px más a la derecha que en las demás. | 18-A, 18-B, 18-C | Baja | 1 |
+| 3 | Estrella rellena en 18-A y 18-C, de contorno en 18-B. | 18-B | Baja | 1 |
+| 4 | Línea divisoria bajo el encabezado en 18-A, 18-C y 18-D, pero no en 18-B. | 18-B | Baja | 1 |
+| 5 | La leyenda «Las notificaciones se borran a los 30 días.» queda pegada al fondo con un hueco grande, en lugar de ir 24 px debajo de la lista. | 18-A, 18-C | Baja | 1 |
+| 6 | La línea de asistencia se parte («Silla de / ruedas.»). Aceptable: el texto completo se lee. | 18-B | Baja | 1 |
+
+Los #2 a #6 pasan a «Ajustes en la implementación» (son de un componente `FilaNotificacion` y del layout de la lista). Solo el #1 lleva prompt de corrección.
+
+Corrección planeada como `v2.1` (seleccionar v1.3 en Stitch):
+
+```text
+Edita solo esta pantalla y mantén todo lo demás igual.
+1. La fila bajo el encabezado debe caber en una sola línea, sin saltos de línea:
+   a la izquierda "Todo leído" en 14px regular #5B403D; a la derecha, en la misma línea,
+   el icono de doble check y "Marcar todas como leídas" en 14px #686C75 (deshabilitado),
+   con el icono pegado al texto (gap 4 px). Ninguno de los dos textos puede partirse.
+2. Alinea los chevrons "›" de todas las filas a 16 px del borde derecho de la tarjeta.
+3. Coloca "Las notificaciones se borran a los 30 días." 24 px debajo de la última tarjeta,
+   no al fondo de la pantalla.
+No cambies las filas, los textos de las notificaciones, las horas ni los iconos.
+```
+
+- **18-C, texto de la izquierda:** «Sin notificaciones nuevas» pasa a «Todo leído» porque no cabe junto al enlace en 390 px (ver #1). Actualizar el bloque de 18-C.
 
 ### Decisiones de flujo
 
@@ -192,3 +236,34 @@ Propuestas el 2026-11-21:
 - **«Marcar todas como leídas»:** marca todas las del usuario (RN-34) y muestra 18-C, sin diálogo de confirmación.
 - **Actualización:** la bandeja se recarga al abrirla; el contador de la campana se actualiza al abrir la app y cada 60 s (RNF-16).
 - **Accesibilidad:** cada fila se anuncia como «No leída. {Título}. {Mensaje}. {Hora}» y es un único elemento tocable de al menos 44 px de alto.
+
+### Revisión 2026-11-23 (v2.1)
+
+- **Corregido #1:** «Todo leído» y «Marcar todas como leídas» (deshabilitado, con el icono pegado) caben en una línea.
+- **#5 mejorado:** la leyenda de 30 días quedó a unos 56 px de la última tarjeta (se pidieron 24 px).
+- **#2 sin cambio:** el chevron de la primera fila sigue unos 15 px más a la derecha. Pasa a la implementación.
+
+## Decisión
+
+Aprobada el 2026-11-23.
+
+| Frame | Captura final |
+| --- | --- |
+| 18-A | v1.1 |
+| 18-B | v1.2 |
+| 18-C | v2.1 |
+| 18-D | v1.4 |
+
+**Ajustes en la implementación (React + Tailwind):**
+
+- Un único componente `FilaNotificacion` con el chevron a 16 px del borde derecho en todas las filas (#2).
+- Estrella rellena para «Viaje completado» en ambos modos (#3).
+- Encabezado de flujo con línea divisoria inferior en todas las variantes (#4).
+- Leyenda de 30 días 24 px debajo de la lista (#5).
+- La línea de asistencia puede ocupar dos líneas, con el icono alineado arriba (#6).
+- Estado vacío: «Buscar viajes» para el pasajero y «Publicar viaje» para el conductor.
+
+**Aprendizajes:**
+
+- Duplicar 18-A para 18-C y 18-D funcionó a la primera en contenido. Lo que falló fue el ancho: antes de pedir dos textos en una fila, comprobar que caben en los 358 px útiles.
+- Stitch no unifica la posición del chevron entre filas de distinta altura. Conviene resolverlo en el componente y no gastar pasadas en ello.

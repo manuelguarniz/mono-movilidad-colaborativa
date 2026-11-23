@@ -1395,7 +1395,7 @@ Los 16 mockups de `frames/` guían la implementación visual y son los que refer
 | 15 | [15. perfil_actualizar_datos.jpeg](<frames/15. perfil_actualizar_datos.jpeg>) | Actualizar datos | Perfil | Implementada según el prompt (15-A a 15-D, sin capturas aprobadas) · rediseño en diseño ([prompt](<docs/design/P15-ActualizarDatos/prompt.md>)) |
 | 16 | [P16-ActualizarVehiculo/v2.1.png](<docs/design/P16-ActualizarVehiculo/v2.1.png>) | Actualizar vehículo | Perfil | Implementada · rediseño aprobado |
 | 17 | [P17-MisViajes/v2.1.png](<docs/design/P17-MisViajes/v2.1.png>) | Mis viajes | Mis viajes | Implementada · diseño aprobado |
-| 18 | [P18-Notificaciones/prompt.md](<docs/design/P18-Notificaciones/prompt.md>) | Notificaciones | Notificaciones | En diseño |
+| 18 | [P18-Notificaciones/v1.1.png](<docs/design/P18-Notificaciones/v1.1.png>) | Notificaciones | Notificaciones | Diseño aprobado |
 | 19 | [P19-Historial/v3.1.png](<docs/design/P19-Historial/v3.1.png>) | Historial | Historial | Implementada |
 | 20 | [P20-Calificar/v1.1.png](<docs/design/P20-Calificar/v1.1.png>) | Calificar | Calificaciones | Implementada |
 | 21 | [P21-Billetera/v1.1.png](<docs/design/P21-Billetera/v1.1.png>) | Billetera | Billetera | Implementada · diseño aprobado |
