@@ -1,5 +1,6 @@
 import { apiClient } from "@/shared/api/apiClient";
 import type {
+  Movement,
   MovementPage,
   TopUpResult,
   Wallet,
@@ -12,6 +13,18 @@ export const walletService = {
   /** 20 movimientos por página, del más reciente al más antiguo (RF-11). */
   getMovements: (page: number) =>
     apiClient.get<unknown, MovementPage>("/wallet/movements", { params: { page } }),
+
+  /** Todo el historial (para exportarlo): recorre todas las páginas, del más reciente al más antiguo. */
+  getAllMovements: async () => {
+    const result: Movement[] = [];
+    for (let page = 1; ; page++) {
+      const { data, hasMore } = await walletService.getMovements(page);
+      result.push(...data);
+      if (!hasMore) {
+        return result;
+      }
+    }
+  },
 
   /** Recarga simulada con Yape (RN-41): `amount` en soles, 1 crédito por sol. */
   topUp: (amount: number, operationCode: string) =>

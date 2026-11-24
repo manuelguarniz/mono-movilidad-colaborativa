@@ -6,6 +6,8 @@ import { MovementList } from "@/features/wallet/components/MovementList";
 import { TopUpSheet } from "@/features/wallet/components/TopUpSheet";
 import { WithdrawSheet } from "@/features/wallet/components/WithdrawSheet";
 import { walletService } from "@/features/wallet/services/walletService";
+import { exportMovementsPdf } from "@/features/wallet/exportMovementsPdf";
+import DownloadIcon from "@/assets/images/icons/download.svg?react";
 import { formatDepartureLabel } from "@/shared/utils/limaTime";
 import ClockIcon from "@/assets/images/icons/clock.svg?react";
 import CarIcon from "@/assets/images/icons/ride.svg?react";
@@ -32,6 +34,7 @@ export function WalletPage() {
   );
   const [returnTo] = useState(() => safeReturn(searchParams.get("volver")));
   const [toast, setToast] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Los parámetros solo sirven al entrar: se quitan para que recargar la página no reabra la hoja.
   useEffect(() => {
@@ -60,6 +63,24 @@ export function WalletPage() {
   const isDriver = wallet?.activeMode === "DRIVER";
   const movements = movementsQuery.data?.pages.flatMap((page) => page.data) ?? [];
   const pending = wallet?.pendingWithdrawal;
+
+  // Exporta a PDF todo el historial, aunque no esté cargado en la lista.
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const to = new Date();
+      const all = await walletService.getAllMovements();
+      // Vienen del más reciente al más antiguo: el periodo empieza en el último.
+      const oldest = all[all.length - 1];
+      const from = oldest ? new Date(oldest.createdAt) : to;
+      await exportMovementsPdf({ movements: all, wallet, from, to });
+      setToast(all.length ? "PDF descargado" : "PDF descargado (aún no tienes movimientos)");
+    } catch {
+      setToast("No pudimos exportar tus movimientos");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="dashboard-page">
@@ -118,9 +139,21 @@ export function WalletPage() {
       )}
 
       <section aria-labelledby="wallet-movements-title" className="pb-4">
-        <h2 id="wallet-movements-title" className="publish-label mt-2">
-          Movimientos
-        </h2>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <h2 id="wallet-movements-title" className="publish-label">
+            Movimientos
+          </h2>
+          <button
+            type="button"
+            className="my-rides-text-button inline-flex items-center gap-1.5 disabled:opacity-60"
+            disabled={exporting || movementsQuery.isLoading}
+            onClick={handleExport}
+            aria-label="Exportar en PDF todo el historial de movimientos"
+          >
+            <DownloadIcon className="h-4 w-4" aria-hidden="true" />
+            {exporting ? "Exportando..." : "Exportar"}
+          </button>
+        </div>
         {movementsQuery.isLoading ? (
           <p className="py-6 text-center text-sm text-[var(--text-muted)]">Cargando movimientos...</p>
         ) : movementsQuery.isError && !movements.length ? (
