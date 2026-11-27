@@ -4,8 +4,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -13,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.web.UsuarioActual;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.VehiculoDto;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.application.VehiculoService;
 import pe.edu.utp.app_movilidadcolaborativa.vehicles.domain.dto.ActualizarVehiculoRequest;
@@ -28,23 +27,19 @@ public class VehiculoController {
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
-	public VehiculoDto registrar(@AuthenticationPrincipal Jwt jwt,
+	public VehiculoDto registrar(@UsuarioActual ObjectId usuarioId,
 			@Valid @RequestBody RegistrarVehiculoRequest solicitud) {
-		return vehiculoService.registrar(usuarioId(jwt), solicitud);
+		return vehiculoService.registrar(usuarioId, solicitud);
 	}
 
 	@GetMapping("/me")
-	public VehiculoDto consultar(@AuthenticationPrincipal Jwt jwt) {
-		return vehiculoService.consultar(usuarioId(jwt));
+	public VehiculoDto consultar(@UsuarioActual ObjectId usuarioId) {
+		return vehiculoService.consultar(usuarioId);
 	}
 
 	@PutMapping("/me")
-	public VehiculoDto actualizar(@AuthenticationPrincipal Jwt jwt,
+	public VehiculoDto actualizar(@UsuarioActual ObjectId usuarioId,
 			@Valid @RequestBody ActualizarVehiculoRequest solicitud) {
-		return vehiculoService.actualizar(usuarioId(jwt), solicitud);
-	}
-
-	private static ObjectId usuarioId(Jwt jwt) {
-		return new ObjectId(jwt.getSubject());
+		return vehiculoService.actualizar(usuarioId, solicitud);
 	}
 }

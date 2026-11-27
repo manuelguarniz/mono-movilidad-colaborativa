@@ -16,6 +16,7 @@ import pe.edu.utp.app_movilidadcolaborativa.notifications.application.Notificaci
 import pe.edu.utp.app_movilidadcolaborativa.notifications.domain.dto.BandejaDto;
 import pe.edu.utp.app_movilidadcolaborativa.notifications.domain.dto.NoLeidasDto;
 import pe.edu.utp.app_movilidadcolaborativa.notifications.infrastructure.realtime.ConexionesSse;
+import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.web.UsuarioActual;
 
 /** Bandeja, contador y stream en tiempo real de RF-13; todas las rutas exigen un token SESSION (ver SecurityConfig). */
 @RestController
@@ -27,23 +28,23 @@ public class NotificacionController {
 	private final ConexionesSse conexiones;
 
 	@GetMapping
-	public BandejaDto bandeja(@AuthenticationPrincipal Jwt jwt) {
-		return notificacionService.bandeja(usuarioId(jwt));
+	public BandejaDto bandeja(@UsuarioActual ObjectId usuarioId) {
+		return notificacionService.bandeja(usuarioId);
 	}
 
 	@GetMapping("/unread-count")
-	public NoLeidasDto noLeidas(@AuthenticationPrincipal Jwt jwt) {
-		return new NoLeidasDto(notificacionService.noLeidas(usuarioId(jwt)));
+	public NoLeidasDto noLeidas(@UsuarioActual ObjectId usuarioId) {
+		return new NoLeidasDto(notificacionService.noLeidas(usuarioId));
 	}
 
 	@PostMapping("/{notificationId}/read")
-	public NoLeidasDto marcarLeida(@AuthenticationPrincipal Jwt jwt, @PathVariable ObjectId notificationId) {
-		return new NoLeidasDto(notificacionService.marcarLeida(usuarioId(jwt), notificationId));
+	public NoLeidasDto marcarLeida(@UsuarioActual ObjectId usuarioId, @PathVariable ObjectId notificationId) {
+		return new NoLeidasDto(notificacionService.marcarLeida(usuarioId, notificationId));
 	}
 
 	@PostMapping("/read-all")
-	public NoLeidasDto marcarTodas(@AuthenticationPrincipal Jwt jwt) {
-		return new NoLeidasDto(notificacionService.marcarTodas(usuarioId(jwt)));
+	public NoLeidasDto marcarTodas(@UsuarioActual ObjectId usuarioId) {
+		return new NoLeidasDto(notificacionService.marcarTodas(usuarioId));
 	}
 
 	/**
@@ -51,15 +52,11 @@ public class NotificacionController {
 	 * nueva. El cliente envía el token en Authorization (con fetch), igual que en el resto de la API.
 	 */
 	@GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-	public SseEmitter stream(@AuthenticationPrincipal Jwt jwt, HttpServletResponse response) {
+	public SseEmitter stream(@UsuarioActual ObjectId usuarioId, @AuthenticationPrincipal Jwt jwt,
+			HttpServletResponse response) {
 		// Sin caché ni buffer en proxies (nginx), para que cada evento salga en cuanto se escribe.
 		response.setHeader("Cache-Control", "no-cache");
 		response.setHeader("X-Accel-Buffering", "no");
-		ObjectId usuarioId = usuarioId(jwt);
 		return conexiones.abrir(usuarioId, jwt.getExpiresAt(), notificacionService.noLeidas(usuarioId));
-	}
-
-	private static ObjectId usuarioId(Jwt jwt) {
-		return new ObjectId(jwt.getSubject());
 	}
 }

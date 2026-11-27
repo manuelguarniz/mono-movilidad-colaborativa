@@ -3,14 +3,13 @@ package pe.edu.utp.app_movilidadcolaborativa.users.infrastructure.web;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.web.UsuarioActual;
 import pe.edu.utp.app_movilidadcolaborativa.users.application.PerfilService;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.ActualizarPerfilRequest;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.dto.CambiarModoRequest;
@@ -25,24 +24,20 @@ public class UsuarioController {
 	private final PerfilService perfilService;
 
 	@GetMapping("/me")
-	public PerfilUsuarioDto consultarPerfil(@AuthenticationPrincipal Jwt jwt) {
-		return perfilService.consultar(usuarioId(jwt));
+	public PerfilUsuarioDto consultarPerfil(@UsuarioActual ObjectId usuarioId) {
+		return perfilService.consultar(usuarioId);
 	}
 
 	@PutMapping("/me")
-	public PerfilUsuarioDto actualizarPerfil(@AuthenticationPrincipal Jwt jwt,
+	public PerfilUsuarioDto actualizarPerfil(@UsuarioActual ObjectId usuarioId,
 			@Valid @RequestBody ActualizarPerfilRequest solicitud) {
-		return perfilService.actualizar(usuarioId(jwt), solicitud);
+		return perfilService.actualizar(usuarioId, solicitud);
 	}
 
 	/** Cambio de modo confirmado en el modal del perfil (RN-48). */
 	@PatchMapping("/me/mode")
-	public PerfilUsuarioDto cambiarModo(@AuthenticationPrincipal Jwt jwt,
+	public PerfilUsuarioDto cambiarModo(@UsuarioActual ObjectId usuarioId,
 			@Valid @RequestBody CambiarModoRequest solicitud) {
-		return perfilService.cambiarModo(usuarioId(jwt), solicitud);
-	}
-
-	private static ObjectId usuarioId(Jwt jwt) {
-		return new ObjectId(jwt.getSubject());
+		return perfilService.cambiarModo(usuarioId, solicitud);
 	}
 }

@@ -1,19 +1,17 @@
 package pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.web;
 
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
-import org.springframework.web.bind.support.WebDataBinderFactory;
-import org.springframework.web.context.request.NativeWebRequest;
-import org.springframework.web.method.support.HandlerMethodArgumentResolver;
-import org.springframework.web.method.support.ModelAndViewContainer;
 import pe.edu.utp.app_movilidadcolaborativa.auth.application.AuthService;
 import pe.edu.utp.app_movilidadcolaborativa.auth.application.RegistroService;
 import pe.edu.utp.app_movilidadcolaborativa.auth.domain.dto.LoginRequest;
@@ -92,6 +90,9 @@ class ValidacionSolicitudesTest {
 
 	@BeforeEach
 	void configurar() {
+		// Sin el filtro de seguridad, el usuario autenticado se fija con un JWT en el SecurityContext.
+		Jwt jwt = Jwt.withTokenValue("token").header("alg", "HS256").subject(new ObjectId().toHexString()).build();
+		SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
 		LocalValidatorFactoryBean validador = new LocalValidatorFactoryBean();
 		validador.afterPropertiesSet();
 		mvc = MockMvcBuilders
@@ -103,8 +104,13 @@ class ValidacionSolicitudesTest {
 							new HistorialController(historialService), new CalificacionController(calificacionService))
 				.setControllerAdvice(new ManejadorErrores())
 				.setValidator(validador)
-				.setCustomArgumentResolvers(jwtDelUsuario())
+				.setCustomArgumentResolvers(new UsuarioActualArgumentResolver())
 				.build();
+	}
+
+	@AfterEach
+	void limpiar() {
+		SecurityContextHolder.clearContext();
 	}
 
 	@Test
@@ -119,23 +125,6 @@ class ValidacionSolicitudesTest {
 				.andExpect(jsonPath("$.maxPrice").value(10))
 				.andExpect(jsonPath("$.maxStops").value(5))
 				.andExpect(jsonPath("$.maxConditions").value(10));
-	}
-
-	// Sin el filtro de seguridad, el @AuthenticationPrincipal se resuelve con un JWT fijo.
-	private static HandlerMethodArgumentResolver jwtDelUsuario() {
-		Jwt jwt = Jwt.withTokenValue("token").header("alg", "HS256").subject(new ObjectId().toHexString()).build();
-		return new HandlerMethodArgumentResolver() {
-			@Override
-			public boolean supportsParameter(MethodParameter parametro) {
-				return parametro.getParameterType() == Jwt.class;
-			}
-
-			@Override
-			public Object resolveArgument(MethodParameter parametro, ModelAndViewContainer contenedor,
-					NativeWebRequest solicitud, WebDataBinderFactory fabrica) {
-				return jwt;
-			}
-		};
 	}
 
 	@Test

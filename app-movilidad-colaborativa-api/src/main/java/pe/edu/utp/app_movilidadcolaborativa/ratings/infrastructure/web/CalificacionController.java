@@ -4,8 +4,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +15,7 @@ import pe.edu.utp.app_movilidadcolaborativa.ratings.application.CalificacionServ
 import pe.edu.utp.app_movilidadcolaborativa.ratings.domain.dto.CalificacionDto;
 import pe.edu.utp.app_movilidadcolaborativa.ratings.domain.dto.CalificarRequest;
 import pe.edu.utp.app_movilidadcolaborativa.ratings.domain.dto.ContextoCalificacionDto;
+import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.web.UsuarioActual;
 
 /** Calificaciones (RF-10, RN-47); todas las rutas exigen un token SESSION (ver SecurityConfig). */
 @RestController
@@ -27,17 +26,13 @@ public class CalificacionController {
 	private final CalificacionService calificacionService;
 
 	@GetMapping("/rides/{rideId}")
-	public ContextoCalificacionDto contexto(@AuthenticationPrincipal Jwt jwt, @PathVariable ObjectId rideId) {
-		return calificacionService.contexto(usuarioId(jwt), rideId);
+	public ContextoCalificacionDto contexto(@UsuarioActual ObjectId usuarioId, @PathVariable ObjectId rideId) {
+		return calificacionService.contexto(usuarioId, rideId);
 	}
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
-	public CalificacionDto calificar(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CalificarRequest solicitud) {
-		return calificacionService.calificar(usuarioId(jwt), solicitud);
-	}
-
-	private static ObjectId usuarioId(Jwt jwt) {
-		return new ObjectId(jwt.getSubject());
+	public CalificacionDto calificar(@UsuarioActual ObjectId usuarioId, @Valid @RequestBody CalificarRequest solicitud) {
+		return calificacionService.calificar(usuarioId, solicitud);
 	}
 }

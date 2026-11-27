@@ -6,8 +6,6 @@ import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +28,7 @@ import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ReservarViajeReques
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.ViajeDetalleDto;
 import pe.edu.utp.app_movilidadcolaborativa.shared.application.ParametrosService;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.dto.MensajeDto;
+import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.web.UsuarioActual;
 
 import java.net.URI;
 
@@ -45,14 +44,14 @@ public class ViajeController {
 	private final ParametrosService parametrosService;
 
 	@GetMapping
-	public ListadoViajesDto listar(@AuthenticationPrincipal Jwt jwt,
+	public ListadoViajesDto listar(@UsuarioActual ObjectId usuarioId,
 			@Valid @ModelAttribute FiltroViajesRequest filtro) {
-		return viajeService.listar(usuarioId(jwt), filtro);
+		return viajeService.listar(usuarioId, filtro);
 	}
 
 	@GetMapping("/mine")
-	public MisViajesConductorDto listarPropios(@AuthenticationPrincipal Jwt jwt) {
-		return misViajesService.viajesPropios(usuarioId(jwt));
+	public MisViajesConductorDto listarPropios(@UsuarioActual ObjectId usuarioId) {
+		return misViajesService.viajesPropios(usuarioId);
 	}
 
 	/** Límites vigentes del formulario de publicación (P11), leídos de la colección app (RN-31). */
@@ -62,47 +61,43 @@ public class ViajeController {
 	}
 
 	@PostMapping
-	public ResponseEntity<ViajeDetalleDto> publicar(@AuthenticationPrincipal Jwt jwt,
+	public ResponseEntity<ViajeDetalleDto> publicar(@UsuarioActual ObjectId usuarioId,
 			@Valid @RequestBody PublicarViajeRequest solicitud, HttpServletRequest peticion) {
-		ViajeDetalleDto viaje = viajeService.publicar(usuarioId(jwt), solicitud);
+		ViajeDetalleDto viaje = viajeService.publicar(usuarioId, solicitud);
 		// El context-path (/api) forma parte de la ruta del recurso creado.
 		return ResponseEntity.created(URI.create(peticion.getContextPath() + "/rides/" + viaje.id())).body(viaje);
 	}
 
 	@GetMapping("/{rideId}")
-	public ViajeDetalleDto consultar(@AuthenticationPrincipal Jwt jwt, @PathVariable ObjectId rideId) {
-		return viajeService.consultar(usuarioId(jwt), rideId);
+	public ViajeDetalleDto consultar(@UsuarioActual ObjectId usuarioId, @PathVariable ObjectId rideId) {
+		return viajeService.consultar(usuarioId, rideId);
 	}
 
 	@PostMapping("/{rideId}/reserve")
 	@ResponseStatus(HttpStatus.CREATED)
-	public MensajeDto reservar(@AuthenticationPrincipal Jwt jwt, @PathVariable ObjectId rideId,
+	public MensajeDto reservar(@UsuarioActual ObjectId usuarioId, @PathVariable ObjectId rideId,
 			@Valid @RequestBody(required = false) ReservarViajeRequest solicitud) {
-		reservaService.reservar(usuarioId(jwt), rideId, solicitud == null ? 1 : solicitud.seats());
+		reservaService.reservar(usuarioId, rideId, solicitud == null ? 1 : solicitud.seats());
 		return new MensajeDto("Reserva confirmada");
 	}
 
 	@PostMapping("/{rideId}/cancel")
-	public MensajeDto cancelar(@AuthenticationPrincipal Jwt jwt, @PathVariable ObjectId rideId,
+	public MensajeDto cancelar(@UsuarioActual ObjectId usuarioId, @PathVariable ObjectId rideId,
 			@Valid @RequestBody(required = false) CancelarViajeRequest solicitud) {
-		misViajesService.cancelarViaje(usuarioId(jwt), rideId, solicitud == null ? null : solicitud.reason());
+		misViajesService.cancelarViaje(usuarioId, rideId, solicitud == null ? null : solicitud.reason());
 		return new MensajeDto("Viaje cancelado");
 	}
 
 	@PostMapping("/{rideId}/start")
-	public MensajeDto iniciar(@AuthenticationPrincipal Jwt jwt, @PathVariable ObjectId rideId,
+	public MensajeDto iniciar(@UsuarioActual ObjectId usuarioId, @PathVariable ObjectId rideId,
 			@Valid @RequestBody IniciarViajeRequest solicitud) {
-		misViajesService.iniciar(usuarioId(jwt), rideId, solicitud.boardedBookingIds());
+		misViajesService.iniciar(usuarioId, rideId, solicitud.boardedBookingIds());
 		return new MensajeDto("Viaje iniciado");
 	}
 
 	@PostMapping("/{rideId}/finish")
-	public MensajeDto finalizar(@AuthenticationPrincipal Jwt jwt, @PathVariable ObjectId rideId) {
-		misViajesService.finalizar(usuarioId(jwt), rideId);
+	public MensajeDto finalizar(@UsuarioActual ObjectId usuarioId, @PathVariable ObjectId rideId) {
+		misViajesService.finalizar(usuarioId, rideId);
 		return new MensajeDto("Viaje completado");
-	}
-
-	private static ObjectId usuarioId(Jwt jwt) {
-		return new ObjectId(jwt.getSubject());
 	}
 }

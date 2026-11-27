@@ -4,8 +4,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.web.UsuarioActual;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.application.BilleteraService;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.dto.BilleteraDto;
 import pe.edu.utp.app_movilidadcolaborativa.wallet.domain.dto.MovimientosDto;
@@ -30,29 +29,25 @@ public class BilleteraController {
 	private final BilleteraService billeteraService;
 
 	@GetMapping
-	public BilleteraDto consultar(@AuthenticationPrincipal Jwt jwt) {
-		return billeteraService.consultar(usuarioId(jwt));
+	public BilleteraDto consultar(@UsuarioActual ObjectId usuarioId) {
+		return billeteraService.consultar(usuarioId);
 	}
 
 	@GetMapping("/movements")
-	public MovimientosDto movimientos(@AuthenticationPrincipal Jwt jwt,
+	public MovimientosDto movimientos(@UsuarioActual ObjectId usuarioId,
 			@RequestParam(defaultValue = "1") int page) {
-		return billeteraService.movimientos(usuarioId(jwt), Math.max(1, page));
+		return billeteraService.movimientos(usuarioId, Math.max(1, page));
 	}
 
 	@PostMapping("/top-ups")
 	@ResponseStatus(HttpStatus.CREATED)
-	public RecargaDto recargar(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody RecargarRequest solicitud) {
-		return billeteraService.recargar(usuarioId(jwt), solicitud);
+	public RecargaDto recargar(@UsuarioActual ObjectId usuarioId, @Valid @RequestBody RecargarRequest solicitud) {
+		return billeteraService.recargar(usuarioId, solicitud);
 	}
 
 	@PostMapping("/withdrawals")
 	@ResponseStatus(HttpStatus.CREATED)
-	public RetiroDto retirar(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody RetirarRequest solicitud) {
-		return billeteraService.retirar(usuarioId(jwt), solicitud);
-	}
-
-	private static ObjectId usuarioId(Jwt jwt) {
-		return new ObjectId(jwt.getSubject());
+	public RetiroDto retirar(@UsuarioActual ObjectId usuarioId, @Valid @RequestBody RetirarRequest solicitud) {
+		return billeteraService.retirar(usuarioId, solicitud);
 	}
 }

@@ -2,8 +2,6 @@ package pe.edu.utp.app_movilidadcolaborativa.rides.infrastructure.web;
 
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -11,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import pe.edu.utp.app_movilidadcolaborativa.rides.application.HistorialService;
 import pe.edu.utp.app_movilidadcolaborativa.rides.domain.dto.HistorialDto;
 import pe.edu.utp.app_movilidadcolaborativa.shared.domain.exception.ValidacionException;
+import pe.edu.utp.app_movilidadcolaborativa.shared.infrastructure.web.UsuarioActual;
 import pe.edu.utp.app_movilidadcolaborativa.users.domain.model.Rol;
 
 /** Historial (RF-09); exige un token SESSION (ver SecurityConfig). */
@@ -23,7 +22,7 @@ public class HistorialController {
 
 	/** role es PASSENGER o DRIVER: un filtro del historial, no el modo activo (RN-48). */
 	@GetMapping
-	public HistorialDto consultar(@AuthenticationPrincipal Jwt jwt, @RequestParam String role,
+	public HistorialDto consultar(@UsuarioActual ObjectId usuarioId, @RequestParam String role,
 			@RequestParam(defaultValue = "1") int page) {
 		Rol rol;
 		try {
@@ -31,6 +30,6 @@ public class HistorialController {
 		} catch (IllegalArgumentException ex) {
 			throw new ValidacionException("role", "El rol debe ser PASSENGER o DRIVER");
 		}
-		return historialService.consultar(new ObjectId(jwt.getSubject()), rol, Math.max(1, page));
+		return historialService.consultar(usuarioId, rol, Math.max(1, page));
 	}
 }
