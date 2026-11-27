@@ -8,7 +8,8 @@ import pe.edu.utp.app_movilidadcolaborativa.wallet.application.BilleteraService;
 
 /**
  * RN-42: cada minuto devuelve los créditos de los retiros que el operador marcó RECHAZADO en la base de datos. Es la
- * parte de la billetera del job de RF-08; el resto (cierre y cancelación automática de viajes) sigue pendiente.
+ * parte de la billetera del job de RF-08; la cancelación de los viajes no iniciados está en CancelacionViajesNoIniciadosJob y el cierre automático sigue
+ * pendiente.
  */
 @Slf4j
 @Component

@@ -262,6 +262,44 @@ class MisViajesServiceTest {
 	}
 
 	@Test
+	void elSistemaCancelaLosViajesNoIniciadosConReembolso() {
+		Viaje vencido = Viajes.publicado(viajeId, usuarioId).fechaSalida(enMinutos(-45)).build();
+		when(mongoTemplate.find(any(Query.class), eq(Viaje.class))).thenReturn(List.of(vencido));
+		Reserva confirmada = reserva(new ObjectId(), new ObjectId(), EstadoReserva.CONFIRMADA, enMinutos(-45));
+		when(mongoTemplate.find(any(Query.class), eq(Reserva.class))).thenReturn(List.of(confirmada));
+		when(libro.reembolsar(eq(confirmada), eq(Actor.SISTEMA), any(Instant.class))).thenReturn(12);
+
+		assertThat(servicio.cancelarNoIniciados()).isEqualTo(1);
+
+		// RN-44: solo los PUBLICADO cuya salida pasó hace más de la tolerancia (30 min).
+		ArgumentCaptor<Query> consulta = ArgumentCaptor.forClass(Query.class);
+		verify(mongoTemplate).find(consulta.capture(), eq(Viaje.class));
+		Document filtro = consulta.getValue().getQueryObject();
+		assertThat(filtro.get("estado")).isEqualTo(EstadoViaje.PUBLICADO);
+		Instant limite = filtro.get("fecha_salida", Document.class).get("$lt", Instant.class);
+		assertThat(limite).isBetween(Instant.now().minus(Duration.ofMinutes(31)), Instant.now().minus(Duration.ofMinutes(29)));
+
+		verify(notificador).viajeCancelado(eq(vencido), eq(confirmada), eq(12), eq(null), eq(true), any(Instant.class));
+		assertThat(actualizacion(Viaje.class)).containsEntry("estado", "CANCELADO").containsEntry("cancelado_por", "SISTEMA");
+		ArgumentCaptor<Update> reservas = ArgumentCaptor.forClass(Update.class);
+		verify(mongoTemplate).updateMulti(any(Query.class), reservas.capture(), eq(Reserva.class));
+		assertThat(reservas.getValue().getUpdateObject().get("$set", Document.class))
+				.containsEntry("estado", "CANCELADA").containsEntry("cancelada_por", "SISTEMA");
+	}
+
+	@Test
+	void elSistemaOmiteElViajeQueElConductorInicioJustoAntes() {
+		when(mongoTemplate.find(any(Query.class), eq(Viaje.class)))
+				.thenReturn(List.of(Viajes.publicado(viajeId, usuarioId).fechaSalida(enMinutos(-45)).build()));
+		when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(Viaje.class)))
+				.thenReturn(UpdateResult.acknowledged(0, 0L, null));
+
+		assertThat(servicio.cancelarNoIniciados()).isZero();
+		verify(libro, never()).reembolsar(any(), any(), any());
+		verify(notificador, never()).viajeCancelado(any(), any(), any(Integer.class), any(), any(Boolean.class), any());
+	}
+
+	@Test
 	void iniciarMarcaQuienesSubieronYQuienesNo() {
 		existeViaje(EstadoViaje.PUBLICADO, enMinutos(5));
 		ObjectId subio = new ObjectId();

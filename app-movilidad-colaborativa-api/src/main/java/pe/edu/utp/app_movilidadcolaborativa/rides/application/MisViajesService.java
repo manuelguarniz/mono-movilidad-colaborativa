@@ -194,27 +194,29 @@ public class MisViajesService {
 					+ ". Si no puedes hacer el viaje, no lo inicies y se cancelará solo.");
 		}
 
-		enTransaccion(() -> {
-			// Se leen dentro de la transacción para reembolsar exactamente las que se cancelan.
-			List<Reserva> confirmadas = mongoTemplate.find(Query.query(Criteria.where("viaje_id").is(viajeId)
-					.and("estado").is(EstadoReserva.CONFIRMADA)), Reserva.class);
-			cambiarEstado(viaje, EstadoViaje.PUBLICADO, new Update()
-					.set("estado", EstadoViaje.CANCELADO.name())
-					.set("cancelado_por", Actor.CONDUCTOR.name())
-					.set("motivo_cancelacion", motivo)
-					.set("fecha_cancelacion", ahora)
-					.set("fecha_actualizacion", ahora), "Este viaje ya no está publicado");
-			mongoTemplate.updateMulti(Query.query(Criteria.where("viaje_id").is(viajeId)
-							.and("estado").is(EstadoReserva.CONFIRMADA)),
-					new Update()
-							.set("estado", EstadoReserva.CANCELADA.name())
-							.set("cancelada_por", Actor.CONDUCTOR.name())
-							.set("fecha_cancelacion", ahora)
-							.set("fecha_actualizacion", ahora),
-					Reserva.class);
-			confirmadas.forEach(reserva -> notificador.viajeCancelado(viaje, reserva,
-					libroCreditos.reembolsar(reserva, Actor.CONDUCTOR, ahora), motivo, false, ahora));
-		});
+		cancelarConReservas(viaje, Actor.CONDUCTOR, motivo, ahora);
+	}
+
+	/**
+	 * RN-44: los viajes PUBLICADO que no se iniciaron hasta {@code minutos_tolerancia_inicio} después de la salida se
+	 * cancelan con {@code cancelado_por = SISTEMA}, como en RN-26: reembolso del 100 % y aviso a cada pasajero. Cuentan
+	 * para el límite del conductor (RN-30). Devuelve cuántos viajes canceló.
+	 */
+	public int cancelarNoIniciados() {
+		Instant ahora = Instant.now();
+		int tolerancia = parametrosService.leer().minutosToleranciaInicio();
+		List<Viaje> vencidos = mongoTemplate.find(Query.query(Criteria.where("estado").is(EstadoViaje.PUBLICADO)
+				.and("fecha_salida").lt(ahora.minus(Duration.ofMinutes(tolerancia)))), Viaje.class);
+		int cancelados = 0;
+		for (Viaje viaje : vencidos) {
+			try {
+				cancelarConReservas(viaje, Actor.SISTEMA, null, ahora);
+				cancelados++;
+			} catch (ApiException _) {
+				// El conductor lo inició o canceló entre la consulta y el cambio: ya no está PUBLICADO.
+			}
+		}
+		return cancelados;
 	}
 
 	/**
@@ -300,6 +302,31 @@ public class MisViajesService {
 	}
 
 	// ------------------------------------------------------------------ Apoyo
+
+	// RN-26 y RN-44: el viaje y sus reservas CONFIRMADA pasan a cancelados y cada pasajero recupera lo retenido.
+	private void cancelarConReservas(Viaje viaje, Actor actor, String motivo, Instant ahora) {
+		enTransaccion(() -> {
+			// Se leen dentro de la transacción para reembolsar exactamente las que se cancelan.
+			List<Reserva> confirmadas = mongoTemplate.find(Query.query(Criteria.where("viaje_id").is(viaje.id())
+					.and("estado").is(EstadoReserva.CONFIRMADA)), Reserva.class);
+			cambiarEstado(viaje, EstadoViaje.PUBLICADO, new Update()
+					.set("estado", EstadoViaje.CANCELADO.name())
+					.set("cancelado_por", actor.name())
+					.set("motivo_cancelacion", motivo)
+					.set("fecha_cancelacion", ahora)
+					.set("fecha_actualizacion", ahora), "Este viaje ya no está publicado");
+			mongoTemplate.updateMulti(Query.query(Criteria.where("viaje_id").is(viaje.id())
+							.and("estado").is(EstadoReserva.CONFIRMADA)),
+					new Update()
+							.set("estado", EstadoReserva.CANCELADA.name())
+							.set("cancelada_por", actor.name())
+							.set("fecha_cancelacion", ahora)
+							.set("fecha_actualizacion", ahora),
+					Reserva.class);
+			confirmadas.forEach(reserva -> notificador.viajeCancelado(viaje, reserva,
+					libroCreditos.reembolsar(reserva, actor, ahora), motivo, actor == Actor.SISTEMA, ahora));
+		});
+	}
 
 	private static String fueraDePlazo(int minutos) {
 		return "Ya no puedes cancelar: faltan menos de %d minutos para la salida".formatted(minutos);
