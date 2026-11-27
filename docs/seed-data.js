@@ -2,6 +2,7 @@
 //
 // Conductor de prueba: u25900075
 // Pasajero de prueba: u25900519
+// contraseña Peru123..
 //
 // Caso	Correo
 // Conductor frecuente	u25900001 @utp.edu.pe
@@ -16,17 +17,6 @@
 //   mongosh "mongodb+srv://<usuario>:<clave>@<cluster>/db_colabora_car" seed-data.js
 //   SEED_DRY_RUN=1 mongosh "<uri>" seed-data.js   → solo genera y muestra el resumen, no escribe.
 //
-// Qué genera (relativo a la fecha en que se ejecuta):
-//   - 200 usuarios con la contraseña «Peru123..» y ultima_conexion registrada (entran sin OTP), salvo los
-//     4 de perfil pendiente. 60 % en las 5 sedes de Lima y el resto en provincias.
-//   - 50 con vehículo: 20 conductores frecuentes (ida y vuelta casi todos los días) y 30 ocasionales.
-//   - 10 000 viajes históricos de los últimos 12 meses (COMPLETADO y CANCELADO), llenos y con plazas libres,
-//     más los vigentes: PUBLICADO en los próximos 7 días con reservas CONFIRMADA y hasta 2 EN_CURSO.
-//   - Reservas en todos los estados, calificaciones, recargas, cobros, retiros (pagados, rechazados y
-//     pendientes) y sanciones vigentes (RN-30 y RN-38).
-//
-// Es idempotente: todos los _id empiezan con «5eed», y antes de insertar se borran solo esos documentos.
-// Los datos reales (cualquier otro _id) no se tocan.
 
 const DRY_RUN = typeof process !== "undefined" && process.env.SEED_DRY_RUN === "1";
 
